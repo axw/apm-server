@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/elastic/apm-agent-go"
 	"github.com/elastic/apm-server/config"
 	pr "github.com/elastic/apm-server/processor"
 	"github.com/elastic/beats/libbeat/beat"
@@ -102,6 +103,23 @@ func (p *publisher) Send(req pendingReq) error {
 
 func (p *publisher) run() {
 	for req := range p.pendingRequests {
-		p.client.PublishAll(req.payload.Transform(req.config))
+		p.processPendingReq(req)
+	}
+}
+
+func (p *publisher) processPendingReq(req pendingReq) {
+	tx := elasticapm.DefaultTracer.StartTransaction("process", "publisher")
+	defer tx.Done(-1)
+
+	span := tx.StartSpan("Transform", "publisher", nil)
+	events := req.payload.Transform(req.config)
+	if span != nil {
+		span.Done(-1)
+	}
+
+	span = tx.StartSpan("PublishAll", "publisher", nil)
+	p.client.PublishAll(events)
+	if span != nil {
+		span.Done(-1)
 	}
 }
