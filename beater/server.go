@@ -8,7 +8,6 @@ import (
 	"golang.org/x/net/netutil"
 
 	"github.com/elastic/apm-agent-go"
-	"github.com/elastic/apm-agent-go/module/apmhttp"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/version"
 )
@@ -16,15 +15,13 @@ import (
 type reporter func(pendingReq) error
 
 func newServer(config *Config, report reporter) *http.Server {
-	mux := newMuxer(config, report)
-
 	// TODO(axw) get the version from beat.Info.Version
 	elasticapm.DefaultTracer.Service.Name = "apm-server"
 	elasticapm.DefaultTracer.Service.Version = version.GetDefaultVersion()
 
 	return &http.Server{
 		Addr:           config.Host,
-		Handler:        apmhttp.Wrap(mux),
+		Handler:        newHandler(config, report),
 		ReadTimeout:    config.ReadTimeout,
 		WriteTimeout:   config.WriteTimeout,
 		MaxHeaderBytes: config.MaxHeaderSize,
