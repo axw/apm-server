@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kr/pretty"
 	"github.com/santhosh-tekuri/jsonschema"
 
 	"github.com/elastic/apm-server/model/metricset/generated/schema"
@@ -67,22 +68,28 @@ type metricsetDecoder struct {
 }
 
 func V2DecodeEvent(input interface{}, err error) (transform.Transformable, error) {
+	logp.NewLogger("transform").Infof("decoding metricset event")
 	e, raw, err := decodeEvent(input, err)
 	if err != nil {
+		logp.NewLogger("transform").Errorf("decoding failed: %s", err)
 		return nil, err
 	}
 	decoder := utility.ManualDecoder{}
 	e.Timestamp = decoder.TimeEpochMicro(raw, "timestamp")
+	logp.NewLogger("transform").Infof("decoded event: %v", pretty.Sprint(e))
 	return e, decoder.Err
 }
 
 func V1DecodeEvent(input interface{}, err error) (transform.Transformable, error) {
+	logp.NewLogger("transform").Infof("decoding metricset event")
 	e, raw, err := decodeEvent(input, err)
 	if err != nil {
+		logp.NewLogger("transform").Errorf("decoding failed: %s", err)
 		return nil, err
 	}
 	decoder := utility.ManualDecoder{}
 	e.Timestamp = decoder.TimeRFC3339(raw, "timestamp")
+	logp.NewLogger("transform").Infof("decoded event: %v", pretty.Sprint(e))
 	return e, decoder.Err
 }
 
