@@ -214,31 +214,32 @@ const ModelSchema = `{
             "description": "Function call which was the primary perpetrator of this event.",
             "type": ["string", "null"]
         },
-        "exception": {
-            "description": "Information about the originally thrown error.",
-            "type": ["object", "null"],
-            "properties": {
-                "code": {
-                    "type": ["string", "integer", "null"],
-                    "maxLength": 1024,
-                    "description": "The error code set when the error happened, e.g. database error code."
-                },
-                "message": {
-                   "description": "The original error message.",
-                   "type": ["string", "null"]
-                },
-                "module": {
-                    "description": "Describes the exception type's module namespace.",
-                    "type": ["string", "null"],
-                    "maxLength": 1024
-                },
-                "attributes": {
-                    "type": ["object", "null"]
-                },
-                "stacktrace": {
-                    "type": ["array", "null"],
-                    "items": {
-                            "$id": "docs/spec/stacktrace_frame.json",
+        "exception": {    "$id": "docs/spec/errors/exception.json",
+    "type": "object",
+    "description": "Information about the originally thrown error.",
+    "type": ["object", "null"],
+    "properties": {
+        "code": {
+            "type": ["string", "integer", "null"],
+            "maxLength": 1024,
+            "description": "The error code set when the error happened, e.g. database error code."
+        },
+        "message": {
+           "description": "The original error message.",
+           "type": ["string", "null"]
+        },
+        "module": {
+            "description": "Describes the exception type's module namespace.",
+            "type": ["string", "null"],
+            "maxLength": 1024
+        },
+        "attributes": {
+            "type": ["object", "null"]
+        },
+        "stacktrace": {
+            "type": ["array", "null"],
+            "items": {
+                    "$id": "docs/spec/stacktrace_frame.json",
     "title": "Stacktrace",
     "type": "object",
     "description": "A stacktrace frame, contains various bits (most optional) describing the context of the frame",
@@ -298,23 +299,25 @@ const ModelSchema = `{
         }
     },
     "required": ["filename", "lineno"]
-                    },
-                    "minItems": 0
-                },
-                "type": {
-                    "type": ["string", "null"],
-                    "maxLength": 1024
-                },
-                "handled": {
-                    "type": ["boolean", "null"],
-                    "description": "Indicator whether the error was caught somewhere in the code or not."
-                }
             },
-            "anyOf": [
-                {"required": ["message"], "properties": {"message": {"type": "string"}}},
-                {"required": ["type"], "properties": {"type": {"type": "string"}}}
-            ]
+            "minItems": 0
         },
+        "type": {
+            "type": ["string", "null"],
+            "maxLength": 1024
+        },
+        "handled": {
+            "type": ["boolean", "null"],
+            "description": "Indicator whether the error was caught somewhere in the code or not."
+        },
+	"cause": {
+            "type": ["object", "null"]
+	}
+    },
+    "anyOf": [
+        {"required": ["message"], "properties": {"message": {"type": "string"}}},
+        {"required": ["type"], "properties": {"type": {"type": "string"}}}
+    ]},
         "log": {
             "type": ["object", "null"],
             "description": "Additional information added when logging the error.",
