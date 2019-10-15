@@ -22,8 +22,7 @@ import (
 	"net/http"
 	"strings"
 
-	"golang.org/x/time/rate"
-
+	"github.com/elastic/apm-server/beater/api/ratelimit"
 	"github.com/elastic/apm-server/beater/headers"
 	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/beats/libbeat/logp"
@@ -40,14 +39,14 @@ var (
 
 // Context abstracts request and response information for http requests
 type Context struct {
-	Request       *http.Request
-	Logger        *logp.Logger
-	RateLimiter   *rate.Limiter
-	TokenSet      bool
-	Authorized    bool
-	IsRum         bool
-	Result        Result
-	w             http.ResponseWriter
+	Request     *http.Request
+	Logger      *logp.Logger
+	RateLimiter *ratelimit.Store
+	TokenSet    bool
+	Authorized  bool
+	IsRum       bool
+	Result      Result
+	http.ResponseWriter
 	writeAttempts int
 }
 
@@ -60,13 +59,8 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 	c.IsRum = false
 	c.RateLimiter = nil
 	c.Result.Reset()
-	c.w = w
+	c.ResponseWriter = w
 	c.writeAttempts = 0
-}
-
-// Header returns the http.Header of the context's writer
-func (c *Context) Header() http.Header {
-	return c.w.Header()
 }
 
 // MultipleWriteAttempts returns a boolean set to true if Write() was called multiple times.
@@ -84,11 +78,11 @@ func (c *Context) Write() {
 	}
 	c.writeAttempts++
 
-	c.w.Header().Set(headers.XContentTypeOptions, "nosniff")
+	c.Header().Set(headers.XContentTypeOptions, "nosniff")
 
 	body := c.Result.Body
 	if body == nil {
-		c.w.WriteHeader(c.Result.StatusCode)
+		c.WriteHeader(c.Result.StatusCode)
 		return
 	}
 
@@ -101,12 +95,12 @@ func (c *Context) Write() {
 
 	var err error
 	if c.acceptJSON() {
-		c.w.Header().Set(headers.ContentType, "application/json")
-		c.w.WriteHeader(c.Result.StatusCode)
+		c.Header().Set(headers.ContentType, "application/json")
+		c.WriteHeader(c.Result.StatusCode)
 		err = c.writeJSON(body, true)
 	} else {
-		c.w.Header().Set(headers.ContentType, "text/plain; charset=utf-8")
-		c.w.WriteHeader(c.Result.StatusCode)
+		c.Header().Set(headers.ContentType, "text/plain; charset=utf-8")
+		c.WriteHeader(c.Result.StatusCode)
 		err = c.writePlain(body)
 	}
 	if err != nil {
@@ -125,7 +119,7 @@ func (c *Context) acceptJSON() bool {
 }
 
 func (c *Context) writeJSON(body interface{}, pretty bool) error {
-	enc := json.NewEncoder(c.w)
+	enc := json.NewEncoder(c.ResponseWriter)
 	if pretty {
 		enc.SetIndent("", "  ")
 	}
@@ -134,7 +128,7 @@ func (c *Context) writeJSON(body interface{}, pretty bool) error {
 
 func (c *Context) writePlain(body interface{}) error {
 	if b, ok := body.(string); ok {
-		_, err := c.w.Write([]byte(b + "\n"))
+		_, err := c.ResponseWriter.Write([]byte(b + "\n"))
 		return err
 	}
 	// unexpected behavior to return json but changing this would be breaking
