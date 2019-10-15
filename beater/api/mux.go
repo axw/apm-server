@@ -27,6 +27,7 @@ import (
 	"github.com/elastic/apm-server/beater/api/asset/sourcemap"
 	"github.com/elastic/apm-server/beater/api/config/agent"
 	"github.com/elastic/apm-server/beater/api/intake"
+	"github.com/elastic/apm-server/beater/api/otel"
 	"github.com/elastic/apm-server/beater/api/root"
 	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/middleware"
@@ -36,6 +37,7 @@ import (
 	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/apm-server/model"
 	psourcemap "github.com/elastic/apm-server/processor/asset/sourcemap"
+	"github.com/elastic/apm-server/processor/otelconsumer"
 	"github.com/elastic/apm-server/processor/stream"
 	"github.com/elastic/apm-server/publish"
 	"github.com/elastic/apm-server/transform"
@@ -53,6 +55,9 @@ const (
 	IntakePath = "/intake/v2/events"
 	// IntakeRUMPath defines the path to ingest monitored RUM events
 	IntakeRUMPath = "/intake/v2/rum/events"
+
+	// Jaeger defines the path for the Jaeger endpoint.
+	JaegerPath = "/api/traces"
 
 	// AssetSourcemapPath defines the path to upload sourcemaps
 	AssetSourcemapPath = "/assets/v1/sourcemaps"
@@ -79,6 +84,7 @@ func NewMux(beaterConfig *config.Config, report publish.Reporter) (*http.ServeMu
 		{AgentConfigPath, backendAgentConfigHandler},
 		{IntakeRUMPath, rumHandler},
 		{IntakePath, backendHandler},
+		{JaegerPath, jaegerHandler},
 	}
 
 	for _, route := range routeMap {
@@ -96,6 +102,19 @@ func NewMux(beaterConfig *config.Config, report publish.Reporter) (*http.ServeMu
 		mux.Handle(path, expvar.Handler())
 	}
 	return mux, nil
+}
+
+func jaegerHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
+	// TODO(axw) this code should use OpenTelemetry Collector bits to abstract the receiver type.
+	h := otel.JaegerHandler(otel.Config{
+		PathPrefix: JaegerPath,
+		TraceConsumer: &otelconsumer.Consumer{
+			TransformConfig: transform.Config{},
+			ModelConfig:     model.Config{Experimental: cfg.Mode == config.ModeExperimental},
+			Reporter:        reporter,
+		},
+	})
+	return middleware.Wrap(h, backendMiddleware(cfg, otel.MonitoringMap)...)
 }
 
 func backendHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
