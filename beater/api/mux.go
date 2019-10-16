@@ -59,8 +59,14 @@ const (
 	// IntakeRUMPath defines the path to ingest monitored RUM events
 	IntakeRUMPath = "/intake/v2/rum/events"
 
-	// Jaeger defines the path for the Jaeger endpoint.
+	// JaegerPath defines the path for the Jaeger endpoint.
+	//
+	// TODO(axw) can we create a path prefix? Didn't immediately
+	// work for me, but I didn't try hard.
 	JaegerPath = "/api/traces"
+
+	// ZipkinPath defines the base path for the Zipkin HTTP endpoint.
+	ZipkinPath = "/zipkin/"
 
 	// AssetSourcemapPath defines the path to upload sourcemaps
 	AssetSourcemapPath = "/assets/v1/sourcemaps"
@@ -89,6 +95,7 @@ func NewMux(beaterConfig *config.Config, report publish.Reporter) (*http.ServeMu
 		{IntakeRUMPath, rumHandler},
 		{IntakePath, backendHandler},
 		{JaegerPath, jaegerHandler},
+		{ZipkinPath, zipkinHandler},
 	}
 
 	for _, route := range routeMap {
@@ -108,8 +115,19 @@ func NewMux(beaterConfig *config.Config, report publish.Reporter) (*http.ServeMu
 	return mux, nil
 }
 
+func zipkinHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
+	h := otel.ZipkinHandler(otel.Config{
+		PathPrefix: ZipkinPath,
+		TraceConsumer: &otelconsumer.Consumer{
+			TransformConfig: transform.Config{},
+			ModelConfig:     model.Config{Experimental: cfg.Mode == config.ModeExperimental},
+			Reporter:        reporter,
+		},
+	})
+	return middleware.Wrap(h, backendMiddleware(cfg, otel.MonitoringMap)...)
+}
+
 func jaegerHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
-	// TODO(axw) this code should use OpenTelemetry Collector bits to abstract the receiver type.
 	h := otel.JaegerHandler(otel.Config{
 		PathPrefix: JaegerPath,
 		TraceConsumer: &otelconsumer.Consumer{
