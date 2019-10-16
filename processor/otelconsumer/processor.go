@@ -118,7 +118,8 @@ func (c *Consumer) transform(td consumerdata.TraceData) (metadata.Metadata, []tr
 		startTime := time.Unix(span.StartTime.Seconds, int64(span.StartTime.Nanos))
 		endTime := time.Unix(span.EndTime.Seconds, int64(span.EndTime.Nanos))
 
-		/*
+		const logTraceData = true
+		if logTraceData {
 			fmt.Printf("%s: %s (%s)\n", td.Node.ServiceInfo.Name, span.Name.Value, span.Kind)
 			fmt.Printf(".. TraceId: %x\n", span.TraceId)
 			fmt.Printf(".. SpanId: %x\n", span.SpanId)
@@ -129,7 +130,7 @@ func (c *Consumer) transform(td consumerdata.TraceData) (metadata.Metadata, []tr
 					fmt.Printf(".... %s: %v\n", k, v.Value)
 				}
 			}
-		*/
+		}
 
 		// TODO(axw) span.StackTrace
 		// TODO(axw) span.TimeEvents -> marks? More like events, as they hold more data.
@@ -192,6 +193,14 @@ func (c *Consumer) transform(td consumerdata.TraceData) (metadata.Metadata, []tr
 						if intv, err := strconv.Atoi(v.StringValue.Value); err == nil {
 							httpResp.StatusCode = &intv
 							http.Response = &httpResp
+						}
+					case "http.protocol":
+						switch v.StringValue.Value {
+						case "HTTP/2":
+							version := "2.0"
+							http.Version = &version
+						default:
+							utility.DeepUpdate(labels, k, v.StringValue.Value)
 						}
 					default:
 						utility.DeepUpdate(labels, k, v.StringValue.Value)
