@@ -70,9 +70,11 @@ func (c *Consumer) transform(td consumerdata.TraceData) (metadata.Metadata, []tr
 		Service: &metadata.Service{Name: &td.Node.ServiceInfo.Name},
 		// User? Labels?
 	}
+	var hostport string
 	if ident := td.Node.GetIdentifier(); ident != nil {
 		md.Process = &metadata.Process{Pid: int(ident.GetPid())}
 		if ident.HostName != "" {
+			hostport = ident.HostName
 			md.System = &metadata.System{DetectedHostname: &ident.HostName}
 		}
 	}
@@ -91,6 +93,16 @@ func (c *Consumer) transform(td consumerdata.TraceData) (metadata.Metadata, []tr
 		if clientUUID, ok := td.Node.Attributes["client-uuid"]; ok {
 			md.Service.Agent.EphemeralId = &clientUUID
 		}
+	case "zipkin":
+		agentName := "Zipkin"
+		md.Service.Agent.Name = &agentName
+
+		// ipv4, ipv6, and port are populated based on the Zipkin endpoint.
+		host := td.Node.Attributes["ipv4"]
+		if host == "" {
+			host = td.Node.Attributes["ipv6"]
+		}
+		hostport = net.JoinHostPort(host, td.Node.Attributes["port"])
 	}
 
 	transformables := make([]transform.Transformable, 0, len(td.Spans))
@@ -173,8 +185,14 @@ func (c *Consumer) transform(td consumerdata.TraceData) (metadata.Metadata, []tr
 					case "http.method":
 						httpReq.Method = v.StringValue.Value
 						http.Request = &httpReq
-					case "http.url":
-						event.Url = parseURL(v.StringValue.Value, td.Node.Identifier.HostName)
+					case "http.url", "http.path":
+						event.Url = parseURL(v.StringValue.Value, hostport)
+					case "http.status_code":
+						// Zipkin sends http.status_code as a string.
+						if intv, err := strconv.Atoi(v.StringValue.Value); err == nil {
+							httpResp.StatusCode = &intv
+							http.Response = &httpResp
+						}
 					default:
 						utility.DeepUpdate(labels, k, v.StringValue.Value)
 					}

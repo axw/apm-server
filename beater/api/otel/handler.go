@@ -19,12 +19,15 @@ package otel
 
 import (
 	"context"
+	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/open-telemetry/opentelemetry-collector/consumer"
 	"github.com/open-telemetry/opentelemetry-collector/observability"
+	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
 	jaegertranslator "github.com/open-telemetry/opentelemetry-collector/translator/trace/jaeger"
 
 	"github.com/elastic/beats/libbeat/monitoring"
@@ -42,6 +45,27 @@ var (
 type Config struct {
 	PathPrefix    string
 	TraceConsumer consumer.TraceConsumer
+}
+
+func ZipkinHandler(config Config) request.Handler {
+	zr, err := zipkinreceiver.New("", config.TraceConsumer)
+	if err != nil {
+		panic(err)
+	}
+	handler := http.StripPrefix(strings.TrimSuffix(config.PathPrefix, "/"), zr)
+
+	return func(c *request.Context) {
+		ipRateLimiter := c.RateLimiter.ForIP(c.Request)
+		ok := ipRateLimiter == nil || ipRateLimiter.Allow()
+		if !ok {
+			sendError(c, &stream.Error{
+				Type:    stream.RateLimitErrType,
+				Message: "rate limit exceeded",
+			})
+			return
+		}
+		handler.ServeHTTP(c.ResponseWriter, c.Request)
+	}
 }
 
 // JaegerHandler returns a request.Handler for receiving Jaeger data,
@@ -75,13 +99,12 @@ type jaegerBatchSubmitter struct {
 }
 
 func (jbs *jaegerBatchSubmitter) SubmitBatches(batches []*jaeger.Batch, options app.SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error) {
-	// TODO(axw) the API handler is
 	ctx := context.Background()
 	ctxWithReceiverName := observability.ContextWithReceiverName(ctx, "jaeger-collector")
-	return consumeTraceData(ctxWithReceiverName, batches, jbs.TraceConsumer)
+	return consumeJaegerTraceData(ctxWithReceiverName, batches, jbs.TraceConsumer)
 }
 
-func consumeTraceData(ctx context.Context, batches []*jaeger.Batch, consumer consumer.TraceConsumer) ([]*jaeger.BatchSubmitResponse, error) {
+func consumeJaegerTraceData(ctx context.Context, batches []*jaeger.Batch, consumer consumer.TraceConsumer) ([]*jaeger.BatchSubmitResponse, error) {
 	jbsr := make([]*jaeger.BatchSubmitResponse, 0, len(batches))
 	var errs []error
 	for _, batch := range batches {
