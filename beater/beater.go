@@ -52,7 +52,7 @@ func init() {
 type beater struct {
 	config  *config.Config
 	mutex   sync.Mutex // guards server and stopped
-	server  *http.Server
+	server  *server
 	stopped bool
 	logger  *logp.Logger
 }
@@ -217,7 +217,7 @@ func (bt *beater) Run(b *beat.Beat) error {
 
 	if traceListener != nil {
 		g.Go(func() error {
-			return bt.server.Serve(traceListener)
+			return bt.server.http.Serve(traceListener)
 		})
 	}
 

@@ -223,6 +223,18 @@
 			"revisionTime": "2019-08-26T04:01:38Z"
 		},
 		{
+			"checksumSHA1": "jJutNWBYaP1CsATHOw6QYSWpQPs=",
+			"path": "github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1",
+			"revision": "5cec5ea58c3efa81fa808f2bd38ce182da9ee731",
+			"revisionTime": "2019-08-26T04:01:38Z"
+		},
+		{
+			"checksumSHA1": "TtAia2syt/kzAAospNciKkdpLH8=",
+			"path": "github.com/census-instrumentation/opencensus-proto/gen-go/agent/trace/v1",
+			"revision": "5cec5ea58c3efa81fa808f2bd38ce182da9ee731",
+			"revisionTime": "2019-08-26T04:01:38Z"
+		},
+		{
 			"checksumSHA1": "Mzhidb3XCO3NZ6sGA3gXaJyhgR8=",
 			"path": "github.com/census-instrumentation/opencensus-proto/gen-go/metrics/v1",
 			"revision": "5cec5ea58c3efa81fa808f2bd38ce182da9ee731",
@@ -1945,6 +1957,18 @@
 			"revisionTime": "2019-04-09T20:23:51Z"
 		},
 		{
+			"checksumSHA1": "t/sQ9OAykIvWiNL6sL994a2uEYo=",
+			"path": "github.com/golang/protobuf/descriptor",
+			"revision": "4c88cc3f1a34ffade77b79abc53335d1e511f25b",
+			"revisionTime": "2019-08-05T18:00:45Z"
+		},
+		{
+			"checksumSHA1": "f41kdMOO2gcaV/zF6k3xsYgwylY=",
+			"path": "github.com/golang/protobuf/jsonpb",
+			"revision": "4c88cc3f1a34ffade77b79abc53335d1e511f25b",
+			"revisionTime": "2019-08-05T18:00:45Z"
+		},
+		{
 			"checksumSHA1": "Y2MOwzNZfl4NRNDbLCZa6sgx7O0=",
 			"origin": "github.com/elastic/beats/vendor/github.com/golang/protobuf/proto",
 			"path": "github.com/golang/protobuf/proto",
@@ -2092,8 +2116,26 @@
 			"revisionTime": "2018-09-02T22:36:45Z"
 		},
 		{
+			"checksumSHA1": "qJowxi7IO47brlIWXLxWTMubMv8=",
+			"path": "github.com/grpc-ecosystem/grpc-gateway/internal",
+			"revision": "8115cdbcfe0a56abf367bbb9372a1dd2a7f2f8ab",
+			"revisionTime": "2019-10-14T07:43:21Z"
+		},
+		{
 			"checksumSHA1": "+viJA99+qqLJdns4EMNq0LY0RnA=",
 			"path": "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options",
+			"revision": "8115cdbcfe0a56abf367bbb9372a1dd2a7f2f8ab",
+			"revisionTime": "2019-10-14T07:43:21Z"
+		},
+		{
+			"checksumSHA1": "T/f3jh3q4vsM7rYeVls8zFcbEec=",
+			"path": "github.com/grpc-ecosystem/grpc-gateway/runtime",
+			"revision": "8115cdbcfe0a56abf367bbb9372a1dd2a7f2f8ab",
+			"revisionTime": "2019-10-14T07:43:21Z"
+		},
+		{
+			"checksumSHA1": "yUJS5jJyNTvxHCUUXiK3xnKfN14=",
+			"path": "github.com/grpc-ecosystem/grpc-gateway/utilities",
 			"revision": "8115cdbcfe0a56abf367bbb9372a1dd2a7f2f8ab",
 			"revisionTime": "2019-10-14T07:43:21Z"
 		},
@@ -2695,6 +2737,30 @@
 		{
 			"checksumSHA1": "XV1SyL1PSxrGc++mAyA/BkZCx5A=",
 			"path": "github.com/open-telemetry/opentelemetry-collector/receiver",
+			"revision": "5d25587cbe3fe7f41a0a7eb4ba9e0e4c4f7c1414",
+			"revisionTime": "2019-10-11T02:51:56Z"
+		},
+		{
+			"checksumSHA1": "ljDBObBD6c5whuBy+/c91fXJLfs=",
+			"path": "github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver",
+			"revision": "5d25587cbe3fe7f41a0a7eb4ba9e0e4c4f7c1414",
+			"revisionTime": "2019-10-11T02:51:56Z"
+		},
+		{
+			"checksumSHA1": "aGpDASx39ogjHriDRX68IESRz3A=",
+			"path": "github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver",
+			"revision": "5d25587cbe3fe7f41a0a7eb4ba9e0e4c4f7c1414",
+			"revisionTime": "2019-10-11T02:51:56Z"
+		},
+		{
+			"checksumSHA1": "26LVT8mcmwDxRxHDCHFl0Qr7l9k=",
+			"path": "github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver/ocmetrics",
+			"revision": "5d25587cbe3fe7f41a0a7eb4ba9e0e4c4f7c1414",
+			"revisionTime": "2019-10-11T02:51:56Z"
+		},
+		{
+			"checksumSHA1": "U0510IAoq08gDQfWP2ltObAEreA=",
+			"path": "github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver/octrace",
 			"revision": "5d25587cbe3fe7f41a0a7eb4ba9e0e4c4f7c1414",
 			"revisionTime": "2019-10-11T02:51:56Z"
 		},
@@ -3614,6 +3680,12 @@
 			"revisionTime": "2018-03-14T17:21:19Z"
 		},
 		{
+			"checksumSHA1": "vcN67ZjTbGpLLwSghHCbAEvmzMo=",
+			"path": "golang.org/x/sync/semaphore",
+			"revision": "1d60e4601c6fd243af51cc01ddf169918a5407ca",
+			"revisionTime": "2018-03-14T17:21:19Z"
+		},
+		{
 			"checksumSHA1": "A8UEhcUz0g3AzE9AcAQG+Tp2w10=",
 			"origin": "github.com/elastic/beats/vendor/golang.org/x/sys/unix",
 			"path": "golang.org/x/sys/unix",
@@ -3895,6 +3967,12 @@
 			"versionExact": "release-branch.go1.12"
 		},
 		{
+			"checksumSHA1": "eHVH24oTjntznqeFbggEeaN3XU8=",
+			"path": "google.golang.org/api/support/bundler",
+			"revision": "ed10e890a8366167a7ce33fac2b12447987bcb1c",
+			"revisionTime": "2017-08-17T17:08:30Z"
+		},
+		{
 			"checksumSHA1": "61EFkyXUswt3Su1R/C8JHJWF+jw=",
 			"origin": "github.com/elastic/beats/vendor/google.golang.org/appengine/internal",
 			"path": "google.golang.org/appengine/internal",
@@ -3944,10 +4022,22 @@
 			"revisionTime": "2019-10-16T16:05:51Z"
 		},
 		{
+			"checksumSHA1": "SBxUw8oRBhRKIAYgOx7luVbeGHs=",
+			"path": "google.golang.org/genproto/googleapis/api/httpbody",
+			"revision": "c830210a61dfaa790e1920f8d0470fc27bc2efbe",
+			"revisionTime": "2018-11-01T19:24:39Z"
+		},
+		{
 			"checksumSHA1": "dU5fToNngC22+3DsebkdYv+T3jE=",
 			"path": "google.golang.org/genproto/googleapis/rpc/status",
 			"revision": "1774047e7e5133fa3573a4e51b37a586b6b0360c",
 			"revisionTime": "2019-09-11T17:36:49Z"
+		},
+		{
+			"checksumSHA1": "JgbNbiFxBjhAtIyO2MFzbhQ75Hs=",
+			"path": "google.golang.org/genproto/protobuf/field_mask",
+			"revision": "c830210a61dfaa790e1920f8d0470fc27bc2efbe",
+			"revisionTime": "2018-11-01T19:24:39Z"
 		},
 		{
 			"checksumSHA1": "QaV307wEhx4sBf2HNF1vxWbvBCk=",

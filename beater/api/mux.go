@@ -22,7 +22,10 @@ import (
 	"net/http"
 	"regexp"
 
+	agenttracepb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/trace/v1"
 	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver/octrace"
+	"google.golang.org/grpc"
 
 	"github.com/elastic/apm-server/beater/api/asset/sourcemap"
 	"github.com/elastic/apm-server/beater/api/config/agent"
@@ -81,8 +84,11 @@ type route struct {
 	handlerFn func(*config.Config, publish.Reporter) (request.Handler, error)
 }
 
+// TODO(axw) might need to create HTTP handlers and register gRPC endpoints
+// at the same time, if we want to support grpc-gateway.
+
 // NewMux registers apm handlers to paths building up the APM Server API.
-func NewMux(beaterConfig *config.Config, report publish.Reporter) (*http.ServeMux, error) {
+func NewMux(beaterConfig *config.Config, report publish.Reporter) (http.Handler, error) {
 	pool := newContextPool()
 	mux := http.NewServeMux()
 	logger := logp.NewLogger(logs.Handler)
@@ -113,6 +119,21 @@ func NewMux(beaterConfig *config.Config, report publish.Reporter) (*http.ServeMu
 		mux.Handle(path, expvar.Handler())
 	}
 	return mux, nil
+}
+
+func RegisterGRPC(cfg *config.Config, reporter publish.Reporter, server *grpc.Server) error {
+	traceConsumer := &otelconsumer.Consumer{
+		TransformConfig: transform.Config{},
+		ModelConfig:     model.Config{Experimental: cfg.Mode == config.ModeExperimental},
+		Reporter:        reporter,
+	}
+	tr, err := octrace.New(traceConsumer)
+	if err != nil {
+		return err
+	}
+	// TODO(axw) tr needs to be stopped
+	agenttracepb.RegisterTraceServiceServer(server, tr)
+	return nil
 }
 
 func zipkinHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {

@@ -78,19 +78,19 @@ apm-server:
   #secret_token:
 
   # Enable secure communication between APM agents and the server. By default ssl is disabled.
-  #ssl:
-    #enabled: false
+  ssl:
+    enabled: false
 
     # Configure a list of root certificate authorities for verifying client certificates.
     #certificate_authorities: []
 
     # Path to file containing the certificate for server authentication.
     # Needs to be configured when ssl is enabled.
-    #certificate: ''
+    certificate: 'apm-server.pem'
 
     # Path to file containing server certificate key.
     # Needs to be configured when ssl is enabled.
-    #key: ''
+    key: 'apm-server-key.pem'
 
     # Optional configuration options for ssl communication.
 

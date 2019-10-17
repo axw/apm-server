@@ -47,6 +47,40 @@ type Config struct {
 	TraceConsumer consumer.TraceConsumer
 }
 
+/*
+// OpenCensusHandler returns a request.Handler for receiving OpenCensus data,
+// transforming them to, and reporting, Elastic APM model objects.
+func OpenCensusHandler(config Config) request.Handler {
+	// TODO(axw) ensure server can negotiate HTTP/2
+	// TODO(axw) also register grpc-gateway paths?
+	//
+	// TODO(axw) the octrace.Receiver needs to be stopped with the server.
+	tr, err := octrace.New(config.TraceConsumer)
+	if err != nil {
+		// TODO(axw) don't panic, return an error.
+		panic(err)
+	}
+	agenttracepb.RegisterTraceServiceServer(server, tr)
+	return func(c *request.Context) {
+		ipRateLimiter := c.RateLimiter.ForIP(c.Request)
+		ok := ipRateLimiter == nil || ipRateLimiter.Allow()
+		if !ok {
+			sendError(c, &stream.Error{
+				Type:    stream.RateLimitErrType,
+				Message: "rate limit exceeded",
+			})
+			return
+		}
+		// NOTE(axw) using grpc.Server with net/http.Server is considered
+		// experimental. Should we have a separate endpoint that uses
+		// grpc-go's internal http/2 implementation?
+		server.ServeHTTP(c.ResponseWriter, c.Request)
+	}
+}
+*/
+
+// ZipkinHandler returns a request.Handler for receiving Zipkin data,
+// transforming them to, and reporting, Elastic APM model objects.
 func ZipkinHandler(config Config) request.Handler {
 	zr, err := zipkinreceiver.New("", config.TraceConsumer)
 	if err != nil {
