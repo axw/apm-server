@@ -11,15 +11,14 @@ RUN pip install --upgrade setuptools
 
 # Setup work environment
 ENV APM_SERVER_PATH /go/src/github.com/elastic/apm-server
-
 RUN mkdir -p $APM_SERVER_PATH
 WORKDIR $APM_SERVER_PATH
-
 COPY . $APM_SERVER_PATH
 
 RUN make
-
-CMD ./apm-server -e -d "*"
+RUN cp apm-server /usr/local/bin
+RUN chmod 644 apm-server.yml
+CMD apm-server -e -d "*"
 
 # Add healthcheck for docker/healthcheck metricset to check during testing
 HEALTHCHECK CMD exit 0

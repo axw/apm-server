@@ -55,8 +55,7 @@ func ZipkinHandler(config Config) request.Handler {
 	handler := http.StripPrefix(strings.TrimSuffix(config.PathPrefix, "/"), zr)
 
 	return func(c *request.Context) {
-		ipRateLimiter := c.RateLimiter.ForIP(c.Request)
-		ok := ipRateLimiter == nil || ipRateLimiter.Allow()
+		ok := c.RateLimiter == nil || c.RateLimiter.Allow()
 		if !ok {
 			sendError(c, &stream.Error{
 				Type:    stream.RateLimitErrType,
@@ -81,8 +80,7 @@ func JaegerHandler(config Config) request.Handler {
 	apiHandler.RegisterRoutes(router)
 
 	return func(c *request.Context) {
-		ipRateLimiter := c.RateLimiter.ForIP(c.Request)
-		ok := ipRateLimiter == nil || ipRateLimiter.Allow()
+		ok := c.RateLimiter == nil || c.RateLimiter.Allow()
 		if !ok {
 			sendError(c, &stream.Error{
 				Type:    stream.RateLimitErrType,

@@ -195,11 +195,10 @@ func (c *Consumer) transform(td consumerdata.TraceData) (metadata.Metadata, []tr
 							http.Response = &httpResp
 						}
 					case "http.protocol":
-						switch v.StringValue.Value {
-						case "HTTP/2":
-							version := "2.0"
+						if strings.HasPrefix(v.StringValue.Value, "HTTP/") {
+							version := strings.TrimPrefix(v.StringValue.Value, "HTTP/")
 							http.Version = &version
-						default:
+						} else {
 							utility.DeepUpdate(labels, k, v.StringValue.Value)
 						}
 					default:

@@ -22,10 +22,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/elastic/apm-server/beater/api/ratelimit"
 	"github.com/elastic/apm-server/beater/headers"
 	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/beats/libbeat/logp"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -41,7 +41,7 @@ var (
 type Context struct {
 	Request     *http.Request
 	Logger      *logp.Logger
-	RateLimiter *ratelimit.Store
+	RateLimiter *rate.Limiter
 	TokenSet    bool
 	Authorized  bool
 	IsRum       bool
