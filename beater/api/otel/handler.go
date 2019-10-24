@@ -19,12 +19,16 @@ package otel
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	"github.com/open-telemetry/opentelemetry-collector/consumer"
 	"github.com/open-telemetry/opentelemetry-collector/observability"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
@@ -32,6 +36,7 @@ import (
 
 	"github.com/elastic/beats/libbeat/monitoring"
 
+	"github.com/elastic/apm-server/agentcfg"
 	"github.com/elastic/apm-server/beater/request"
 	"github.com/elastic/apm-server/processor/stream"
 )
@@ -43,8 +48,9 @@ var (
 )
 
 type Config struct {
-	PathPrefix    string
-	TraceConsumer consumer.TraceConsumer
+	PathPrefix         string
+	TraceConsumer      consumer.TraceConsumer
+	AgentConfigFetcher *agentcfg.Fetcher
 }
 
 /*
@@ -108,10 +114,52 @@ func JaegerHandler(config Config) request.Handler {
 	// that does not propagate request context, so the
 	// only way we could trace within these requests
 	// would be by creating a new router per request.
-	//router := mux.NewRouter().PathPrefix(config.PathPrefix).Subrouter()
-	router := mux.NewRouter()
+	router := mux.NewRouter().PathPrefix(config.PathPrefix).Subrouter()
 	apiHandler := app.NewAPIHandler(&jaegerBatchSubmitter{TraceConsumer: config.TraceConsumer})
 	apiHandler.RegisterRoutes(router)
+
+	router.HandleFunc("/sampling", func(w http.ResponseWriter, r *http.Request) {
+		serviceName := r.URL.Query().Get("service")
+		if serviceName == "" {
+			http.Error(w, "'service' query parameter missing", http.StatusBadRequest)
+			return
+		}
+		// TODO(axw) if Kibana is disabled/unavailable, should we return an error or a default strategy?
+		if config.AgentConfigFetcher == nil {
+			http.Error(w, "kibana connection is disabled", http.StatusServiceUnavailable)
+			return
+		}
+
+		query := agentcfg.NewQuery(serviceName, "" /* environment */)
+		result, err := config.AgentConfigFetcher.Fetch(query)
+		if err != nil {
+			// TODO(axw) convert error
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if result.Source.Etag == "" {
+			http.Error(w, fmt.Sprintf("config for service %q not found", serviceName), http.StatusNotFound)
+			return
+		}
+
+		response := sampling.NewSamplingStrategyResponse()
+		if v, ok := result.Source.Settings["transaction_sample_rate"]; ok {
+			rate, err := strconv.ParseFloat(v, 64)
+			if err == nil {
+				response.StrategyType = sampling.SamplingStrategyType_PROBABILISTIC
+				response.ProbabilisticSampling = sampling.NewProbabilisticSamplingStrategy()
+				response.ProbabilisticSampling.SamplingRate = rate
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+
+		// TODO(axw) this isn't working. Why?
+		// Fetch again to mark the config as applied.
+		//query.Etag = result.Source.Etag
+		//pretty.Println(config.AgentConfigFetcher.Fetch(query))
+	})
 
 	return func(c *request.Context) {
 		ok := c.RateLimiter == nil || c.RateLimiter.Allow()

@@ -27,6 +27,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver/octrace"
 	"google.golang.org/grpc"
 
+	"github.com/elastic/apm-server/agentcfg"
 	"github.com/elastic/apm-server/beater/api/asset/sourcemap"
 	"github.com/elastic/apm-server/beater/api/config/agent"
 	"github.com/elastic/apm-server/beater/api/intake"
@@ -63,10 +64,7 @@ const (
 	IntakeRUMPath = "/intake/v2/rum/events"
 
 	// JaegerPath defines the path for the Jaeger endpoint.
-	//
-	// TODO(axw) can we create a path prefix? Didn't immediately
-	// work for me, but I didn't try hard.
-	JaegerPath = "/api/traces"
+	JaegerPath = "/jaeger/"
 
 	// ZipkinPath defines the base path for the Zipkin HTTP endpoint.
 	ZipkinPath = "/zipkin/"
@@ -149,6 +147,12 @@ func zipkinHandler(cfg *config.Config, reporter publish.Reporter) (request.Handl
 }
 
 func jaegerHandler(cfg *config.Config, reporter publish.Reporter) (request.Handler, error) {
+	// TODO(axw) construct otel.Config once and only once for all inputs.
+	var fetcher *agentcfg.Fetcher
+	if cfg.Kibana.Enabled() {
+		kibanaClient := kibana.NewConnectingClient(cfg.Kibana)
+		fetcher = agentcfg.NewFetcher(kibanaClient, cfg.AgentConfig.Cache.Expiration)
+	}
 	h := otel.JaegerHandler(otel.Config{
 		PathPrefix: JaegerPath,
 		TraceConsumer: &otelconsumer.Consumer{
@@ -156,6 +160,7 @@ func jaegerHandler(cfg *config.Config, reporter publish.Reporter) (request.Handl
 			ModelConfig:     model.Config{Experimental: cfg.Mode == config.ModeExperimental},
 			Reporter:        reporter,
 		},
+		AgentConfigFetcher: fetcher,
 	})
 	return middleware.Wrap(h, backendMiddleware(cfg, otel.MonitoringMap)...)
 }
