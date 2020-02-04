@@ -4,7 +4,24 @@
     "type": ["object", "null"],
     "description": "A single metric sample.",
     "properties": {
-        "value": {"type": "number"}
+        "value": {"type": "number"},
+        "values": {
+	  "type": "array",
+	  "minItems": 0,
+	  "items": {
+            "type": "number"
+	  }
+	},
+        "counts": {
+	  "type": "array",
+	  "minItems": 0,
+	  "items": {
+            "type": "integer"
+	  }
+	}
     },
-    "required": ["value"]
+    "anyOf": [
+      {"required": ["value"]},
+      {"required": ["values", "counts"]}
+    ]
 }

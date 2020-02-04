@@ -185,6 +185,68 @@ func (d *ManualDecoder) StringArr(base map[string]interface{}, key string, keys 
 	return nil
 }
 
+func (d *ManualDecoder) Float64Arr(base map[string]interface{}, key string, keys ...string) []float64 {
+	val := getDeep(base, keys...)[key]
+	if val == nil {
+		return nil
+	}
+	arr := getDeep(base, keys...)[key]
+	if valArr, ok := arr.([]interface{}); ok {
+		floatArr := make([]float64, len(valArr))
+		for idx, v := range valArr {
+			if valFloat, ok := v.(float64); ok {
+				floatArr[idx] = valFloat
+			} else if valNumber, ok := v.(json.Number); ok {
+				if valFloat, err := valNumber.Float64(); err != nil {
+					d.Err = err
+				} else {
+					floatArr[idx] = valFloat
+				}
+			} else {
+				d.Err = ErrFetch
+				return nil
+			}
+		}
+		return floatArr
+	}
+	if floatArr, ok := arr.([]float64); ok {
+		return floatArr
+	}
+	d.Err = ErrFetch
+	return nil
+}
+
+func (d *ManualDecoder) Int64Arr(base map[string]interface{}, key string, keys ...string) []int64 {
+	val := getDeep(base, keys...)[key]
+	if val == nil {
+		return nil
+	}
+	arr := getDeep(base, keys...)[key]
+	if valArr, ok := arr.([]interface{}); ok {
+		int64Arr := make([]int64, len(valArr))
+		for idx, v := range valArr {
+			if valInt64, ok := v.(int64); ok {
+				int64Arr[idx] = valInt64
+			} else if valNumber, ok := v.(json.Number); ok {
+				if valInt64, err := valNumber.Int64(); err != nil {
+					d.Err = err
+				} else {
+					int64Arr[idx] = valInt64
+				}
+			} else {
+				d.Err = ErrFetch
+				return nil
+			}
+		}
+		return int64Arr
+	}
+	if int64Arr, ok := arr.([]int64); ok {
+		return int64Arr
+	}
+	d.Err = ErrFetch
+	return nil
+}
+
 func (d *ManualDecoder) Interface(base map[string]interface{}, key string, keys ...string) interface{} {
 	return getDeep(base, keys...)[key]
 }

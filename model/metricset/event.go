@@ -57,8 +57,10 @@ func ModelSchema() *jsonschema.Schema {
 }
 
 type Sample struct {
-	Name  string
-	Value float64
+	Name   string
+	Value  *float64
+	Values []float64
+	Counts []int64
 }
 
 // Transaction provides enough information to connect a metricset to the related kind of transactions
@@ -139,13 +141,20 @@ func (md *metricsetDecoder) decodeSamples(input interface{}) []*Sample {
 			return nil
 		}
 
-		samples[i] = &Sample{
-			Name:  name,
-			Value: md.Float64(sampleMap, "value"),
+		sample := &Sample{Name: name}
+		if sampleMap["value"] != nil {
+			sample.Value = md.Float64Ptr(sampleMap, "value")
+		} else {
+			sample.Values = md.Float64Arr(sampleMap, "values")
+			if md.Err == nil {
+				sample.Counts = md.Int64Arr(sampleMap, "counts")
+			}
 		}
 		if md.Err != nil {
 			return nil
 		}
+
+		samples[i] = sample
 		i++
 	}
 	return samples
@@ -210,9 +219,17 @@ func (me *Metricset) Transform(tctx *transform.Context) []beat.Event {
 
 	fields := common.MapStr{}
 	for _, sample := range me.Samples {
-		if _, err := fields.Put(sample.Name, sample.Value); err != nil {
-			logp.NewLogger(logs.Transform).Warnf("failed to transform sample %#v", sample)
-			continue
+		if sample.Value != nil {
+			if _, err := fields.Put(sample.Name, sample.Value); err != nil {
+				logp.NewLogger(logs.Transform).Warnf("failed to transform sample %#v", sample)
+				continue
+			}
+		} else {
+			histo := common.MapStr{"values": sample.Values, "counts": sample.Counts}
+			if _, err := fields.Put(sample.Name, histo); err != nil {
+				logp.NewLogger(logs.Transform).Warnf("failed to transform sample %#v", sample)
+				continue
+			}
 		}
 	}
 
