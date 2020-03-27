@@ -171,16 +171,16 @@ func (url *Url) Fields() common.MapStr {
 	if url == nil {
 		return nil
 	}
-	fields := common.MapStr{}
-	utility.Set(fields, "full", url.Full)
-	utility.Set(fields, "fragment", url.Fragment)
-	utility.Set(fields, "domain", url.Domain)
-	utility.Set(fields, "path", url.Path)
-	utility.Set(fields, "port", url.Port)
-	utility.Set(fields, "original", url.Original)
-	utility.Set(fields, "scheme", url.Scheme)
-	utility.Set(fields, "query", url.Query)
-	return fields
+	var fields utility.MapStr
+	fields.SetStringPointer("full", url.Full)
+	fields.SetStringPointer("fragment", url.Fragment)
+	fields.SetStringPointer("domain", url.Domain)
+	fields.SetStringPointer("path", url.Path)
+	fields.SetIntPointer("port", url.Port)
+	fields.SetStringPointer("original", url.Original)
+	fields.SetStringPointer("scheme", url.Scheme)
+	fields.SetStringPointer("query", url.Query)
+	return common.MapStr(fields)
 }
 
 // Fields returns common.MapStr holding transformed data for attribute http.
@@ -190,7 +190,7 @@ func (h *Http) Fields() common.MapStr {
 	}
 
 	var fields utility.MapStr
-	fields.SetString("version", h.Version)
+	fields.SetStringPointer("version", h.Version)
 	fields.SetMapStr("request", h.Request.fields())
 	fields.SetMapStr("response", h.Response.fields())
 	return common.MapStr(fields)
@@ -210,10 +210,10 @@ func (page *Page) Fields() common.MapStr {
 	if page == nil {
 		return nil
 	}
-	var fields = common.MapStr{}
-	utility.Set(fields, "url", page.Url)
-	utility.Set(fields, "referer", page.Referer)
-	return fields
+	var fields utility.MapStr
+	fields.SetStringPointer("url", page.Url)
+	fields.SetStringPointer("referer", page.Referer)
+	return common.MapStr(fields)
 }
 
 // Fields returns common.MapStr holding transformed data for attribute label.
@@ -420,41 +420,42 @@ func (req *Req) fields() common.MapStr {
 	if req == nil {
 		return nil
 	}
-	fields := common.MapStr{}
-	utility.Set(fields, "headers", headerToFields(req.Headers))
-	utility.Set(fields, "socket", req.Socket.fields())
-	utility.Set(fields, "env", req.Env)
-	utility.DeepUpdate(fields, "body.original", req.Body)
-	utility.Set(fields, "method", req.Method)
-	utility.Set(fields, "cookies", req.Cookies)
+	var fields utility.MapStr
+	fields.SetMapStr("headers", headerToFields(req.Headers))
+	fields.SetMapStr("socket", req.Socket.fields())
+	if req.Env != nil {
+		fields["env"] = req.Env
+	}
+	utility.DeepUpdate(common.MapStr(fields), "body.original", req.Body)
+	fields.SetString("method", req.Method)
+	if req.Cookies != nil {
+		fields["cookies"] = req.Cookies
+	}
 
-	return fields
+	return common.MapStr(fields)
 }
 
 func (resp *Resp) fields() common.MapStr {
 	if resp == nil {
 		return nil
 	}
-	fields := resp.MinimalResp.Fields()
-	if fields == nil {
-		fields = common.MapStr{}
-	}
-	utility.Set(fields, "headers_sent", resp.HeadersSent)
-	utility.Set(fields, "finished", resp.Finished)
-	return fields
+	fields := utility.MapStr(resp.MinimalResp.Fields())
+	fields.SetBoolPointer("headers_sent", resp.HeadersSent)
+	fields.SetBoolPointer("finished", resp.Finished)
+	return common.MapStr(fields)
 }
 
 func (m *MinimalResp) Fields() common.MapStr {
 	if m == nil {
 		return nil
 	}
-	fields := common.MapStr{}
-	utility.Set(fields, "headers", headerToFields(m.Headers))
-	utility.Set(fields, "status_code", m.StatusCode)
-	utility.Set(fields, "transfer_size", m.TransferSize)
-	utility.Set(fields, "encoded_body_size", m.EncodedBodySize)
-	utility.Set(fields, "decoded_body_size", m.DecodedBodySize)
-	return fields
+	var fields utility.MapStr
+	fields.SetMapStr("headers", headerToFields(m.Headers))
+	fields.SetIntPointer("status_code", m.StatusCode)
+	fields.SetFloat64Pointer("transfer_size", m.TransferSize)
+	fields.SetFloat64Pointer("encoded_body_size", m.EncodedBodySize)
+	fields.SetFloat64Pointer("decoded_body_size", m.DecodedBodySize)
+	return common.MapStr(fields)
 }
 
 func headerToFields(h http.Header) common.MapStr {
@@ -472,8 +473,8 @@ func (s *Socket) fields() common.MapStr {
 	if s == nil {
 		return nil
 	}
-	fields := common.MapStr{}
-	utility.Set(fields, "encrypted", s.Encrypted)
-	utility.Set(fields, "remote_address", s.RemoteAddress)
-	return fields
+	var fields utility.MapStr
+	fields.SetBoolPointer("encrypted", s.Encrypted)
+	fields.SetStringPointer("remote_address", s.RemoteAddress)
+	return common.MapStr(fields)
 }

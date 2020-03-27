@@ -104,17 +104,17 @@ func (s *System) fields() common.MapStr {
 	if s == nil {
 		return nil
 	}
-	system := common.MapStr{}
-	utility.Set(system, "hostname", s.hostname())
-	utility.Set(system, "name", s.name())
-	utility.Set(system, "architecture", s.Architecture)
+	var system utility.MapStr
+	system.SetStringPointer("hostname", s.hostname())
+	system.SetStringPointer("name", s.name())
+	system.SetStringPointer("architecture", s.Architecture)
 	if s.Platform != nil {
-		utility.Set(system, "os", common.MapStr{"platform": s.Platform})
+		system["os"] = common.MapStr{"platform": s.Platform}
 	}
 	if s.IP != nil {
-		utility.Set(system, "ip", s.IP.String())
+		system["ip"] = s.IP.String()
 	}
-	return system
+	return common.MapStr(system)
 }
 
 func (s *System) containerFields() common.MapStr {

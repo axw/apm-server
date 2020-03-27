@@ -146,35 +146,36 @@ func DecodeEvent(input interface{}, cfg m.Config, err error) (transform.Transfor
 }
 
 func (e *Event) fields(tctx *transform.Context) common.MapStr {
-	tx := common.MapStr{"id": e.Id}
-	utility.Set(tx, "name", e.Name)
-	utility.Set(tx, "duration", utility.MillisAsMicros(e.Duration))
-	utility.Set(tx, "type", e.Type)
-	utility.Set(tx, "result", e.Result)
-	utility.Set(tx, "marks", e.Marks)
-	utility.Set(tx, "page", e.Page.Fields())
-	utility.Set(tx, "custom", e.Custom.Fields())
-	utility.Set(tx, "message", e.Message.Fields())
+	var tx utility.MapStr
+
+	tx.SetString("id", e.Id)
+	tx.SetString("type", e.Type)
+	tx.SetStringPointer("name", e.Name)
+	tx.SetStringPointer("result", e.Result)
+	tx.SetMapStr("duration", utility.MillisAsMicros(e.Duration))
+	tx.SetMapStr("marks", e.Marks)
+	tx.SetMapStr("page", e.Page.Fields())
+	tx.SetMapStr("custom", e.Custom.Fields())
+	tx.SetMapStr("message", e.Message.Fields())
 
 	if e.Sampled == nil {
-		utility.Set(tx, "sampled", true)
+		tx["sampled"] = true
 	} else {
-		utility.Set(tx, "sampled", e.Sampled)
+		tx["sampled"] = *e.Sampled
 	}
 
 	if e.SpanCount.Dropped != nil || e.SpanCount.Started != nil {
 		spanCount := common.MapStr{}
-
 		if e.SpanCount.Dropped != nil {
-			utility.Set(spanCount, "dropped", *e.SpanCount.Dropped)
+			spanCount["dropped"] = *e.SpanCount.Dropped
 		}
 		if e.SpanCount.Started != nil {
-			utility.Set(spanCount, "started", *e.SpanCount.Started)
+			spanCount["started"] = *e.SpanCount.Started
 		}
-		utility.Set(tx, "span_count", spanCount)
+		tx["span_count"] = spanCount
 	}
 
-	return tx
+	return common.MapStr(tx)
 }
 
 func (e *Event) Transform(ctx context.Context, tctx *transform.Context) []beat.Event {
@@ -184,30 +185,32 @@ func (e *Event) Transform(ctx context.Context, tctx *transform.Context) []beat.E
 		e.Timestamp = tctx.RequestTime
 	}
 
-	fields := common.MapStr{
+	fields := utility.MapStr{
 		"processor":        processorEntry,
 		transactionDocType: e.fields(tctx),
 	}
 
 	// first set generic metadata (order is relevant)
-	tctx.Metadata.Set(fields)
+	tctx.Metadata.Set(common.MapStr(fields))
 
 	// then merge event specific information
-	utility.Update(fields, "user", e.User.Fields())
+	utility.Update(common.MapStr(fields), "user", e.User.Fields())
 	clientFields := e.Client.Fields()
-	utility.DeepUpdate(fields, "client", clientFields)
-	utility.DeepUpdate(fields, "source", clientFields)
-	utility.DeepUpdate(fields, "user_agent", e.User.UserAgentFields())
-	utility.DeepUpdate(fields, "service", e.Service.Fields(emptyString, emptyString))
-	utility.DeepUpdate(fields, "agent", e.Service.AgentFields())
-	utility.AddId(fields, "parent", e.ParentId)
-	utility.AddId(fields, "trace", &e.TraceId)
-	utility.Set(fields, "timestamp", utility.TimeAsMicros(e.Timestamp))
+	utility.DeepUpdate(common.MapStr(fields), "client", clientFields)
+	utility.DeepUpdate(common.MapStr(fields), "source", clientFields)
+	utility.DeepUpdate(common.MapStr(fields), "user_agent", e.User.UserAgentFields())
+	utility.DeepUpdate(common.MapStr(fields), "service", e.Service.Fields(emptyString, emptyString))
+	utility.DeepUpdate(common.MapStr(fields), "agent", e.Service.AgentFields())
+	utility.AddId(common.MapStr(fields), "parent", e.ParentId)
+	utility.AddId(common.MapStr(fields), "trace", &e.TraceId)
+	fields.SetMapStr("timestamp", utility.TimeAsMicros(e.Timestamp))
 	// merges with metadata labels, overrides conflicting keys
-	utility.DeepUpdate(fields, "labels", e.Labels.Fields())
-	utility.Set(fields, "http", e.Http.Fields())
-	utility.Set(fields, "url", e.Url.Fields())
-	utility.Set(fields, "experimental", e.Experimental)
+	utility.DeepUpdate(common.MapStr(fields), "labels", e.Labels.Fields())
+	fields.SetMapStr("http", e.Http.Fields())
+	fields.SetMapStr("url", e.Url.Fields())
+	if e.Experimental != nil {
+		fields["experimental"] = e.Experimental
+	}
 
-	return []beat.Event{{Fields: fields, Timestamp: e.Timestamp}}
+	return []beat.Event{{Fields: common.MapStr(fields), Timestamp: e.Timestamp}}
 }

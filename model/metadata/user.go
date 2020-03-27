@@ -72,9 +72,9 @@ func (u *User) Fields() common.MapStr {
 		return nil
 	}
 	var user utility.MapStr
-	user.SetString("id", u.Id)
-	user.SetString("email", u.Email)
-	user.SetString("name", u.Name)
+	user.SetStringPointer("id", u.Id)
+	user.SetStringPointer("email", u.Email)
+	user.SetStringPointer("name", u.Name)
 	return common.MapStr(user)
 }
 

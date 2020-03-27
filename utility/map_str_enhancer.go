@@ -36,7 +36,7 @@ func (m *MapStr) asMap(create bool) common.MapStr {
 	return common.MapStr(*m)
 }
 
-func (m *MapStr) SetString(key string, value *string) {
+func (m *MapStr) SetStringPointer(key string, value *string) {
 	common := m.asMap(value != nil)
 	if value != nil {
 		common[key] = *value
@@ -45,10 +45,41 @@ func (m *MapStr) SetString(key string, value *string) {
 	}
 }
 
+func (m *MapStr) SetBoolPointer(key string, value *bool) {
+	common := m.asMap(value != nil)
+	if value != nil {
+		common[key] = *value
+	} else if common != nil {
+		delete(common, key)
+	}
+}
+
+func (m *MapStr) SetIntPointer(key string, value *int) {
+	common := m.asMap(value != nil)
+	if value != nil {
+		common[key] = *value
+	} else if common != nil {
+		delete(common, key)
+	}
+}
+
+func (m *MapStr) SetFloat64Pointer(key string, value *float64) {
+	common := m.asMap(value != nil)
+	if value != nil {
+		common[key] = *value
+	} else if common != nil {
+		delete(common, key)
+	}
+}
+
+func (m *MapStr) SetString(key string, value string) {
+	common := m.asMap(true)
+	common[key] = value
+}
+
 func (m *MapStr) SetMapStr(key string, value common.MapStr) {
 	common := m.asMap(len(value) > 0)
 	if value != nil {
-		// TODO(axw) need to copy the map to be equivalent.
 		common[key] = value
 	} else if common != nil {
 		delete(common, key)
