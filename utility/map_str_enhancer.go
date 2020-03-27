@@ -27,6 +27,24 @@ import (
 	"github.com/elastic/beats/v7/libbeat/common"
 )
 
+type MapStr common.MapStr
+
+func (m *MapStr) asMap(create bool) common.MapStr {
+	if *m == nil && create {
+		*m = MapStr(common.MapStr{})
+	}
+	return common.MapStr(*m)
+}
+
+func (m *MapStr) SetString(key string, value *string) {
+	common := m.asMap(value != nil)
+	if value != nil {
+		common[key] = *value
+	} else if common != nil {
+		delete(common, key)
+	}
+}
+
 // Set takes a map and changes key to point to the provided value.
 // In case the provided value is nil or of length 0, the key is deleted from the map .
 func Set(m common.MapStr, key string, val interface{}) {
