@@ -189,11 +189,11 @@ func (h *Http) Fields() common.MapStr {
 		return nil
 	}
 
-	fields := common.MapStr{}
-	utility.Set(fields, "version", h.Version)
-	utility.Set(fields, "request", h.Request.fields())
-	utility.Set(fields, "response", h.Response.fields())
-	return fields
+	var fields utility.MapStr
+	fields.SetString("version", h.Version)
+	fields.SetMapStr("request", h.Request.fields())
+	fields.SetMapStr("response", h.Response.fields())
+	return common.MapStr(fields)
 }
 
 // UserAgent parses User Agent information from attribute http.

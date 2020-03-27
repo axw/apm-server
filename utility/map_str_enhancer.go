@@ -45,6 +45,16 @@ func (m *MapStr) SetString(key string, value *string) {
 	}
 }
 
+func (m *MapStr) SetMapStr(key string, value common.MapStr) {
+	common := m.asMap(len(value) > 0)
+	if value != nil {
+		// TODO(axw) need to copy the map to be equivalent.
+		common[key] = value
+	} else if common != nil {
+		delete(common, key)
+	}
+}
+
 // Set takes a map and changes key to point to the provided value.
 // In case the provided value is nil or of length 0, the key is deleted from the map .
 func Set(m common.MapStr, key string, val interface{}) {

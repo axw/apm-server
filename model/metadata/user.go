@@ -71,11 +71,11 @@ func (u *User) Fields() common.MapStr {
 	if u == nil {
 		return nil
 	}
-	user := common.MapStr{}
-	utility.Set(user, "id", u.Id)
-	utility.Set(user, "email", u.Email)
-	utility.Set(user, "name", u.Name)
-	return user
+	var user utility.MapStr
+	user.SetString("id", u.Id)
+	user.SetString("email", u.Email)
+	user.SetString("name", u.Name)
+	return common.MapStr(user)
 }
 
 func (u *User) ClientFields() common.MapStr {
