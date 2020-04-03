@@ -40,10 +40,11 @@ func (s *System) name() *string {
 	if s != nil && s.ConfiguredHostname != nil {
 		return s.ConfiguredHostname
 	}
-	return s.hostname()
+	return s.Hostname()
 }
 
-func (s *System) hostname() *string {
+// Hostname returns the value that will be used for populating the `host.hostname` field.
+func (s *System) Hostname() *string {
 	if s == nil {
 		return nil
 	}
@@ -72,7 +73,7 @@ func (s *System) fields() common.MapStr {
 		return nil
 	}
 	system := common.MapStr{}
-	utility.Set(system, "hostname", s.hostname())
+	utility.Set(system, "hostname", s.Hostname())
 	utility.Set(system, "name", s.name())
 	utility.Set(system, "architecture", s.Architecture)
 	if s.Platform != nil {
