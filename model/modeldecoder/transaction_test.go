@@ -103,16 +103,16 @@ func TestTransactionEventDecode(t *testing.T) {
 		"navigationStart":    -21,
 	}}
 	sampled := true
-	labels := model.Labels{"foo": "bar"}
+	//labels := model.Labels{"foo": "bar"}
 	ua := "go-1.1"
-	user := metadata.User{Name: &name, Email: &email, IP: net.ParseIP(userIP), Id: &userID, UserAgent: &ua}
+	//user := metadata.User{Name: name, Email: email, IP: net.ParseIP(userIP), Id: userID, UserAgent: ua}
 	page := model.Page{Url: &url, Referer: &referer}
 	request := model.Req{Method: "post", Socket: &model.Socket{}, Headers: http.Header{"User-Agent": []string{ua}}}
 	response := model.Resp{Finished: new(bool), MinimalResp: model.MinimalResp{Headers: http.Header{"Content-Type": []string{"text/html"}}}}
 	h := model.Http{Request: &request, Response: &response}
 	ctxURL := model.Url{Original: &origURL}
 	custom := model.Custom{"abc": 1}
-	metadata := metadata.Metadata{Service: &metadata.Service{Name: tests.StringPtr("foo")}}
+	metadata := metadata.Metadata{Service: metadata.Service{Name: "foo"}}
 
 	// baseInput holds the minimal valid input. Test-specific input is added to this.
 	baseInput := map[string]interface{}{
@@ -257,13 +257,13 @@ func TestTransactionEventDecode(t *testing.T) {
 				Marks:     marks,
 				Sampled:   &sampled,
 				SpanCount: transaction.SpanCount{Dropped: &dropped, Started: &started},
-				User:      &user,
-				Labels:    &labels,
-				Page:      &page,
-				Custom:    &custom,
-				Http:      &h,
-				Url:       &ctxURL,
-				Client:    &model.Client{IP: net.ParseIP(userIP)},
+				//User:      &user,
+				//Labels:    &labels,
+				Page:   &page,
+				Custom: &custom,
+				Http:   &h,
+				Url:    &ctxURL,
+				Client: &model.Client{IP: net.ParseIP(userIP)},
 			},
 		},
 	} {

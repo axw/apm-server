@@ -76,7 +76,7 @@ func TestDecodeSpan(t *testing.T) {
 	}}
 
 	metadata := metadata.Metadata{
-		Service: &metadata.Service{Name: tests.StringPtr("foo")},
+		Service: metadata.Service{Name: "foo"},
 	}
 
 	// baseInput holds the minimal valid input. Test-specific input is added to/removed from this.
@@ -208,7 +208,7 @@ func TestDecodeSpan(t *testing.T) {
 				Stacktrace: m.Stacktrace{
 					&m.StacktraceFrame{Filename: tests.StringPtr("file")},
 				},
-				Labels:        common.MapStr{"a": "tag", "tag_key": 17},
+				//Labels:        common.MapStr{"a": "tag", "tag_key": 17},
 				Id:            id,
 				TraceId:       traceID,
 				ParentId:      parentID,
@@ -230,7 +230,8 @@ func TestDecodeSpan(t *testing.T) {
 				},
 				Message: &m.Message{
 					QueueName: tests.StringPtr("foo"),
-					AgeMillis: tests.IntPtr(1577958057123)},
+					AgeMillis: tests.IntPtr(1577958057123),
+				},
 			},
 		},
 	} {
@@ -313,7 +314,7 @@ func TestSpanTransform(t *testing.T) {
 	path := "test/path"
 	start := 0.65
 	serviceName, serviceVersion, env := "myService", "1.2", "staging"
-	service := metadata.Service{Name: &serviceName, Version: &serviceVersion, Environment: &env}
+	service := metadata.Service{Name: serviceName, Version: serviceVersion, Environment: env}
 	hexID, parentID, traceID := "0147258369012345", "abcdef0123456789", "01234567890123456789abcdefa"
 	subtype := "amqp"
 	action := "publish"
@@ -323,7 +324,7 @@ func TestSpanTransform(t *testing.T) {
 	method, statusCode, url := "get", 200, "http://localhost"
 	instance, statement, dbType, user, rowsAffected := "db01", "select *", "sql", "jane", 5
 	metadataLabels := common.MapStr{"label.a": "a", "label.b": "b", "c": 1}
-	metadata := metadata.Metadata{Service: &service, Labels: metadataLabels}
+	metadata := metadata.Metadata{Service: service, Labels: metadataLabels}
 	address, port := "127.0.0.1", 8080
 	destServiceType, destServiceName, destServiceResource := "db", "elasticsearch", "elasticsearch"
 
@@ -361,8 +362,8 @@ func TestSpanTransform(t *testing.T) {
 				Start:      &start,
 				Duration:   1.20,
 				Stacktrace: m.Stacktrace{{AbsPath: &path}},
-				Labels:     common.MapStr{"label.a": 12},
-				HTTP:       &span.HTTP{Method: &method, StatusCode: &statusCode, URL: &url},
+				//Labels:     common.MapStr{"label.a": 12},
+				HTTP: &span.HTTP{Method: &method, StatusCode: &statusCode, URL: &url},
 				DB: &span.DB{
 					Instance:     &instance,
 					Statement:    &statement,

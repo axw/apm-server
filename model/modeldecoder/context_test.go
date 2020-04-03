@@ -19,7 +19,6 @@ package modeldecoder
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -28,20 +27,18 @@ import (
 
 	"github.com/elastic/beats/v7/libbeat/common"
 
+	"github.com/elastic/apm-server/model/metadata"
 	"github.com/elastic/apm-server/tests/approvals"
 	"github.com/elastic/apm-server/utility"
 )
 
 func TestDecodeContext(t *testing.T) {
 	for name, test := range map[string]struct {
-		input  interface{}
+		input  map[string]interface{}
 		cfg    Config
-		errIn  error
 		errOut string
 	}{
 		"input_nil":  {},
-		"input_err":  {errIn: errors.New("test error"), errOut: "test error"},
-		"wrong_type": {input: "some string", errOut: "invalid type"},
 		"no_context": {input: map[string]interface{}{}},
 		"empty":      {input: map[string]interface{}{"context": map[string]interface{}{}}},
 		"request_body_string": {
@@ -206,7 +203,8 @@ func TestDecodeContext(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			out, err := decodeContext(test.input, test.cfg, test.errIn)
+			var meta metadata.Metadata // XXX
+			out, err := decodeContext(test.input, test.cfg, &meta)
 			if test.errOut != "" {
 				if assert.Error(t, err) {
 					assert.Contains(t, err.Error(), test.errOut)
