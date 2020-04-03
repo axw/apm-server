@@ -223,7 +223,7 @@ func TestEventFields(t *testing.T) {
 
 				// Service name and version are required for sourcemapping.
 				Metadata: metadata.Metadata{
-					Service: &metadata.Service{
+					Service: metadata.Service{
 						Name:    tests.StringPtr("myservice"),
 						Version: tests.StringPtr("myservice"),
 					},
@@ -291,11 +291,11 @@ func TestEvents(t *testing.T) {
 
 	serviceName, agentName, version := "myservice", "go", "1.0"
 	md := metadata.Metadata{
-		Service: &metadata.Service{
+		Service: metadata.Service{
 			Name: &serviceName, Version: &version,
 			Agent: metadata.Agent{Name: &agentName, Version: &version},
 		},
-		User:   &metadata.User{Id: &uid},
+		User:   metadata.User{Id: &uid},
 		Labels: common.MapStr{"label": 101},
 	}
 
@@ -755,7 +755,7 @@ func md5With(args ...string) []byte {
 func TestSourcemapping(t *testing.T) {
 	event := Event{
 		Metadata: metadata.Metadata{
-			Service: &metadata.Service{
+			Service: metadata.Service{
 				Name:    tests.StringPtr("foo"),
 				Version: tests.StringPtr("bar"),
 			},

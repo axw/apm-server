@@ -18,18 +18,17 @@
 package modeldecoder
 
 import (
-	"errors"
-
 	"github.com/elastic/beats/v7/libbeat/common"
 )
 
-func decodeLabels(input interface{}, err error) (common.MapStr, error) {
-	if input == nil || err != nil {
-		return nil, err
+func decodeLabels(input map[string]interface{}, out *common.MapStr, copyOnWrite bool) {
+	if len(input) == 0 {
+		return
 	}
-	raw, ok := input.(map[string]interface{})
-	if !ok {
-		return nil, errors.New("invalid type for labels")
+	if *out == nil {
+		*out = make(common.MapStr)
+	} else if copyOnWrite {
+		*out = out.Clone()
 	}
-	return raw, nil
+	out.DeepUpdate(common.MapStr(input))
 }

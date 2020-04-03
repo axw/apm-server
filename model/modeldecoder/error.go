@@ -51,25 +51,12 @@ func decodeError(input Input, schema *jsonschema.Schema) (transform.Transformabl
 		return nil, errors.Wrap(err, "failed to validate error")
 	}
 
-	ctx, err := decodeContext(raw, input.Config, nil)
-	if err != nil {
-		return nil, err
-	}
-	decoder := utility.ManualDecoder{}
 	fieldName := field.Mapper(input.Config.HasShortFieldNames)
+	decoder := utility.ManualDecoder{}
 	e := modelerror.Event{
 		Metadata:           input.Metadata,
 		Id:                 decoder.StringPtr(raw, "id"),
 		Culprit:            decoder.StringPtr(raw, fieldName("culprit")),
-		Labels:             ctx.Labels,
-		Page:               ctx.Page,
-		Http:               ctx.Http,
-		Url:                ctx.Url,
-		Custom:             ctx.Custom,
-		User:               ctx.User,
-		Service:            ctx.Service,
-		Experimental:       ctx.Experimental,
-		Client:             ctx.Client,
 		Timestamp:          decoder.TimeEpochMicro(raw, "timestamp"),
 		TransactionId:      decoder.StringPtr(raw, "transaction_id"),
 		ParentId:           decoder.StringPtr(raw, "parent_id"),
@@ -104,6 +91,16 @@ func decodeError(input Input, schema *jsonschema.Schema) (transform.Transformabl
 		e.Timestamp = input.RequestTime
 	}
 
+	ctx, err := decodeContext(getObject(raw, fieldName("context")), input.Config, &e.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	e.Page = ctx.Page
+	e.Http = ctx.Http
+	e.Url = ctx.Url
+	e.Custom = ctx.Custom
+	e.Experimental = ctx.Experimental
+	e.Client = ctx.Client
 	return &e, nil
 }
 

@@ -34,15 +34,11 @@ func TestContainerTransform(t *testing.T) {
 	}{
 		{
 			Container: Container{},
-			Output:    common.MapStr{"id": ""},
+			Output:    nil,
 		},
 		{
-			Container: Container{
-				ID: id,
-			},
-			Output: common.MapStr{
-				"id": id,
-			},
+			Container: Container{ID: id},
+			Output:    common.MapStr{"id": id},
 		},
 	}
 

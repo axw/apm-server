@@ -74,9 +74,8 @@ func decodeSpan(input Input, schema *jsonschema.Schema) (transform.Transformable
 
 	ctx := decoder.MapStr(raw, fieldName("context"))
 	if ctx != nil {
-		if labels, ok := ctx[fieldName("tags")].(map[string]interface{}); ok {
-			event.Labels = labels
-		}
+		decodeLabels(getObject(ctx, fieldName("tags")), &event.Metadata.Labels, true)
+		decodeService(getObject(ctx, "service"), input.Config.HasShortFieldNames, &event.Metadata.Service)
 
 		db, err := decodeDB(ctx, decoder.Err)
 		if err != nil {
@@ -96,14 +95,6 @@ func decodeSpan(input Input, schema *jsonschema.Schema) (transform.Transformable
 		}
 		event.Destination = dest
 		event.DestinationService = destService
-
-		if s, set := ctx["service"]; set {
-			service, err := decodeService(s, input.Config.HasShortFieldNames, decoder.Err)
-			if err != nil {
-				return nil, err
-			}
-			event.Service = service
-		}
 
 		if event.Message, err = decodeMessage(ctx, decoder.Err); err != nil {
 			return nil, err

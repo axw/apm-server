@@ -62,32 +62,18 @@ func decodeTransaction(input Input, schema *jsonschema.Schema) (*transaction.Eve
 		return nil, errors.Wrap(err, "failed to validate transaction")
 	}
 
-	ctx, err := decodeContext(raw, input.Config, nil)
-	if err != nil {
-		return nil, err
-	}
 	decoder := utility.ManualDecoder{}
 	fieldName := field.Mapper(input.Config.HasShortFieldNames)
 	e := transaction.Event{
-		Metadata:     input.Metadata,
-		Id:           decoder.String(raw, "id"),
-		Type:         decoder.String(raw, fieldName("type")),
-		Name:         decoder.StringPtr(raw, fieldName("name")),
-		Result:       decoder.StringPtr(raw, fieldName("result")),
-		Duration:     decoder.Float64(raw, fieldName("duration")),
-		Labels:       ctx.Labels,
-		Page:         ctx.Page,
-		Http:         ctx.Http,
-		Url:          ctx.Url,
-		Custom:       ctx.Custom,
-		User:         ctx.User,
-		Service:      ctx.Service,
-		Client:       ctx.Client,
-		Experimental: ctx.Experimental,
-		Message:      ctx.Message,
-		Sampled:      decoder.BoolPtr(raw, fieldName("sampled")),
-		Marks:        decoder.MapStr(raw, fieldName("marks")),
-		Timestamp:    decoder.TimeEpochMicro(raw, fieldName("timestamp")),
+		Metadata:  input.Metadata,
+		Id:        decoder.String(raw, "id"),
+		Type:      decoder.String(raw, fieldName("type")),
+		Name:      decoder.StringPtr(raw, fieldName("name")),
+		Result:    decoder.StringPtr(raw, fieldName("result")),
+		Duration:  decoder.Float64(raw, fieldName("duration")),
+		Sampled:   decoder.BoolPtr(raw, fieldName("sampled")),
+		Marks:     decoder.MapStr(raw, fieldName("marks")),
+		Timestamp: decoder.TimeEpochMicro(raw, fieldName("timestamp")),
 		SpanCount: transaction.SpanCount{
 			Dropped: decoder.IntPtr(raw, fieldName("dropped"), fieldName("span_count")),
 			Started: decoder.IntPtr(raw, fieldName("started"), fieldName("span_count"))},
@@ -100,7 +86,17 @@ func decodeTransaction(input Input, schema *jsonschema.Schema) (*transaction.Eve
 	if e.Timestamp.IsZero() {
 		e.Timestamp = input.RequestTime
 	}
-
+	ctx, err := decodeContext(raw, input.Config, &e.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	e.Page = ctx.Page
+	e.Http = ctx.Http
+	e.Url = ctx.Url
+	e.Custom = ctx.Custom
+	e.Experimental = ctx.Experimental
+	e.Client = ctx.Client
+	e.Message = ctx.Message
 	return &e, nil
 }
 

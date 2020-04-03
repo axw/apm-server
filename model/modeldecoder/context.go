@@ -18,7 +18,6 @@
 package modeldecoder
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
@@ -33,39 +32,36 @@ import (
 )
 
 // decodeContext parses all information from input, nested under key context and returns an instance of Context.
-func decodeContext(input interface{}, cfg Config, err error) (*model.Context, error) {
-	if input == nil || err != nil {
-		return nil, err
-	}
-	raw, ok := input.(map[string]interface{})
-	if !ok {
-		return nil, errors.New("invalid type for fetching Context out")
+func decodeContext(input map[string]interface{}, cfg Config, metadata *metadata.Metadata) (*model.Context, error) {
+	if input == nil {
+		return nil, nil
 	}
 
 	decoder := utility.ManualDecoder{}
 	fieldName := field.Mapper(cfg.HasShortFieldNames)
 
-	ctxInp := decoder.MapStr(raw, fieldName("context"))
-	if ctxInp == nil {
-		return &model.Context{}, decoder.Err
-	}
-
-	userInp := decoder.Interface(ctxInp, fieldName("user"))
-	serviceInp := decoder.Interface(ctxInp, fieldName("service"))
 	var experimental interface{}
 	if cfg.Experimental {
-		experimental = decoder.Interface(ctxInp, "experimental")
+		experimental = decoder.Interface(input, "experimental")
 	}
-	http, err := decodeHTTP(ctxInp, cfg.HasShortFieldNames, decoder.Err)
-	url, err := decodeURL(ctxInp, err)
-	labels, err := decodeTags(ctxInp, cfg.HasShortFieldNames, err)
-	custom, err := decodeCustom(ctxInp, cfg.HasShortFieldNames, err)
-	page, err := decodePage(ctxInp, cfg.HasShortFieldNames, err)
-	service, err := decodeService(serviceInp, cfg.HasShortFieldNames, err)
-	user, err := decodeUser(userInp, cfg.HasShortFieldNames, err)
-	user = addUserAgent(user, http)
-	client, err := decodeClient(user, http, err)
-	message, err := decodeMessage(ctxInp, err)
+	http, err := decodeHTTP(input, cfg.HasShortFieldNames, decoder.Err)
+	url, err := decodeURL(input, err)
+	labels, err := decodeTags(input, cfg.HasShortFieldNames, err)
+	custom, err := decodeCustom(input, cfg.HasShortFieldNames, err)
+	page, err := decodePage(input, cfg.HasShortFieldNames, err)
+	message, err := decodeMessage(input, err)
+	if err != nil {
+		return nil, err
+	}
+
+	userInp := getObject(input, fieldName("user"))
+	serviceInp := getObject(input, fieldName("service"))
+	decodeService(serviceInp, cfg.HasShortFieldNames, &metadata.Service)
+	decodeUser(userInp, cfg.HasShortFieldNames, &metadata.User)
+	if ua := http.UserAgent(); ua != "" {
+		metadata.User.UserAgent = ua
+	}
+	client := decodeClient(&metadata.User, http)
 
 	ctx := model.Context{
 		Http:         http,
@@ -73,25 +69,11 @@ func decodeContext(input interface{}, cfg Config, err error) (*model.Context, er
 		Labels:       labels,
 		Page:         page,
 		Custom:       custom,
-		User:         user,
-		Service:      service,
 		Client:       client,
 		Message:      message,
 		Experimental: experimental,
 	}
-
-	return &ctx, err
-
-}
-
-func addUserAgent(user *metadata.User, h *model.Http) *metadata.User {
-	if ua := h.UserAgent(); ua != "" {
-		if user == nil {
-			user = &metadata.User{}
-		}
-		user.UserAgent = &ua
-	}
-	return user
+	return &ctx, nil
 }
 
 func decodeURL(raw common.MapStr, err error) (*model.Url, error) {
@@ -131,25 +113,22 @@ func decodeURL(raw common.MapStr, err error) (*model.Url, error) {
 	return &url, err
 }
 
-func decodeClient(user *metadata.User, http *model.Http, err error) (*model.Client, error) {
-	if err != nil {
-		return nil, err
-	}
+func decodeClient(user *metadata.User, http *model.Http) *model.Client {
 	// user.IP is only set for RUM events
-	if user != nil && user.IP != nil {
-		return &model.Client{IP: user.IP}, nil
+	if user.IP != nil {
+		return &model.Client{IP: user.IP}
 	}
 	// http.Request.Headers and http.Request.Socket information is only set for backend events
 	// try to first extract an IP address from the headers, if not possible use IP address from socket remote_address
 	if http != nil && http.Request != nil {
 		if ip := utility.ExtractIPFromHeader(http.Request.Headers); ip != nil {
-			return &model.Client{IP: ip}, nil
+			return &model.Client{IP: ip}
 		}
 		if http.Request.Socket != nil && http.Request.Socket.RemoteAddress != nil {
-			return &model.Client{IP: utility.ParseIP(*http.Request.Socket.RemoteAddress)}, nil
+			return &model.Client{IP: utility.ParseIP(*http.Request.Socket.RemoteAddress)}
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 func decodeHTTP(raw common.MapStr, hasShortFieldNames bool, err error) (*model.Http, error) {

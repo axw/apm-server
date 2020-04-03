@@ -20,9 +20,8 @@ package metadata
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestMetadata_Set(t *testing.T) {
@@ -41,17 +40,17 @@ func TestMetadata_Set(t *testing.T) {
 	}{
 		{
 			input: Metadata{
-				Service: &Service{
-					Name: &serviceName,
-					Node: ServiceNode{Name: &serviceNodeName},
+				Service: Service{
+					Name: serviceName,
+					Node: ServiceNode{Name: serviceNodeName},
 					Agent: Agent{
-						Name:    &agentName,
-						Version: &agentVersion,
+						Name:    agentName,
+						Version: agentVersion,
 					},
 				},
-				System:  &System{DetectedHostname: &host, Container: &Container{ID: containerID}},
-				Process: &Process{Pid: pid},
-				User:    &User{Id: &uid, Email: &mail},
+				System:  System{DetectedHostname: host, Container: Container{ID: containerID}},
+				Process: Process{Pid: pid},
+				User:    User{Id: uid, Email: mail},
 			},
 			fields: common.MapStr{
 				"foo": "bar",
@@ -74,8 +73,8 @@ func TestMetadata_Set(t *testing.T) {
 		},
 		{
 			input: Metadata{
-				Service: &Service{},
-				System:  &System{DetectedHostname: &host, Container: &Container{ID: containerID}},
+				Service: Service{},
+				System:  System{DetectedHostname: host, Container: Container{ID: containerID}},
 			},
 			fields: common.MapStr{},
 			output: common.MapStr{
@@ -85,8 +84,8 @@ func TestMetadata_Set(t *testing.T) {
 		},
 		{
 			input: Metadata{
-				Service: &Service{},
-				System:  &System{DetectedHostname: &host},
+				Service: Service{},
+				System:  System{DetectedHostname: host},
 			},
 			fields: common.MapStr{},
 			output: common.MapStr{
@@ -94,6 +93,9 @@ func TestMetadata_Set(t *testing.T) {
 				"service": common.MapStr{"node": common.MapStr{"name": host}}},
 		},
 	} {
-		assert.Equal(t, test.output, test.input.Set(test.fields))
+		if diff := cmp.Diff(test.output, test.input.Set(test.fields)); diff != "" {
+			t.Error(diff)
+		}
+		//assert.Equal(t, test.output, test.input.Set(test.fields))
 	}
 }

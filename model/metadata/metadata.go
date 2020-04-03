@@ -24,10 +24,10 @@ import (
 )
 
 type Metadata struct {
-	Service *Service
-	Process *Process
-	System  *System
-	User    *User
+	Service Service
+	Process Process
+	System  System
+	User    User
 	Labels  common.MapStr
 }
 
