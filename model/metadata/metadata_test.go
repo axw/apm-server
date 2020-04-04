@@ -100,7 +100,28 @@ func TestMetadata_Set(t *testing.T) {
 }
 
 func BenchmarkMetadataSet(b *testing.B) {
-	meta := Metadata{
+	test := func(b *testing.B, name string, input Metadata) {
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			out := make(common.MapStr)
+			for i := 0; i < b.N; i++ {
+				input.Set(out)
+				for k := range out {
+					delete(out, k)
+				}
+			}
+		})
+	}
+
+	test(b, "minimal", Metadata{
+		Service: Service{
+			Name:    "foo",
+			Version: "1.0",
+		},
+	})
+	test(b, "maximal", Metadata{
 		Service: Service{
 			Name:        "foo",
 			Version:     "1.0",
@@ -139,16 +160,5 @@ func BenchmarkMetadataSet(b *testing.B) {
 			UserAgent: "user-agent",
 		},
 		Labels: common.MapStr{"k": "v", "n": 1, "f": 1.5, "b": false},
-	}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	out := make(common.MapStr)
-	for i := 0; i < b.N; i++ {
-		meta.Set(out)
-		for k := range out {
-			delete(out, k)
-		}
-	}
+	})
 }
