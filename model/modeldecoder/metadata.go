@@ -34,26 +34,32 @@ var (
 
 // DecodeRUMV3Metadata decodes v3 RUM metadata.
 func DecodeRUMV3Metadata(input interface{}, hasShortFieldNames bool) (*metadata.Metadata, error) {
-	return decodeMetadata(input, hasShortFieldNames, rumV3MetadataSchema)
+	var out metadata.Metadata
+	if err := decodeMetadata(input, hasShortFieldNames, rumV3MetadataSchema, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // DecodeMetadata decodes v2 metadata.
 func DecodeMetadata(input interface{}, hasShortFieldNames bool) (*metadata.Metadata, error) {
-	return decodeMetadata(input, hasShortFieldNames, metadataSchema)
+	var out metadata.Metadata
+	if err := decodeMetadata(input, hasShortFieldNames, metadataSchema, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
-func decodeMetadata(input interface{}, hasShortFieldNames bool, schema *jsonschema.Schema) (*metadata.Metadata, error) {
+func decodeMetadata(input interface{}, hasShortFieldNames bool, schema *jsonschema.Schema, out *metadata.Metadata) error {
 	raw, err := validation.ValidateObject(input, schema)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to validate metadata")
+		return errors.Wrap(err, "failed to validate metadata")
 	}
 	fieldName := field.Mapper(hasShortFieldNames)
-
-	var out metadata.Metadata
 	decodeService(getObject(raw, fieldName("service")), hasShortFieldNames, &out.Service)
 	decodeSystem(getObject(raw, "system"), &out.System)
 	decodeProcess(getObject(raw, "process"), &out.Process)
 	decodeUser(getObject(raw, fieldName("user")), hasShortFieldNames, &out.User)
 	decodeLabels(getObject(raw, fieldName("labels")), &out.Labels, false)
-	return &out, nil
+	return nil
 }
