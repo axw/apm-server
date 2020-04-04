@@ -94,13 +94,14 @@ func decodeError(input Input, schema *jsonschema.Schema) (transform.Transformabl
 	ctx, err := decodeContext(getObject(raw, fieldName("context")), input.Config, &e.Metadata)
 	if err != nil {
 		return nil, err
+	} else if ctx != nil {
+		e.Page = ctx.Page
+		e.Http = ctx.Http
+		e.Url = ctx.Url
+		e.Custom = ctx.Custom
+		e.Experimental = ctx.Experimental
+		e.Client = ctx.Client
 	}
-	e.Page = ctx.Page
-	e.Http = ctx.Http
-	e.Url = ctx.Url
-	e.Custom = ctx.Custom
-	e.Experimental = ctx.Experimental
-	e.Client = ctx.Client
 	return &e, nil
 }
 
