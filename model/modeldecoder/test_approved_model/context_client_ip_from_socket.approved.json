@@ -19,10 +19,8 @@
         "Response": null,
         "Version": null
     },
-    "Labels": null,
     "Message": null,
     "Page": null,
-    "Service": null,
     "Url": {
         "Domain": null,
         "Fragment": null,
@@ -32,6 +30,5 @@
         "Port": null,
         "Query": null,
         "Scheme": null
-    },
-    "User": null
+    }
 }
