@@ -5,56 +5,72 @@
     "Experimental": null,
     "Http": null,
     "Id": "",
-    "Labels": {
-        "error": true
-    },
     "Marks": null,
     "Message": null,
     "Metadata": {
-        "Labels": {},
-        "Process": null,
+        "Labels": {
+            "error": true
+        },
+        "Process": {
+            "Argv": null,
+            "Pid": 0,
+            "Ppid": null,
+            "Title": ""
+        },
         "Service": {
             "Agent": {
-                "EphemeralId": null,
+                "EphemeralId": "",
                 "Name": "Jaeger",
                 "Version": "unknown"
             },
-            "Environment": null,
+            "Environment": "",
             "Framework": {
-                "Name": null,
-                "Version": null
+                "Name": "",
+                "Version": ""
             },
             "Language": {
                 "Name": "unknown",
-                "Version": null
+                "Version": ""
             },
             "Name": "unknown",
             "Node": {
-                "Name": null
+                "Name": ""
             },
             "Runtime": {
-                "Name": null,
-                "Version": null
+                "Name": "",
+                "Version": ""
             },
-            "Version": null
+            "Version": ""
         },
         "System": {
-            "Architecture": null,
-            "ConfiguredHostname": null,
-            "Container": null,
+            "Architecture": "",
+            "ConfiguredHostname": "",
+            "Container": {
+                "ID": ""
+            },
             "DetectedHostname": "host-abc",
             "IP": "",
-            "Kubernetes": null,
-            "Platform": null
+            "Kubernetes": {
+                "Namespace": "",
+                "NodeName": "",
+                "PodName": "",
+                "PodUID": ""
+            },
+            "Platform": ""
         },
-        "User": null
+        "User": {
+            "Email": "",
+            "IP": "",
+            "Id": "",
+            "Name": "",
+            "UserAgent": ""
+        }
     },
     "Name": "",
     "Page": null,
     "ParentId": null,
     "Result": "Error",
     "Sampled": null,
-    "Service": null,
     "SpanCount": {
         "Dropped": null,
         "Started": null
@@ -62,6 +78,5 @@
     "Timestamp": "2019-12-16T12:46:58.000768068Z",
     "TraceId": "",
     "Type": "custom",
-    "Url": null,
-    "User": null
+    "Url": null
 }

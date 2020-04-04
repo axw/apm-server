@@ -35,7 +35,6 @@
         "Version": null
     },
     "Id": null,
-    "Labels": null,
     "Log": {
         "Level": null,
         "LoggerName": null,
@@ -44,47 +43,73 @@
         "Stacktrace": null
     },
     "Metadata": {
-        "Labels": {},
-        "Process": null,
+        "Labels": {
+            "component": "foo",
+            "double_a": 14.65,
+            "error": true,
+            "hasErrors": true,
+            "int_a": 148,
+            "peer_service": "sql",
+            "string_a_b": "some note",
+            "type": "db_request"
+        },
+        "Process": {
+            "Argv": null,
+            "Pid": 0,
+            "Ppid": null,
+            "Title": ""
+        },
         "Service": {
             "Agent": {
-                "EphemeralId": null,
+                "EphemeralId": "",
                 "Name": "Jaeger",
                 "Version": "unknown"
             },
-            "Environment": null,
+            "Environment": "",
             "Framework": {
-                "Name": null,
-                "Version": null
+                "Name": "",
+                "Version": ""
             },
             "Language": {
                 "Name": "unknown",
-                "Version": null
+                "Version": ""
             },
             "Name": "unknown",
             "Node": {
-                "Name": null
+                "Name": ""
             },
             "Runtime": {
-                "Name": null,
-                "Version": null
+                "Name": "",
+                "Version": ""
             },
-            "Version": null
+            "Version": ""
         },
         "System": {
-            "Architecture": null,
-            "ConfiguredHostname": null,
-            "Container": null,
+            "Architecture": "",
+            "ConfiguredHostname": "",
+            "Container": {
+                "ID": ""
+            },
             "DetectedHostname": "host-abc",
             "IP": "",
-            "Kubernetes": null,
-            "Platform": null
+            "Kubernetes": {
+                "Namespace": "",
+                "NodeName": "",
+                "PodName": "",
+                "PodUID": ""
+            },
+            "Platform": ""
         },
-        "User": null
+        "User": {
+            "Email": "",
+            "IP": "",
+            "Id": "",
+            "Name": "",
+            "UserAgent": ""
+        }
     },
     "Page": null,
     "ParentId": "41414646",
-    "Service": null,
     "Timestamp": "2019-12-16T12:46:58.000768091Z",
     "TraceId": "46467830",
     "TransactionId": null,
@@ -99,6 +124,5 @@
         "Port": null,
         "Query": "a=12",
         "Scheme": "http"
-    },
-    "User": null
+    }
 }
