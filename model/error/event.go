@@ -62,13 +62,10 @@ type Event struct {
 	Metadata  metadata.Metadata
 
 	Culprit *string
-	User    *metadata.User
-	Labels  *m.Labels
 	Page    *m.Page
 	Http    *m.Http
 	Url     *m.Url
 	Custom  *m.Custom
-	Service *metadata.Service
 	Client  *m.Client
 
 	Exception *Exception
@@ -119,15 +116,9 @@ func (e *Event) Transform(ctx context.Context, tctx *transform.Context) []beat.E
 	// first set the generic metadata (order is relevant)
 	e.Metadata.Set(fields)
 	// then add event specific information
-	utility.Update(fields, "user", e.User.Fields())
 	clientFields := e.Client.Fields()
 	utility.DeepUpdate(fields, "client", clientFields)
 	utility.DeepUpdate(fields, "source", clientFields)
-	utility.DeepUpdate(fields, "user_agent", e.User.UserAgentFields())
-	utility.DeepUpdate(fields, "service", e.Service.Fields(emptyString, emptyString))
-	utility.DeepUpdate(fields, "agent", e.Service.AgentFields())
-	// merges with metadata labels, overrides conflicting keys
-	utility.DeepUpdate(fields, "labels", e.Labels.Fields())
 	utility.Set(fields, "http", e.Http.Fields())
 	utility.Set(fields, "url", e.Url.Fields())
 	utility.Set(fields, "experimental", e.Experimental)

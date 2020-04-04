@@ -86,7 +86,7 @@ func decodeTransaction(input Input, schema *jsonschema.Schema) (*transaction.Eve
 	if e.Timestamp.IsZero() {
 		e.Timestamp = input.RequestTime
 	}
-	ctx, err := decodeContext(raw, input.Config, &e.Metadata)
+	ctx, err := decodeContext(getObject(raw, fieldName("context")), input.Config, &e.Metadata)
 	if err != nil {
 		return nil, err
 	} else if ctx != nil {

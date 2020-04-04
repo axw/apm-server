@@ -76,6 +76,10 @@ func TestDecodeSpan(t *testing.T) {
 		Service: metadata.Service{Name: "foo"},
 	}
 
+	// TODO(axw) test label merging
+	mergedMetadata := metadata
+	mergedMetadata.Labels = common.MapStr{"a": "tag", "tag_key": 17}
+
 	// baseInput holds the minimal valid input. Test-specific input is added to/removed from this.
 	baseInput := common.MapStr{
 		"id": id, "type": spType, "name": name, "duration": duration, "trace_id": traceID,
@@ -194,7 +198,7 @@ func TestDecodeSpan(t *testing.T) {
 				"id": id, "parent_id": parentID, "trace_id": traceID, "transaction_id": transactionID,
 			},
 			e: &span.Event{
-				Metadata:  metadata,
+				Metadata:  mergedMetadata,
 				Name:      name,
 				Type:      "messaging",
 				Subtype:   &subtype,
@@ -205,7 +209,6 @@ func TestDecodeSpan(t *testing.T) {
 				Stacktrace: m.Stacktrace{
 					&m.StacktraceFrame{Filename: tests.StringPtr("file")},
 				},
-				//Labels:        common.MapStr{"a": "tag", "tag_key": 17},
 				Id:            id,
 				TraceId:       traceID,
 				ParentId:      parentID,

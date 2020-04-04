@@ -46,7 +46,6 @@ func decodeContext(input map[string]interface{}, cfg Config, metadata *metadata.
 	}
 	http, err := decodeHTTP(input, cfg.HasShortFieldNames, decoder.Err)
 	url, err := decodeURL(input, err)
-	labels, err := decodeTags(input, cfg.HasShortFieldNames, err)
 	custom, err := decodeCustom(input, cfg.HasShortFieldNames, err)
 	page, err := decodePage(input, cfg.HasShortFieldNames, err)
 	message, err := decodeMessage(input, err)
@@ -62,11 +61,11 @@ func decodeContext(input map[string]interface{}, cfg Config, metadata *metadata.
 		metadata.User.UserAgent = ua
 	}
 	client := decodeClient(&metadata.User, http)
+	decodeLabels(getObject(input, fieldName("tags")), &metadata.Labels, true)
 
 	ctx := model.Context{
 		Http:         http,
 		Url:          url,
-		Labels:       labels,
 		Page:         page,
 		Custom:       custom,
 		Client:       client,
@@ -211,19 +210,6 @@ func decodePage(raw common.MapStr, hasShortFieldNames bool, err error) (*model.P
 		Url:     decoder.StringPtr(pageInput, fieldName("url")),
 		Referer: decoder.StringPtr(pageInput, fieldName("referer")),
 	}, decoder.Err
-}
-
-func decodeTags(raw common.MapStr, hasShortFieldNames bool, err error) (*model.Labels, error) {
-	if err != nil {
-		return nil, err
-	}
-	fieldName := field.Mapper(hasShortFieldNames)
-	decoder := utility.ManualDecoder{}
-	if l := decoder.MapStr(raw, fieldName("tags")); decoder.Err == nil && l != nil {
-		labels := model.Labels(l)
-		return &labels, nil
-	}
-	return nil, decoder.Err
 }
 
 func decodeCustom(raw common.MapStr, hasShortFieldNames bool, err error) (*model.Custom, error) {

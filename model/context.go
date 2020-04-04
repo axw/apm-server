@@ -21,8 +21,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/elastic/apm-server/model/metadata"
-
 	"github.com/elastic/beats/v7/libbeat/common"
 
 	"github.com/elastic/apm-server/utility"
@@ -32,11 +30,8 @@ import (
 type Context struct {
 	Http         *Http
 	Url          *Url
-	Labels       *Labels
 	Page         *Page
 	Custom       *Custom
-	User         *metadata.User
-	Service      *metadata.Service
 	Client       *Client
 	Message      *Message
 	Experimental interface{}
@@ -66,9 +61,6 @@ type Page struct {
 	Url     *string
 	Referer *string
 }
-
-// Labels holds user defined information nested under key tags
-type Labels common.MapStr
 
 // Custom holds user defined information nested under key custom
 type Custom common.MapStr
@@ -157,14 +149,6 @@ func (page *Page) Fields() common.MapStr {
 	utility.Set(fields, "url", page.Url)
 	utility.Set(fields, "referer", page.Referer)
 	return fields
-}
-
-// Fields returns common.MapStr holding transformed data for attribute label.
-func (labels *Labels) Fields() common.MapStr {
-	if labels == nil {
-		return nil
-	}
-	return common.MapStr(*labels)
 }
 
 // Fields returns common.MapStr holding transformed data for attribute custom.
