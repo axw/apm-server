@@ -18,10 +18,12 @@
 package metadata
 
 import (
+	"net"
 	"testing"
 
+	"github.com/elastic/apm-server/tests"
 	"github.com/elastic/beats/v7/libbeat/common"
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMetadata_Set(t *testing.T) {
@@ -93,9 +95,60 @@ func TestMetadata_Set(t *testing.T) {
 				"service": common.MapStr{"node": common.MapStr{"name": host}}},
 		},
 	} {
-		if diff := cmp.Diff(test.output, test.input.Set(test.fields)); diff != "" {
-			t.Error(diff)
+		assert.Equal(t, test.output, test.input.Set(test.fields))
+	}
+}
+
+func BenchmarkMetadataSet(b *testing.B) {
+	meta := Metadata{
+		Service: Service{
+			Name:        "foo",
+			Version:     "1.0",
+			Environment: "production",
+			Node:        ServiceNode{Name: "foo-bar"},
+			Language:    Language{Name: "go", Version: "++"},
+			Runtime:     Runtime{Name: "gc", Version: "1.0"},
+			Framework:   Framework{Name: "never", Version: "again"},
+			Agent:       Agent{Name: "go", Version: "2.0"},
+		},
+		Process: Process{
+			Pid:   123,
+			Ppid:  tests.IntPtr(122),
+			Title: "case",
+			Argv:  []string{"apm-server"},
+		},
+		System: System{
+			DetectedHostname:   "detected",
+			ConfiguredHostname: "configured",
+			Architecture:       "x86_64",
+			Platform:           "linux",
+			IP:                 net.ParseIP("10.1.1.1"),
+			Container:          Container{ID: "docker"},
+			Kubernetes: Kubernetes{
+				Namespace: "system",
+				NodeName:  "node01",
+				PodName:   "pet",
+				PodUID:    "cattle",
+			},
+		},
+		User: User{
+			Id:        "123",
+			Email:     "me@example.com",
+			Name:      "bob",
+			IP:        net.ParseIP("10.1.1.2"),
+			UserAgent: "user-agent",
+		},
+		Labels: common.MapStr{"k": "v", "n": 1, "f": 1.5, "b": false},
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	out := make(common.MapStr)
+	for i := 0; i < b.N; i++ {
+		meta.Set(out)
+		for k := range out {
+			delete(out, k)
 		}
-		//assert.Equal(t, test.output, test.input.Set(test.fields))
 	}
 }

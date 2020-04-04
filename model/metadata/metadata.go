@@ -43,7 +43,6 @@ func (m *Metadata) Set(fields common.MapStr) common.MapStr {
 	utility.Set(fields, "user_agent", m.User.UserAgentFields())
 	utility.Set(fields, "container", containerFields)
 	utility.Set(fields, "kubernetes", m.System.kubernetesFields())
-	// to be merged with specific event labels, these should be overwritten in case of conflict
 	utility.Set(fields, "labels", m.Labels)
 	return fields
 }
