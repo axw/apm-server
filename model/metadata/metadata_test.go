@@ -18,82 +18,73 @@
 package metadata
 
 import (
+	"net"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
+	"github.com/elastic/apm-server/tests"
 	"github.com/elastic/beats/v7/libbeat/common"
 )
 
-func TestMetadata_Set(t *testing.T) {
-	pid := 1234
-	host := "host"
-	containerID := "container-123"
-	serviceName, serviceNodeName := "myservice", "serviceABC"
-	uid := "12321"
-	mail := "user@email.com"
-	agentName := "elastic-node"
+func BenchmarkMetadataSet(b *testing.B) {
+	test := func(b *testing.B, name string, input Metadata) {
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
 
-	for _, test := range []struct {
-		input  Metadata
-		fields common.MapStr
-		output common.MapStr
-	}{
-		{
-			input: Metadata{
-				Service: &Service{
-					Name: &serviceName,
-					Node: ServiceNode{Name: &serviceNodeName},
-					Agent: Agent{
-						Name:    &agentName,
-						Version: &agentVersion,
-					},
-				},
-				System:  &System{DetectedHostname: &host, Container: &Container{ID: containerID}},
-				Process: &Process{Pid: pid},
-				User:    &User{Id: &uid, Email: &mail},
-			},
-			fields: common.MapStr{
-				"foo": "bar",
-				"user": common.MapStr{
-					"email": "override@email.com",
-				},
-			},
-			output: common.MapStr{
-				"foo":       "bar",
-				"agent":     common.MapStr{"version": "1.0.0", "name": "elastic-node"},
-				"container": common.MapStr{"id": containerID},
-				"host":      common.MapStr{"hostname": host, "name": host},
-				"process":   common.MapStr{"pid": pid},
-				"service": common.MapStr{
-					"name": "myservice",
-					"node": common.MapStr{"name": serviceNodeName},
-				},
-				"user": common.MapStr{"id": "12321", "email": "user@email.com"},
-			},
-		},
-		{
-			input: Metadata{
-				Service: &Service{},
-				System:  &System{DetectedHostname: &host, Container: &Container{ID: containerID}},
-			},
-			fields: common.MapStr{},
-			output: common.MapStr{
-				"host":      common.MapStr{"hostname": host, "name": host},
-				"container": common.MapStr{"id": containerID},
-				"service":   common.MapStr{"node": common.MapStr{"name": containerID}}},
-		},
-		{
-			input: Metadata{
-				Service: &Service{},
-				System:  &System{DetectedHostname: &host},
-			},
-			fields: common.MapStr{},
-			output: common.MapStr{
-				"host":    common.MapStr{"hostname": host, "name": host},
-				"service": common.MapStr{"node": common.MapStr{"name": host}}},
-		},
-	} {
-		assert.Equal(t, test.output, test.input.Set(test.fields))
+			out := make(common.MapStr)
+			for i := 0; i < b.N; i++ {
+				input.Set(out)
+				for k := range out {
+					delete(out, k)
+				}
+			}
+		})
 	}
+
+	test(b, "minimal", Metadata{
+		Service: &Service{
+			Name:    tests.StringPtr("foo"),
+			Version: tests.StringPtr("1.0"),
+		},
+	})
+	test(b, "full", Metadata{
+		Service: &Service{
+			Name:        tests.StringPtr("foo"),
+			Version:     tests.StringPtr("1.0"),
+			Environment: tests.StringPtr("production"),
+			Node:        ServiceNode{Name: tests.StringPtr("foo-bar")},
+			Language:    Language{Name: tests.StringPtr("go"), Version: tests.StringPtr("++")},
+			Runtime:     Runtime{Name: tests.StringPtr("gc"), Version: tests.StringPtr("1.0")},
+			Framework:   Framework{Name: tests.StringPtr("never"), Version: tests.StringPtr("again")},
+			Agent:       Agent{Name: tests.StringPtr("go"), Version: tests.StringPtr("2.0")},
+		},
+		Process: &Process{
+			Pid:   123,
+			Ppid:  tests.IntPtr(122),
+			Title: tests.StringPtr("case"),
+			Argv:  []string{"apm-server"},
+		},
+		System: &System{
+			DetectedHostname:   tests.StringPtr("detected"),
+			ConfiguredHostname: tests.StringPtr("configured"),
+			Architecture:       tests.StringPtr("x86_64"),
+			Platform:           tests.StringPtr("linux"),
+			IP:                 net.ParseIP("10.1.1.1"),
+			Container:          &Container{ID: "docker"},
+			Kubernetes: &Kubernetes{
+				Namespace: tests.StringPtr("system"),
+				NodeName:  tests.StringPtr("node01"),
+				PodName:   tests.StringPtr("pet"),
+				PodUID:    tests.StringPtr("cattle"),
+			},
+		},
+		User: &User{
+			Id:        tests.StringPtr("123"),
+			Email:     tests.StringPtr("me@example.com"),
+			Name:      tests.StringPtr("bob"),
+			IP:        net.ParseIP("10.1.1.2"),
+			UserAgent: tests.StringPtr("user-agent"),
+		},
+		Labels: common.MapStr{"k": "v", "n": 1, "f": 1.5, "b": false},
+	})
 }
