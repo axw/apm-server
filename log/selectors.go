@@ -31,6 +31,7 @@ const (
 	Pipelines          = "pipelines"
 	Request            = "request"
 	Response           = "response"
+	Sampling           = "sampling"
 	Server             = "server"
 	Sourcemap          = "sourcemap"
 	Stacktrace         = "stacktrace"

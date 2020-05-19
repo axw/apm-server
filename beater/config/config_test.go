@@ -224,6 +224,13 @@ func Test_UnpackConfig(t *testing.T) {
 				},
 				Sampling: SamplingConfig{
 					KeepUnsampled: true,
+					Tail: &TailSamplingConfig{
+						Enabled:                false,
+						Interval:               1 * time.Minute,
+						IngestRateCoeffficient: 0.25,
+						StorageDir:             "tail_sampling",
+						TTL:                    30 * time.Minute,
+					},
 				},
 			},
 		},
@@ -261,6 +268,11 @@ func Test_UnpackConfig(t *testing.T) {
 				"aggregation.transactions.enabled":                 true,
 				"aggregation.transactions.rum.user_agent.lru_size": 123,
 				"sampling.keep_unsampled":                          false,
+				"sampling.tail": map[string]interface{}{
+					"enabled":                 true,
+					"interval":                "2m",
+					"ingest_rate_coefficient": 1.0,
+				},
 			},
 			outCfg: &Config{
 				Host:            "localhost:3000",
@@ -340,6 +352,13 @@ func Test_UnpackConfig(t *testing.T) {
 				},
 				Sampling: SamplingConfig{
 					KeepUnsampled: false,
+					Tail: &TailSamplingConfig{
+						Enabled:                true,
+						Interval:               2 * time.Minute,
+						IngestRateCoeffficient: 1.0,
+						StorageDir:             "tail_sampling",
+						TTL:                    30 * time.Minute,
+					},
 				},
 			},
 		},
