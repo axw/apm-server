@@ -1,0 +1,24 @@
+name: update-beats
+
+# Manually triggered.
+on:
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  update-beats:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        token: '${{ secrets.UPDATE_BEATS_GITHUB_TOKEN }}'
+    - uses: actions/setup-go@v2
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - run: make update-beats
+    - run: |
+        BEATS_MODULE=$(go list -m -f {{.Path}} all | grep github.com/elastic/beats)
+        BEATS_COMMIT=$(go list -m -f {{.Version}} $(BEATS_MODULE) | cut -d- -f3)
+        git commit -a -m "Update to elastic/beats@$(BEATS_COMMIT)"
+        git push
