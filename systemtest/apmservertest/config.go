@@ -108,7 +108,24 @@ type SamplingConfig struct {
 
 // TailSamplingConfig holds APM Server tail-based sampling configuration.
 type TailSamplingConfig struct {
-	Enabled bool `json:"enabled"`
+	Enabled           bool
+	Interval          time.Duration
+	DefaultSampleRate float64
+}
+
+func (t *TailSamplingConfig) MarshalJSON() ([]byte, error) {
+	// time.Duration is encoded as int64.
+	// Convert time.Durations to durations, to encode as duration strings.
+	type config struct {
+		Enabled           bool     `json:"enabled"`
+		Interval          duration `json:"interval"`
+		DefaultSampleRate float64  `json:"default_sample_rate"`
+	}
+	return json.Marshal(config{
+		Enabled:           t.Enabled,
+		Interval:          duration(t.Interval),
+		DefaultSampleRate: t.DefaultSampleRate,
+	})
 }
 
 // InstrumentationConfig holds APM Server instrumentation configuration.
