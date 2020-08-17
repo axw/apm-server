@@ -41,9 +41,10 @@ const (
 
 // Config holds APM Server configuration.
 type Config struct {
-	SecretToken string        `json:"apm-server.secret_token,omitempty"`
-	Jaeger      *JaegerConfig `json:"apm-server.jaeger,omitempty"`
-	Kibana      *KibanaConfig `json:"apm-server.kibana,omitempty"`
+	SecretToken string          `json:"apm-server.secret_token,omitempty"`
+	Jaeger      *JaegerConfig   `json:"apm-server.jaeger,omitempty"`
+	Kibana      *KibanaConfig   `json:"apm-server.kibana,omitempty"`
+	Sampling    *SamplingConfig `json:"apm-server.sampling,omitempty"`
 
 	// Instrumentation holds configuration for libbeat and apm-server instrumentation.
 	Instrumentation *InstrumentationConfig `json:"instrumentation,omitempty"`
@@ -97,6 +98,17 @@ type JaegerConfig struct {
 	GRPCAuthTag string `json:"grpc.auth_tag,omitempty"`
 	HTTPEnabled bool   `json:"http.enabled,omitempty"`
 	HTTPHost    string `json:"http.host,omitempty"`
+}
+
+// SamplingConfig holds APM Server trace sampling configuration.
+type SamplingConfig struct {
+	KeepUnsampled bool                `json:"keep_unsampled"`
+	Tail          *TailSamplingConfig `json:"tail,omitempty"`
+}
+
+// TailSamplingConfig holds APM Server tail-based sampling configuration.
+type TailSamplingConfig struct {
+	Enabled bool `json:"enabled"`
 }
 
 // InstrumentationConfig holds APM Server instrumentation configuration.
