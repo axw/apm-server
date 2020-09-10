@@ -45,14 +45,17 @@ func BenchmarkRUMV3Processor(b *testing.B) {
 }
 
 func benchmarkStreamProcessor(b *testing.B, processor *Processor, files []string) {
-	report := func(ctx context.Context, p publish.PendingReq) error {
-		return nil
-	}
 	//ensure to not hit rate limit as blocking wait would be measured otherwise
 	rl := rate.NewLimiter(rate.Limit(math.MaxFloat64-1), math.MaxInt32)
 
 	benchmark := func(filename string, rl *rate.Limiter) func(b *testing.B) {
 		return func(b *testing.B) {
+			var n int
+			report := func(ctx context.Context, p publish.PendingReq) error {
+				n += len(p.Transformables)
+				return nil
+			}
+
 			data, err := ioutil.ReadFile(filename)
 			if err != nil {
 				b.Error(err)
@@ -67,6 +70,7 @@ func benchmarkStreamProcessor(b *testing.B, processor *Processor, files []string
 				b.StartTimer()
 				processor.HandleStream(context.Background(), rl, &model.Metadata{}, r, report)
 			}
+			b.ReportMetric(float64(n)/float64(b.N), "events/op")
 		}
 	}
 

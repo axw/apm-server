@@ -102,13 +102,13 @@ func RUMV3Processor(cfg *config.Config) *Processor {
 
 func (p *Processor) readMetadata(metadata *model.Metadata, reader *streamReader) error {
 	var rawModel map[string]interface{}
-	err := reader.Read(&rawModel)
+	line, err := reader.Read(&rawModel)
 	if err != nil {
 		if err == io.EOF {
 			return &Error{
 				Type:     InvalidInputErrType,
 				Message:  "EOF while reading metadata",
-				Document: string(reader.LatestLine()),
+				Document: line,
 			}
 		}
 		return err
@@ -120,7 +120,7 @@ func (p *Processor) readMetadata(metadata *model.Metadata, reader *streamReader)
 		return &Error{
 			Type:     InvalidInputErrType,
 			Message:  ErrUnrecognizedObject.Error(),
-			Document: string(reader.LatestLine()),
+			Document: line,
 		}
 	}
 
@@ -130,7 +130,7 @@ func (p *Processor) readMetadata(metadata *model.Metadata, reader *streamReader)
 			return &Error{
 				Type:     InvalidInputErrType,
 				Message:  err.Error(),
-				Document: string(reader.LatestLine()),
+				Document: line,
 			}
 		}
 		return err
@@ -159,61 +159,119 @@ func (p *Processor) HandleRawModel(rawModel map[string]interface{}, batch *model
 	return ErrUnrecognizedObject
 }
 
-// readBatch will read up to `batchSize` objects from the ndjson stream,
-// returning a slice of Transformables and a boolean indicating that there
-// might be more to read.
-func (p *Processor) readBatch(
+func (p *Processor) readBatches(
 	ctx context.Context,
 	ipRateLimiter *rate.Limiter,
 	requestTime time.Time,
 	streamMetadata *model.Metadata,
 	batchSize int,
-	batch *model.Batch,
 	reader *streamReader,
 	response *Result,
-) bool {
-
-	if ipRateLimiter != nil {
-		// use provided rate limiter to throttle batch read
-		ctxT, cancel := context.WithTimeout(ctx, time.Second)
-		err := ipRateLimiter.WaitN(ctxT, batchSize)
-		cancel()
-		if err != nil {
-			response.Add(&Error{
-				Type:    RateLimitErrType,
-				Message: "rate limit exceeded",
-			})
-			return true
-		}
+	batches chan<- *model.Batch,
+) {
+	type decodedLine struct {
+		m    map[string]interface{}
+		line string
+		err  error
+	}
+	mapPool := sync.Pool{
+		New: func() interface{} {
+			return make(map[string]interface{})
+		},
 	}
 
-	// input events are decoded and appended to the batch
-	for i := 0; i < batchSize && !reader.IsEOF(); i++ {
-		var rawModel map[string]interface{}
-		err := reader.Read(&rawModel)
-		if err != nil && err != io.EOF {
-			if e, ok := err.(*Error); ok && (e.Type == InvalidInputErrType || e.Type == InputTooLargeErrType) {
-				response.LimitedAdd(e)
-				continue
+	decodedLines := make(chan decodedLine, 1000)
+	go func() {
+		defer close(decodedLines)
+		var n int
+		for !reader.IsEOF() {
+			if ipRateLimiter != nil {
+				if n++; n == batchSize {
+					n = 0
+					// use provided rate limiter to throttle batch read
+					ctxT, cancel := context.WithTimeout(ctx, time.Second)
+					err := ipRateLimiter.WaitN(ctxT, batchSize)
+					cancel()
+					if err != nil {
+						response.Add(&Error{
+							Type:    RateLimitErrType,
+							Message: "rate limit exceeded",
+						})
+						return
+					}
+				}
 			}
-			// return early, we assume we can only recover from a input error types
-			response.Add(err)
-			return true
+			var decoded decodedLine
+			decoded.m = mapPool.Get().(map[string]interface{})
+			decoded.line, decoded.err = reader.Read(&decoded.m)
+			if decoded.err == io.EOF {
+				decoded.err = nil
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case decodedLines <- decoded:
+			}
 		}
-		if len(rawModel) > 0 {
+	}()
 
-			err := p.HandleRawModel(rawModel, batch, requestTime, *streamMetadata)
-			if err != nil {
-				response.LimitedAdd(&Error{
-					Type:     InvalidInputErrType,
-					Message:  err.Error(),
-					Document: string(reader.LatestLine()),
-				})
-				continue
+	var out chan<- *model.Batch
+	batch := getBatch()
+	timer := time.NewTimer(time.Second)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			timer.Reset(time.Second)
+			out = batches
+		case out <- batch:
+			batch = getBatch()
+			out = nil
+		case decoded, ok := <-decodedLines:
+			if !ok {
+				if batch.Len() > 0 {
+					select {
+					case <-ctx.Done():
+					case batches <- batch:
+					}
+				}
+				return
+			}
+			err := decoded.err
+			if err == nil {
+				if len(decoded.m) > 0 {
+					err = p.HandleRawModel(decoded.m, batch, requestTime, *streamMetadata)
+					if err != nil {
+						err = &Error{
+							Type:     InvalidInputErrType,
+							Message:  err.Error(),
+							Document: decoded.line,
+						}
+					}
+					for k := range decoded.m {
+						delete(decoded.m, k)
+					}
+				}
+			}
+			if err != nil && err != io.EOF {
+				if err, ok := err.(*Error); ok {
+					switch err.Type {
+					case InvalidInputErrType, InputTooLargeErrType:
+						response.LimitedAdd(err)
+						continue
+					}
+				}
+				// return early, we assume we can only recover from a input error types
+				response.Add(err)
+				return
+			}
+			mapPool.Put(decoded.m)
+			if batch.Len() == batchSize {
+				out = batches
 			}
 		}
 	}
-	return reader.IsEOF()
 }
 
 // HandleStream processes a stream of events
@@ -236,13 +294,14 @@ func (p *Processor) HandleStream(ctx context.Context, ipRateLimiter *rate.Limite
 	sp, ctx := apm.StartSpan(ctx, "Stream", "Reporter")
 	defer sp.End()
 
-	var batch model.Batch
-	var done bool
-	for !done {
-		done = p.readBatch(ctx, ipRateLimiter, requestTime, meta, batchSize, &batch, sr, res)
-		if batch.Len() == 0 {
-			continue
-		}
+	batches := make(chan *model.Batch)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		defer close(batches)
+		p.readBatches(ctx, ipRateLimiter, requestTime, meta, batchSize, sr, res, batches)
+	}()
+	for batch := range batches {
 		// NOTE(axw) `report` takes ownership of transformables, which
 		// means we cannot reuse the slice memory. We should investigate
 		// alternative interfaces between the processor and publisher
@@ -268,57 +327,78 @@ func (p *Processor) HandleStream(ctx context.Context, ipRateLimiter *rate.Limite
 			return res
 		}
 		res.AddAccepted(batch.Len())
-		batch.Reset()
+		releaseBatch(batch)
 	}
+
 	return res
 }
 
 // getStreamReader returns a streamReader that reads ND-JSON lines from r.
 func (p *Processor) getStreamReader(r io.Reader) *streamReader {
 	if sr, ok := p.streamReaderPool.Get().(*streamReader); ok {
-		sr.Reset(r)
+		sr.d.Reset(r)
 		return sr
 	}
 	return &streamReader{
-		processor:           p,
-		NDJSONStreamDecoder: decoder.NewNDJSONStreamDecoder(r, p.MaxEventSize),
+		processor: p,
+		d:         decoder.NewNDJSONStreamDecoder(r, p.MaxEventSize),
 	}
 }
 
 // streamReader wraps NDJSONStreamReader, converting errors to stream errors.
 type streamReader struct {
 	processor *Processor
-	*decoder.NDJSONStreamDecoder
+	d         *decoder.NDJSONStreamDecoder
 }
 
 // release releases the streamReader, adding it to its Processor's sync.Pool.
 // The streamReader must not be used after release returns.
 func (sr *streamReader) release() {
-	sr.Reset(nil)
+	sr.d.Reset(nil)
 	sr.processor.streamReaderPool.Put(sr)
 }
 
-func (sr *streamReader) Read(v *map[string]interface{}) error {
+func (sr *streamReader) IsEOF() bool {
+	return sr.d.IsEOF()
+}
+
+func (sr *streamReader) Read(v *map[string]interface{}) (string, error) {
 	// TODO(axw) decode into a reused map, clearing out the
 	// map between reads. We would require that decoders copy
 	// any contents of rawModel that they wish to retain after
 	// the call, in order to safely reuse the map.
-	err := sr.NDJSONStreamDecoder.Decode(v)
+	err := sr.d.Decode(v)
+	line := string(sr.d.LatestLine())
 	if err != nil {
 		if _, ok := err.(decoder.JSONDecodeError); ok {
-			return &Error{
+			return line, &Error{
 				Type:     InvalidInputErrType,
 				Message:  err.Error(),
-				Document: string(sr.LatestLine()),
+				Document: line,
 			}
 		}
 		if err == decoder.ErrLineTooLong {
-			return &Error{
+			return line, &Error{
 				Type:     InputTooLargeErrType,
 				Message:  "event exceeded the permitted size.",
-				Document: string(sr.LatestLine()),
+				Document: line,
 			}
 		}
 	}
-	return err
+	return line, err
+}
+
+var batchPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.Batch)
+	},
+}
+
+func getBatch() *model.Batch {
+	return batchPool.Get().(*model.Batch)
+}
+
+func releaseBatch(b *model.Batch) {
+	b.Reset()
+	batchPool.Put(b)
 }
