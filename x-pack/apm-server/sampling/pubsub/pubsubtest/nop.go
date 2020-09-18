@@ -14,12 +14,13 @@ import (
 	"github.com/elastic/go-elasticsearch/v7/esutil"
 )
 
-// NopClient returns a new elasticsearch.Client that responds to publish and
-// subcsribe requests such that they are effectively no-ops.
-func NopClient() *elasticsearch.Client {
+// ChannelClient returns a new elasticsearch.Client that responds to publish and
+// subcsribe requests by sending IDs to channel pub, and receiving from channel
+// sub. If either channel is nil, then the respective operation will be a no-op.
+func Client(pub chan<- string, sub <-chan string) *elasticsearch.Client {
 	client, err := elasticsearch.NewClient(elasticsearch.Config{
 		Addresses: []string{"testing.invalid"},
-		Transport: nopClientRoundTripper{},
+		Transport: &channelClientRoundTripper{pub, sub},
 	})
 	if err != nil {
 		panic(err)
@@ -27,9 +28,12 @@ func NopClient() *elasticsearch.Client {
 	return client
 }
 
-type nopClientRoundTripper struct{}
+type channelClientRoundTripper struct {
+	pub chan<- string
+	sub <-chan string
+}
 
-func (nopClientRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+func (c *channelClientRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	recorder := httptest.NewRecorder()
 	switch r.Method {
 	case "GET":
