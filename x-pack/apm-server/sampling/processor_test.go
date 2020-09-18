@@ -42,7 +42,7 @@ func TestProcessUnsampled(t *testing.T) {
 	assert.Equal(t, in, out)
 }
 
-func TestProcessTailSampled(t *testing.T) {
+func TestProcessAlreadyTailSampled(t *testing.T) {
 	config := newTempdirConfig(t)
 
 	// Seed event storage with a tail-sampling decisions, to show that
@@ -67,8 +67,6 @@ func TestProcessTailSampled(t *testing.T) {
 	require.NoError(t, err)
 	go processor.Run()
 	defer processor.Stop(context.Background())
-
-	time.Sleep(2 * time.Second)
 
 	transaction1 := &model.Transaction{
 		TraceID: traceID1,
@@ -117,6 +115,192 @@ func TestProcessTailSampled(t *testing.T) {
 	})
 }
 
+func TestProcessLocalTailSampling(t *testing.T) {
+	config := newTempdirConfig(t)
+	config.DefaultSampleRate = 0.5
+	config.FlushInterval = 10 * time.Millisecond
+	published := make(chan string)
+	config.Elasticsearch = pubsubtest.Client(pubsubtest.PublisherChan(published), nil)
+
+	processor, err := sampling.NewProcessor(config)
+	require.NoError(t, err)
+	go processor.Run()
+	defer processor.Stop(context.Background())
+
+	traceID1 := "0102030405060708090a0b0c0d0e0f10"
+	traceID2 := "0102030405060708090a0b0c0d0e0f11"
+	trace1Events := model.Batch{
+		Transactions: []*model.Transaction{{
+			TraceID:  traceID1,
+			ID:       "0102030405060708",
+			Duration: 123,
+		}},
+		Spans: []*model.Span{{
+			TraceID:  traceID1,
+			ID:       "0102030405060709",
+			Duration: 123,
+		}},
+	}
+	trace2Events := model.Batch{
+		Transactions: []*model.Transaction{{
+			TraceID:  traceID2,
+			ID:       "0102030405060710",
+			Duration: 456,
+		}},
+		Spans: []*model.Span{{
+			TraceID:  traceID2,
+			ID:       "0102030405060711",
+			Duration: 456,
+		}},
+	}
+
+	in := append(trace1Events.Transformables(), trace2Events.Transformables()...)
+	out, err := processor.ProcessTransformables(context.Background(), in)
+	require.NoError(t, err)
+	assert.Empty(t, out)
+
+	// We have configured 50% tail-sampling, so we expect a single trace ID
+	// to be published. Sampling is non-deterministic (weighted random), so
+	// we can't anticipate a specific trace ID.
+
+	var sampledTraceID string
+	select {
+	case sampledTraceID = <-published:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for publication")
+	}
+	select {
+	case <-published:
+		t.Fatal("unexpected publication")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	unsampledTraceID := traceID2
+	sampledTraceEvents := trace1Events
+	unsampledTraceEvents := trace2Events
+	if sampledTraceID == traceID2 {
+		unsampledTraceID = traceID1
+		unsampledTraceEvents = trace1Events
+		sampledTraceEvents = trace2Events
+	}
+
+	// Stop the processor so we can access the database.
+	assert.NoError(t, processor.Stop(context.Background()))
+	withBadger(t, config.StorageDir, func(db *badger.DB) {
+		storage := eventstorage.New(db, eventstorage.JSONCodec{}, time.Minute)
+		reader := storage.NewReadWriter()
+		defer reader.Close()
+
+		sampled, err := reader.IsTraceSampled(sampledTraceID)
+		assert.NoError(t, err)
+		assert.True(t, sampled)
+
+		sampled, err = reader.IsTraceSampled(unsampledTraceID)
+		assert.Equal(t, eventstorage.ErrNotFound, err)
+		assert.False(t, sampled)
+
+		var batch model.Batch
+		err = reader.ReadEvents(sampledTraceID, &batch)
+		assert.NoError(t, err)
+		assert.Equal(t, sampledTraceEvents, batch)
+
+		// Even though the trace is unsampled, the events will be
+		// available in storage until the TTL expires, as they're
+		// written there first.
+		batch.Reset()
+		err = reader.ReadEvents(unsampledTraceID, &batch)
+		assert.NoError(t, err)
+		assert.Equal(t, unsampledTraceEvents, batch)
+	})
+}
+
+func TestProcessRemoteTailSampling(t *testing.T) {
+	config := newTempdirConfig(t)
+	config.DefaultSampleRate = 0.5
+	config.FlushInterval = 10 * time.Millisecond
+
+	var published []string
+	var publisher pubsubtest.PublisherFunc = func(ctx context.Context, traceID string) error {
+		published = append(published, traceID)
+		return nil
+	}
+	subscriberChan := make(chan string)
+	subscriber := pubsubtest.SubscriberChan(subscriberChan)
+	config.Elasticsearch = pubsubtest.Client(publisher, subscriber)
+
+	reported := make(chan []transform.Transformable)
+	config.Reporter = func(ctx context.Context, req publish.PendingReq) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case reported <- req.Transformables:
+			return nil
+		}
+	}
+
+	processor, err := sampling.NewProcessor(config)
+	require.NoError(t, err)
+	go processor.Run()
+	defer processor.Stop(context.Background())
+
+	traceID1 := "0102030405060708090a0b0c0d0e0f10"
+	traceID2 := "0102030405060708090a0b0c0d0e0f11"
+	trace1Events := model.Batch{
+		Spans: []*model.Span{{
+			TraceID:  traceID1,
+			ID:       "0102030405060709",
+			Duration: 123,
+		}},
+	}
+
+	in := trace1Events.Transformables()
+	out, err := processor.ProcessTransformables(context.Background(), in)
+	require.NoError(t, err)
+	assert.Empty(t, out)
+
+	subscriberChan <- traceID2
+	subscriberChan <- traceID1
+
+	select {
+	case <-reported:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for reporting")
+	}
+	select {
+	case <-reported:
+		t.Fatal("unexpected reporting")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	// Stop the processor so we can access the database.
+	assert.NoError(t, processor.Stop(context.Background()))
+	assert.Empty(t, published) // remote decisions don't get republished
+
+	withBadger(t, config.StorageDir, func(db *badger.DB) {
+		storage := eventstorage.New(db, eventstorage.JSONCodec{}, time.Minute)
+		reader := storage.NewReadWriter()
+		defer reader.Close()
+
+		sampled, err := reader.IsTraceSampled(traceID1)
+		assert.NoError(t, err)
+		assert.True(t, sampled)
+
+		sampled, err = reader.IsTraceSampled(traceID2)
+		assert.NoError(t, err)
+		assert.True(t, sampled)
+
+		var batch model.Batch
+		err = reader.ReadEvents(traceID1, &batch)
+		assert.NoError(t, err)
+		assert.Equal(t, trace1Events, batch)
+
+		batch = model.Batch{}
+		err = reader.ReadEvents(traceID2, &batch)
+		assert.NoError(t, err)
+		assert.Zero(t, batch)
+	})
+}
+
 func withBadger(tb testing.TB, storageDir string, f func(db *badger.DB)) {
 	badgerOpts := badger.DefaultOptions(storageDir)
 	badgerOpts.Logger = nil
@@ -132,7 +316,7 @@ func newTempdirConfig(tb testing.TB) sampling.Config {
 	tb.Cleanup(func() { os.RemoveAll(tempdir) })
 	return sampling.Config{
 		Reporter:              func(ctx context.Context, req publish.PendingReq) error { return nil },
-		Elasticsearch:         pubsubtest.NopClient(),
+		Elasticsearch:         pubsubtest.Client(nil, nil),
 		StorageDir:            tempdir,
 		StorageGCInterval:     time.Second,
 		TTL:                   30 * time.Minute,

@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v2"
-	"github.com/hashicorp/go-multierror"
+	"golang.org/x/sync/errgroup"
 
 	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/apm-server/model"
+	"github.com/elastic/apm-server/publish"
 	"github.com/elastic/apm-server/transform"
 	"github.com/elastic/apm-server/x-pack/apm-server/sampling/eventstorage"
 	"github.com/elastic/apm-server/x-pack/apm-server/sampling/pubsub"
@@ -27,16 +28,18 @@ var ErrStopped = errors.New("processor is stopped")
 // Processor is a tail-sampling event processor.
 type Processor struct {
 	config Config
+	logger *logp.Logger
+	groups *traceGroups
 
-	groups      *traceGroups
-	db          *badger.DB
-	storage     *eventstorage.ShardedReadWriter
-	tailSampler *tailSampler
-	gc          *storageGarbageCollector
+	storageMu sync.RWMutex
+	db        *badger.DB
+	gc        *storageGarbageCollector
+	storage   *eventstorage.ShardedReadWriter
 
-	mu      sync.RWMutex
-	stopped bool
-	stopErr error
+	stopMu   sync.Mutex
+	stopping chan struct{}
+	stopped  chan struct{}
+	stopErr  error
 }
 
 // NewProcessor returns a new Processor, for tail-sampling trace events.
@@ -53,78 +56,21 @@ func NewProcessor(config Config) (*Processor, error) {
 		return nil, err
 	}
 
-	pubsub, err := pubsub.New(pubsub.Config{
-		Client: config.Elasticsearch,
-		Logger: logger,
-		Index:  ".apm-trace-ids", // TODO(axw) make configurable?
-		BeatID: "xyz",            // TODO(axw) pass in via config
-
-		// Issue pubsub subscriber search requests at the same frequency
-		// as publishing, so each server observes each other's sampled
-		// trace IDs soon after they are published.
-		SearchInterval: config.FlushInterval,
-
-		// NOTE(axw) this is currently not configurable. The user can
-		// configure the tail-sampling flush interval, but this flush
-		// interval controls how long to wait until flushing the bulk
-		// indexer.
-		FlushInterval: 5 * time.Second,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	eventCodec := eventstorage.JSONCodec{}
 	storage := eventstorage.New(db, eventCodec, config.TTL)
 	readWriter := storage.NewShardedReadWriter()
 
 	p := &Processor{
-		config:  config,
-		groups:  newTraceGroups(config.MaxTraceGroups, config.DefaultSampleRate, config.IngestRateCoefficient),
-		db:      db,
-		storage: readWriter,
-		gc:      newStorageGarbageCollector(db, config.StorageGCInterval),
+		config:   config,
+		logger:   logger,
+		groups:   newTraceGroups(config.MaxTraceGroups, config.DefaultSampleRate, config.IngestRateCoefficient),
+		db:       db,
+		storage:  readWriter,
+		gc:       newStorageGarbageCollector(db, config.StorageGCInterval),
+		stopping: make(chan struct{}),
+		stopped:  make(chan struct{}),
 	}
-	p.tailSampler = newTailSampler(
-		p.groups,
-		config.FlushInterval,
-		p.storage,
-		p.storage,
-		pubsub,
-		pubsub,
-		config.Reporter,
-	)
 	return p, nil
-}
-
-// Run runs the tail-sampling processor.
-//
-// Run returns when a fatal error occurs or the Stop method is invoked.
-func (p *Processor) Run() error {
-	return p.tailSampler.Run()
-}
-
-// Stop stops the processor, flushing and closing the event storage.
-func (p *Processor) Stop(ctx context.Context) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.stopped {
-		return p.stopErr
-	}
-	stopErr := p.tailSampler.Stop(ctx)
-	if err := p.storage.Flush(); err != nil {
-		stopErr = multierror.Append(stopErr, err)
-	}
-	if err := p.gc.Close(); err != nil {
-		stopErr = multierror.Append(stopErr, err)
-	}
-	p.storage.Close()
-	if err := p.db.Close(); err != nil {
-		stopErr = multierror.Append(stopErr, err)
-	}
-	p.stopErr = stopErr
-	p.stopped = true
-	return p.stopErr
 }
 
 // ProcessTransformables processes events, writing head sampled transactions and
@@ -132,9 +78,9 @@ func (p *Processor) Stop(ctx context.Context) error {
 // tail sampled), discarding events that should not be sampled, and returning
 // everything else to be published immediately.
 func (p *Processor) ProcessTransformables(ctx context.Context, events []transform.Transformable) ([]transform.Transformable, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.stopped {
+	p.storageMu.RLock()
+	defer p.storageMu.RUnlock()
+	if p.storage == nil {
 		return nil, ErrStopped
 	}
 	for i := 0; i < len(events); i++ {
@@ -231,4 +177,175 @@ func (p *Processor) processSpan(span *model.Span) (bool, error) {
 	// Tail-sampling decision has been made, index or drop the event.
 	drop := !traceSampled
 	return drop, nil
+}
+
+// Stop stops the processor, flushing and closing the event storage.
+func (p *Processor) Stop(ctx context.Context) error {
+	p.stopMu.Lock()
+	if p.storage == nil {
+		// Already fully stopped.
+		p.stopMu.Unlock()
+		return nil
+	}
+	select {
+	case <-p.stopping:
+		// already stopping
+	default:
+		close(p.stopping)
+	}
+	p.stopMu.Unlock()
+
+	// Wait for Run to return.
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-p.stopped:
+	}
+
+	if err := p.gc.Close(); err != nil {
+		return err
+	}
+
+	// Lock storage before stopping, to prevent closing
+	// storage while ProcessTransformables is using it.
+	p.storageMu.Lock()
+	defer p.storageMu.Unlock()
+
+	if err := p.storage.Flush(); err != nil {
+		return err
+	}
+	p.storage.Close()
+	if err := p.db.Close(); err != nil {
+		return err
+	}
+	p.storage = nil
+	return nil
+}
+
+// Run runs the tail-sampling processor. This method is responsible for:
+//
+//  - periodically making, and then publishing, local sampling decisions
+//  - subscribing to remote sampling decisions
+//  - reacting to both local and remote sampling decisions by reading
+//    related events from local storage, and then reporting them
+//
+// Run returns when a fatal error occurs or the Stop method is invoked.
+func (p *Processor) Run() error {
+	p.storageMu.RLock()
+	defer p.storageMu.RUnlock()
+	defer func() {
+		p.stopMu.Lock()
+		defer p.stopMu.Unlock()
+		select {
+		case <-p.stopped:
+		default:
+			close(p.stopped)
+		}
+	}()
+
+	// NOTE(axw) the user can configure the tail-sampling flush interval,
+	// but cannot directly control the bulk indexing flush interval. The
+	// bulk indexing is expected to complete soon after the tail-sampling
+	// flush interval.
+	bulkIndexerFlushInterval := 5 * time.Second
+	if bulkIndexerFlushInterval > p.config.FlushInterval {
+		bulkIndexerFlushInterval = p.config.FlushInterval
+	}
+
+	pubsub, err := pubsub.New(pubsub.Config{
+		Client: p.config.Elasticsearch,
+		Logger: p.logger,
+		Index:  ".apm-trace-ids", // TODO(axw) make configurable?
+		BeatID: "xyz",            // TODO(axw) pass in via config
+
+		// Issue pubsub subscriber search requests at the same frequency
+		// as publishing, so each server observes each other's sampled
+		// trace IDs soon after they are published.
+		SearchInterval: p.config.FlushInterval,
+		FlushInterval:  bulkIndexerFlushInterval,
+	})
+	if err != nil {
+		return err
+	}
+
+	remoteSampledTraceIDs := make(chan string)
+	localSampledTraceIDs := make(chan string)
+	errgroup, ctx := errgroup.WithContext(context.Background())
+	errgroup.Go(func() error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-p.stopping:
+			return context.Canceled
+		}
+	})
+	errgroup.Go(func() error {
+		return pubsub.SubscribeSampledTraceIDs(ctx, remoteSampledTraceIDs)
+	})
+	errgroup.Go(func() error {
+		ticker := time.NewTicker(p.config.FlushInterval)
+		defer ticker.Stop()
+		var traceIDs []string
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ticker.C:
+				p.logger.Debug("finalizing local sampling reservoirs")
+				traceIDs = p.groups.finalizeSampledTraces(traceIDs)
+				if len(traceIDs) == 0 {
+					continue
+				}
+				if err := pubsub.PublishSampledTraceIDs(ctx, traceIDs...); err != nil {
+					return err
+				}
+				for _, traceID := range traceIDs {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case localSampledTraceIDs <- traceID:
+					}
+				}
+				traceIDs = traceIDs[:0]
+			}
+		}
+	})
+	errgroup.Go(func() error {
+		// TODO(axw) pace the publishing over the flush interval?
+		// Alternatively we can rely on backpressure from the reporter,
+		// removing the artificial one second timeout from publisher code
+		// and just waiting as long as it takes here.
+		var events model.Batch
+		for {
+			var traceID string
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case traceID = <-remoteSampledTraceIDs:
+				p.logger.Debug("received remotely sampled trace ID")
+			case traceID = <-localSampledTraceIDs:
+			}
+			if err := p.storage.WriteTraceSampled(traceID, true); err != nil {
+				return err
+			}
+			if err := p.storage.ReadEvents(traceID, &events); err != nil {
+				return err
+			}
+			transformables := events.Transformables()
+			if len(transformables) > 0 {
+				p.logger.Debugf("reporting %d events", len(transformables))
+				if err := p.config.Reporter(ctx, publish.PendingReq{
+					Transformables: transformables,
+					Trace:          true,
+				}); err != nil {
+					p.logger.With(logp.Error(err)).Warn("failed to report events")
+				}
+			}
+			events.Reset()
+		}
+	})
+	if err := errgroup.Wait(); err != nil && err != context.Canceled {
+		return err
+	}
+	return nil
 }
