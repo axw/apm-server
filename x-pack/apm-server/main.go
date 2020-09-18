@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/paths"
 
 	"github.com/elastic/apm-server/beater"
 	"github.com/elastic/apm-server/publish"
@@ -19,6 +20,7 @@ import (
 	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/spanmetrics"
 	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/txmetrics"
 	"github.com/elastic/apm-server/x-pack/apm-server/cmd"
+	"github.com/elastic/apm-server/x-pack/apm-server/sampling"
 )
 
 type namedProcessor struct {
@@ -27,7 +29,7 @@ type namedProcessor struct {
 }
 
 type processor interface {
-	ProcessTransformables([]transform.Transformable) []transform.Transformable
+	ProcessTransformables(context.Context, []transform.Transformable) ([]transform.Transformable, error)
 	Run() error
 	Stop(context.Context) error
 }
@@ -64,6 +66,38 @@ func newProcessors(args beater.ServerParams) ([]namedProcessor, error) {
 		}
 		processors = append(processors, namedProcessor{name: name, processor: spanAggregator})
 	}
+	if args.Config.Sampling.Tail.Enabled {
+		// runServerWithTailSampler wraps a RunServerFunc with a tail
+		// sampler, if enabled. Transactions and spans will run through
+		// the tail sampler, and will be buffered in local storage until
+		// a tail-sampling decision is made (then published/dropped based
+		// on the decision), or published/dropped immediately if the
+		// decision has already been made.
+		const name = "tail sampler"
+		tailSamplingConfig := args.Config.Sampling.Tail
+		storageDir := paths.Resolve(paths.Data, tailSamplingConfig.StorageDir)
+		sampler, err := sampling.NewProcessor(sampling.Config{
+			Reporter:   args.Reporter,
+			StorageDir: storageDir,
+
+			// TODO(axw) should these be configurable? Depends on whether
+			// or not we want to keep the ability define a default
+			// tail-sampling rate for "other" trace groups, or require
+			// users to specify a tail-sampling rate for the high
+			// priority trace groups.
+			MaxTraceGroups:    1000,
+			DefaultSampleRate: tailSamplingConfig.DefaultSampleRate,
+
+			TTL:                   tailSamplingConfig.TTL,
+			FlushInterval:         tailSamplingConfig.Interval,
+			IngestRateCoefficient: tailSamplingConfig.IngestRateCoefficient,
+			StorageGCInterval:     tailSamplingConfig.StorageGCInterval,
+		})
+		if err != nil {
+			return nil, errors.Wrapf(err, "error creating %s", name)
+		}
+		processors = append(processors, namedProcessor{name: name, processor: sampler})
+	}
 	return processors, nil
 }
 
@@ -78,8 +112,12 @@ func runServerWithProcessors(ctx context.Context, runServer beater.RunServerFunc
 
 	origReport := args.Reporter
 	args.Reporter = func(ctx context.Context, req publish.PendingReq) error {
+		var err error
 		for _, p := range processors {
-			req.Transformables = p.ProcessTransformables(req.Transformables)
+			req.Transformables, err = p.ProcessTransformables(ctx, req.Transformables)
+			if err != nil {
+				return err
+			}
 		}
 		return origReport(ctx, req)
 	}
