@@ -23,7 +23,8 @@ type Config struct {
 
 	// Pubsub config
 
-	Elasticsearch *elasticsearch.Client
+	Elasticsearch      *elasticsearch.Client
+	SampledTracesIndex string
 
 	// Reservoir sampling config
 
@@ -47,6 +48,9 @@ func (config Config) Validate() error {
 	}
 	if config.Elasticsearch == nil {
 		return errors.New("Elasticsearch unspecified")
+	}
+	if config.SampledTracesIndex == "" {
+		return errors.New("SampledTracesIndex unspecified")
 	}
 	if config.StorageDir == "" {
 		return errors.New("StorageDir unspecified")

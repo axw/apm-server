@@ -33,7 +33,6 @@ type Processor struct {
 
 	storageMu sync.RWMutex
 	db        *badger.DB
-	gc        *storageGarbageCollector
 	storage   *eventstorage.ShardedReadWriter
 
 	stopMu   sync.Mutex
@@ -66,7 +65,6 @@ func NewProcessor(config Config) (*Processor, error) {
 		groups:   newTraceGroups(config.MaxTraceGroups, config.DefaultSampleRate, config.IngestRateCoefficient),
 		db:       db,
 		storage:  readWriter,
-		gc:       newStorageGarbageCollector(db, config.StorageGCInterval),
 		stopping: make(chan struct{}),
 		stopped:  make(chan struct{}),
 	}
@@ -202,10 +200,6 @@ func (p *Processor) Stop(ctx context.Context) error {
 	case <-p.stopped:
 	}
 
-	if err := p.gc.Close(); err != nil {
-		return err
-	}
-
 	// Lock storage before stopping, to prevent closing
 	// storage while ProcessTransformables is using it.
 	p.storageMu.Lock()
@@ -253,9 +247,9 @@ func (p *Processor) Run() error {
 	}
 
 	pubsub, err := pubsub.New(pubsub.Config{
-		Client: p.config.Elasticsearch,
-		Index:  ".apm-trace-ids", // TODO(axw) make configurable?
 		BeatID: p.config.BeatID,
+		Client: p.config.Elasticsearch,
+		Index:  p.config.SampledTracesIndex,
 		Logger: p.logger,
 
 		// Issue pubsub subscriber search requests at twice the frequency
@@ -277,6 +271,21 @@ func (p *Processor) Run() error {
 			return ctx.Err()
 		case <-p.stopping:
 			return context.Canceled
+		}
+	})
+	errgroup.Go(func() error {
+		ticker := time.NewTicker(p.config.StorageGCInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ticker.C:
+				const discardRatio = 0.5
+				if err := p.db.RunValueLogGC(discardRatio); err != nil && err != badger.ErrNoRewrite {
+					return err
+				}
+			}
 		}
 	})
 	errgroup.Go(func() error {

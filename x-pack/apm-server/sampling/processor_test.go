@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v2"
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -214,6 +215,52 @@ func TestProcessLocalTailSampling(t *testing.T) {
 	})
 }
 
+func TestProcessLocalTailSamplingUnsampled(t *testing.T) {
+	config := newTempdirConfig(t)
+	config.FlushInterval = time.Minute
+	processor, err := sampling.NewProcessor(config)
+	require.NoError(t, err)
+	go processor.Run()
+	defer processor.Stop(context.Background())
+
+	// Process root transactions until one is rejected.
+	traceIDs := make([]string, 10000)
+	for i := range traceIDs {
+		traceID := uuid.Must(uuid.NewV4()).String()
+		traceIDs[i] = traceID
+		tx := &model.Transaction{
+			TraceID:  traceID,
+			ID:       traceID,
+			Duration: 1,
+		}
+		out, err := processor.ProcessTransformables(context.Background(), []transform.Transformable{tx})
+		require.NoError(t, err)
+		assert.Empty(t, out)
+	}
+
+	// Stop the processor so we can access the database.
+	assert.NoError(t, processor.Stop(context.Background()))
+	withBadger(t, config.StorageDir, func(db *badger.DB) {
+		storage := eventstorage.New(db, eventstorage.JSONCodec{}, time.Minute)
+		reader := storage.NewReadWriter()
+		defer reader.Close()
+
+		var anyUnsampled bool
+		for _, traceID := range traceIDs {
+			sampled, err := reader.IsTraceSampled(traceID)
+			if err == eventstorage.ErrNotFound {
+				// No sampling decision made yet.
+			} else {
+				assert.NoError(t, err)
+				assert.False(t, sampled)
+				anyUnsampled = true
+				break
+			}
+		}
+		assert.True(t, anyUnsampled)
+	})
+}
+
 func TestProcessRemoteTailSampling(t *testing.T) {
 	config := newTempdirConfig(t)
 	config.DefaultSampleRate = 0.5
@@ -318,6 +365,7 @@ func newTempdirConfig(tb testing.TB) sampling.Config {
 		BeatID:                "local-apm-server",
 		Reporter:              func(ctx context.Context, req publish.PendingReq) error { return nil },
 		Elasticsearch:         pubsubtest.Client(nil, nil),
+		SampledTracesIndex:    ".apm-sampled-traces",
 		StorageDir:            tempdir,
 		StorageGCInterval:     time.Second,
 		TTL:                   30 * time.Minute,
