@@ -315,6 +315,7 @@ func newTempdirConfig(tb testing.TB) sampling.Config {
 	require.NoError(tb, err)
 	tb.Cleanup(func() { os.RemoveAll(tempdir) })
 	return sampling.Config{
+		BeatID:                "local-apm-server",
 		Reporter:              func(ctx context.Context, req publish.PendingReq) error { return nil },
 		Elasticsearch:         pubsubtest.Client(nil, nil),
 		StorageDir:            tempdir,

@@ -5,7 +5,7 @@
 package sampling
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v7"
@@ -15,44 +15,59 @@ import (
 
 // Config holds configuration for Processor.
 type Config struct {
-	Reporter              publish.Reporter
-	Elasticsearch         *elasticsearch.Client
-	StorageDir            string
-	StorageGCInterval     time.Duration
-	TTL                   time.Duration
+	// General config
+
+	BeatID        string
+	Reporter      publish.Reporter
+	FlushInterval time.Duration
+
+	// Pubsub config
+
+	Elasticsearch *elasticsearch.Client
+
+	// Reservoir sampling config
+
 	MaxTraceGroups        int
-	FlushInterval         time.Duration
 	DefaultSampleRate     float64
 	IngestRateCoefficient float64
+
+	// Storage config
+
+	StorageDir        string
+	StorageGCInterval time.Duration
+	TTL               time.Duration
 }
 
 func (config Config) Validate() error {
+	if config.BeatID == "" {
+		return errors.New("BeatID unspecified")
+	}
 	if config.Reporter == nil {
-		return fmt.Errorf("Reporter unspecified")
+		return errors.New("Reporter unspecified")
 	}
 	if config.Elasticsearch == nil {
-		return fmt.Errorf("Elasticsearch unspecified")
+		return errors.New("Elasticsearch unspecified")
 	}
 	if config.StorageDir == "" {
-		return fmt.Errorf("StorageDir unspecified")
+		return errors.New("StorageDir unspecified")
 	}
 	if config.StorageGCInterval <= 0 {
-		return fmt.Errorf("GCInterval unspecified or negative")
+		return errors.New("GCInterval unspecified or negative")
 	}
 	if config.TTL <= 0 {
-		return fmt.Errorf("TTL unspecified or negative")
+		return errors.New("TTL unspecified or negative")
 	}
 	if config.MaxTraceGroups <= 0 {
-		return fmt.Errorf("MaxTraceGroups unspecified or negative")
+		return errors.New("MaxTraceGroups unspecified or negative")
 	}
 	if config.FlushInterval <= 0 {
-		return fmt.Errorf("FlushInterval unspecified or negative")
+		return errors.New("FlushInterval unspecified or negative")
 	}
 	if config.DefaultSampleRate <= 0 || config.DefaultSampleRate >= 1 {
-		return fmt.Errorf("DefaultSampleRate unspecified, or out of range (0,1)")
+		return errors.New("DefaultSampleRate unspecified, or out of range (0,1)")
 	}
 	if config.IngestRateCoefficient <= 0 || config.IngestRateCoefficient > 1 {
-		return fmt.Errorf("IngestRateCoefficient unspecified, or out of range (0,1]")
+		return errors.New("IngestRateCoefficient unspecified, or out of range (0,1]")
 	}
 	return nil
 }

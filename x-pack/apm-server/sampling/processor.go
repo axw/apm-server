@@ -254,14 +254,14 @@ func (p *Processor) Run() error {
 
 	pubsub, err := pubsub.New(pubsub.Config{
 		Client: p.config.Elasticsearch,
-		Logger: p.logger,
 		Index:  ".apm-trace-ids", // TODO(axw) make configurable?
-		BeatID: "xyz",            // TODO(axw) pass in via config
+		BeatID: p.config.BeatID,
+		Logger: p.logger,
 
-		// Issue pubsub subscriber search requests at the same frequency
-		// as publishing, so each server observes each other's sampled
+		// Issue pubsub subscriber search requests at twice the frequency
+		// of publishing, so each server observes each other's sampled
 		// trace IDs soon after they are published.
-		SearchInterval: p.config.FlushInterval,
+		SearchInterval: p.config.FlushInterval / 2,
 		FlushInterval:  bulkIndexerFlushInterval,
 	})
 	if err != nil {
