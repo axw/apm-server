@@ -8,6 +8,8 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,7 +121,7 @@ func TestProcessAlreadyTailSampled(t *testing.T) {
 func TestProcessLocalTailSampling(t *testing.T) {
 	config := newTempdirConfig(t)
 	config.DefaultSampleRate = 0.5
-	config.FlushInterval = 10 * time.Millisecond
+	config.Interval = 10 * time.Millisecond
 	published := make(chan string)
 	config.Elasticsearch = pubsubtest.Client(pubsubtest.PublisherChan(published), nil)
 
@@ -217,7 +219,7 @@ func TestProcessLocalTailSampling(t *testing.T) {
 
 func TestProcessLocalTailSamplingUnsampled(t *testing.T) {
 	config := newTempdirConfig(t)
-	config.FlushInterval = time.Minute
+	config.Interval = time.Minute
 	processor, err := sampling.NewProcessor(config)
 	require.NoError(t, err)
 	go processor.Run()
@@ -264,7 +266,7 @@ func TestProcessLocalTailSamplingUnsampled(t *testing.T) {
 func TestProcessRemoteTailSampling(t *testing.T) {
 	config := newTempdirConfig(t)
 	config.DefaultSampleRate = 0.5
-	config.FlushInterval = 10 * time.Millisecond
+	config.Interval = 10 * time.Millisecond
 
 	var published []string
 	var publisher pubsubtest.PublisherFunc = func(ctx context.Context, traceID string) error {
@@ -348,6 +350,70 @@ func TestProcessRemoteTailSampling(t *testing.T) {
 	})
 }
 
+func TestStorageGC(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow test")
+	}
+
+	config := newTempdirConfig(t)
+	config.TTL = 10 * time.Millisecond
+	config.Interval = 10 * time.Millisecond
+
+	writeBatch := func(n int) {
+		processor, err := sampling.NewProcessor(config)
+		require.NoError(t, err)
+		go processor.Run()
+		defer processor.Stop(context.Background())
+		for i := 0; i < n; i++ {
+			traceID := uuid.Must(uuid.NewV4()).String()
+			out, err := processor.ProcessTransformables(context.Background(), []transform.Transformable{&model.Span{
+				TraceID:  traceID,
+				ID:       traceID,
+				Duration: 123,
+			}})
+			require.NoError(t, err)
+			assert.Empty(t, out)
+		}
+	}
+
+	vlogFilenames := func() []string {
+		dir, _ := os.Open(config.StorageDir)
+		names, _ := dir.Readdirnames(-1)
+		defer dir.Close()
+
+		var vlogs []string
+		for _, name := range names {
+			if strings.HasSuffix(name, ".vlog") {
+				vlogs = append(vlogs, name)
+			}
+		}
+		sort.Strings(vlogs)
+		return vlogs
+	}
+
+	// Process spans until more than one value log file has been created,
+	// but the first one does not exist (has been garbage collected).
+	for len(vlogFilenames()) < 2 {
+		writeBatch(50000)
+	}
+
+	config.StorageGCInterval = 10 * time.Millisecond
+	processor, err := sampling.NewProcessor(config)
+	require.NoError(t, err)
+	go processor.Run()
+	defer processor.Stop(context.Background())
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		vlogs := vlogFilenames()
+		if len(vlogs) == 0 || vlogs[0] != "000000.vlog" {
+			// garbage collected
+			return
+		}
+	}
+	t.Fatal("timed out waiting for value log garbage collection")
+}
+
 func withBadger(tb testing.TB, storageDir string, f func(db *badger.DB)) {
 	badgerOpts := badger.DefaultOptions(storageDir)
 	badgerOpts.Logger = nil
@@ -362,17 +428,23 @@ func newTempdirConfig(tb testing.TB) sampling.Config {
 	require.NoError(tb, err)
 	tb.Cleanup(func() { os.RemoveAll(tempdir) })
 	return sampling.Config{
-		BeatID:                "local-apm-server",
-		Reporter:              func(ctx context.Context, req publish.PendingReq) error { return nil },
-		Elasticsearch:         pubsubtest.Client(nil, nil),
-		SampledTracesIndex:    ".apm-sampled-traces",
-		StorageDir:            tempdir,
-		StorageGCInterval:     time.Second,
-		TTL:                   30 * time.Minute,
-		MaxTraceGroups:        1000,
-		FlushInterval:         time.Second,
-		DefaultSampleRate:     0.1,
-		IngestRateCoefficient: 0.9,
+		BeatID:   "local-apm-server",
+		Reporter: func(ctx context.Context, req publish.PendingReq) error { return nil },
+		LocalSamplingConfig: sampling.LocalSamplingConfig{
+			Interval:              time.Second,
+			MaxTraceGroups:        1000,
+			DefaultSampleRate:     0.1,
+			IngestRateDecayFactor: 0.9,
+		},
+		RemoteSamplingConfig: sampling.RemoteSamplingConfig{
+			Elasticsearch:      pubsubtest.Client(nil, nil),
+			SampledTracesIndex: ".apm-sampled-traces",
+		},
+		StorageConfig: sampling.StorageConfig{
+			StorageDir:        tempdir,
+			StorageGCInterval: time.Second,
+			TTL:               30 * time.Minute,
+		},
 	}
 }
 

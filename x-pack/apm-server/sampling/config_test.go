@@ -31,36 +31,36 @@ func TestNewProcessorConfigInvalid(t *testing.T) {
 	assertInvalidConfigError("Reporter unspecified")
 	config.Reporter = func(ctx context.Context, req publish.PendingReq) error { return nil }
 
-	assertInvalidConfigError("FlushInterval unspecified or negative")
-	config.FlushInterval = 1
+	assertInvalidConfigError("invalid local sampling config: Interval unspecified or negative")
+	config.Interval = 1
 
-	assertInvalidConfigError("Elasticsearch unspecified")
-	config.Elasticsearch = &elasticsearch.Client{}
-
-	assertInvalidConfigError("SampledTracesIndex unspecified")
-	config.SampledTracesIndex = "sampled-traces"
-
-	assertInvalidConfigError("MaxTraceGroups unspecified or negative")
+	assertInvalidConfigError("invalid local sampling config: MaxTraceGroups unspecified or negative")
 	config.MaxTraceGroups = 1
 
 	for _, invalid := range []float64{-1, 1.0, 2.0} {
 		config.DefaultSampleRate = invalid
-		assertInvalidConfigError("DefaultSampleRate unspecified or out of range [0,1)")
+		assertInvalidConfigError("invalid local sampling config: DefaultSampleRate unspecified or out of range [0,1)")
 	}
 	config.DefaultSampleRate = 0.5
 
 	for _, invalid := range []float64{-1, 0, 2.0} {
-		config.IngestRateCoefficient = invalid
-		assertInvalidConfigError("IngestRateCoefficient unspecified or out of range (0,1]")
+		config.IngestRateDecayFactor = invalid
+		assertInvalidConfigError("invalid local sampling config: IngestRateDecayFactor unspecified or out of range (0,1]")
 	}
-	config.IngestRateCoefficient = 0.5
+	config.IngestRateDecayFactor = 0.5
 
-	assertInvalidConfigError("StorageDir unspecified")
+	assertInvalidConfigError("invalid remote sampling config: Elasticsearch unspecified")
+	config.Elasticsearch = &elasticsearch.Client{}
+
+	assertInvalidConfigError("invalid remote sampling config: SampledTracesIndex unspecified")
+	config.SampledTracesIndex = "sampled-traces"
+
+	assertInvalidConfigError("invalid storage config: StorageDir unspecified")
 	config.StorageDir = "tbs"
 
-	assertInvalidConfigError("StorageGCInterval unspecified or negative")
+	assertInvalidConfigError("invalid storage config: StorageGCInterval unspecified or negative")
 	config.StorageGCInterval = 1
 
-	assertInvalidConfigError("TTL unspecified or negative")
-	config.IngestRateCoefficient = 1
+	assertInvalidConfigError("invalid storage config: TTL unspecified or negative")
+	config.TTL = 1
 }

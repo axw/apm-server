@@ -49,6 +49,7 @@ func NewProcessor(config Config) (*Processor, error) {
 
 	logger := logp.NewLogger(logs.Sampling)
 	badgerOpts := badger.DefaultOptions(config.StorageDir)
+	badgerOpts.ValueLogFileSize = 128 * 1024 * 1024
 	badgerOpts.Logger = eventstorage.LogpAdaptor{Logger: logger}
 	db, err := badger.Open(badgerOpts)
 	if err != nil {
@@ -62,7 +63,7 @@ func NewProcessor(config Config) (*Processor, error) {
 	p := &Processor{
 		config:   config,
 		logger:   logger,
-		groups:   newTraceGroups(config.MaxTraceGroups, config.DefaultSampleRate, config.IngestRateCoefficient),
+		groups:   newTraceGroups(config.MaxTraceGroups, config.DefaultSampleRate, config.IngestRateDecayFactor),
 		db:       db,
 		storage:  readWriter,
 		stopping: make(chan struct{}),
@@ -242,8 +243,8 @@ func (p *Processor) Run() error {
 	// bulk indexing is expected to complete soon after the tail-sampling
 	// flush interval.
 	bulkIndexerFlushInterval := 5 * time.Second
-	if bulkIndexerFlushInterval > p.config.FlushInterval {
-		bulkIndexerFlushInterval = p.config.FlushInterval
+	if bulkIndexerFlushInterval > p.config.Interval {
+		bulkIndexerFlushInterval = p.config.Interval
 	}
 
 	pubsub, err := pubsub.New(pubsub.Config{
@@ -255,7 +256,7 @@ func (p *Processor) Run() error {
 		// Issue pubsub subscriber search requests at twice the frequency
 		// of publishing, so each server observes each other's sampled
 		// trace IDs soon after they are published.
-		SearchInterval: p.config.FlushInterval / 2,
+		SearchInterval: p.config.Interval / 2,
 		FlushInterval:  bulkIndexerFlushInterval,
 	})
 	if err != nil {
@@ -292,7 +293,7 @@ func (p *Processor) Run() error {
 		return pubsub.SubscribeSampledTraceIDs(ctx, remoteSampledTraceIDs)
 	})
 	errgroup.Go(func() error {
-		ticker := time.NewTicker(p.config.FlushInterval)
+		ticker := time.NewTicker(p.config.Interval)
 		defer ticker.Stop()
 		var traceIDs []string
 		for {

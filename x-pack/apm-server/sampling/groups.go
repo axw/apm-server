@@ -29,7 +29,7 @@ type traceGroups struct {
 	ingestRateDecayFactor float64
 
 	// maxGroups holds the maximum number of trace groups to maintain.
-	// Once this is reached, all trace events will be sampled.
+	// Once this is reached, no new trace group events will be sampled.
 	maxGroups int
 
 	mu sync.RWMutex
