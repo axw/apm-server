@@ -6,11 +6,11 @@ package sampling
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/dgraph-io/badger/v2"
+	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
 	logs "github.com/elastic/apm-server/log"
@@ -44,7 +44,7 @@ type Processor struct {
 // NewProcessor returns a new Processor, for tail-sampling trace events.
 func NewProcessor(config Config) (*Processor, error) {
 	if err := config.Validate(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "invalid tail-sampling config")
 	}
 
 	logger := logp.NewLogger(logs.Sampling)

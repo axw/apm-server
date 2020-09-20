@@ -46,32 +46,35 @@ func (config Config) Validate() error {
 	if config.Reporter == nil {
 		return errors.New("Reporter unspecified")
 	}
+	if config.FlushInterval <= 0 {
+		return errors.New("FlushInterval unspecified or negative")
+	}
+
 	if config.Elasticsearch == nil {
 		return errors.New("Elasticsearch unspecified")
 	}
 	if config.SampledTracesIndex == "" {
 		return errors.New("SampledTracesIndex unspecified")
 	}
+
+	if config.MaxTraceGroups <= 0 {
+		return errors.New("MaxTraceGroups unspecified or negative")
+	}
+	if config.DefaultSampleRate <= 0 || config.DefaultSampleRate >= 1 {
+		return errors.New("DefaultSampleRate unspecified or out of range (0,1)") // TODO allow 0 and 1
+	}
+	if config.IngestRateCoefficient <= 0 || config.IngestRateCoefficient > 1 {
+		return errors.New("IngestRateCoefficient unspecified or out of range (0,1]")
+	}
+
 	if config.StorageDir == "" {
 		return errors.New("StorageDir unspecified")
 	}
 	if config.StorageGCInterval <= 0 {
-		return errors.New("GCInterval unspecified or negative")
+		return errors.New("StorageGCInterval unspecified or negative")
 	}
 	if config.TTL <= 0 {
 		return errors.New("TTL unspecified or negative")
-	}
-	if config.MaxTraceGroups <= 0 {
-		return errors.New("MaxTraceGroups unspecified or negative")
-	}
-	if config.FlushInterval <= 0 {
-		return errors.New("FlushInterval unspecified or negative")
-	}
-	if config.DefaultSampleRate <= 0 || config.DefaultSampleRate >= 1 {
-		return errors.New("DefaultSampleRate unspecified, or out of range (0,1)")
-	}
-	if config.IngestRateCoefficient <= 0 || config.IngestRateCoefficient > 1 {
-		return errors.New("IngestRateCoefficient unspecified, or out of range (0,1]")
 	}
 	return nil
 }
