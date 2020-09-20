@@ -60,8 +60,11 @@ func (config Config) Validate() error {
 	if config.MaxTraceGroups <= 0 {
 		return errors.New("MaxTraceGroups unspecified or negative")
 	}
-	if config.DefaultSampleRate <= 0 || config.DefaultSampleRate >= 1 {
-		return errors.New("DefaultSampleRate unspecified or out of range (0,1)") // TODO allow 0 and 1
+	if config.DefaultSampleRate < 0 || config.DefaultSampleRate >= 1 {
+		// TODO(axw) allow sampling rate of 1.0 (100%), which would
+		// cause the root transaction to be indexed, and a sampling
+		// decision to be written to local storage, immediately.
+		return errors.New("DefaultSampleRate unspecified or out of range [0,1)")
 	}
 	if config.IngestRateCoefficient <= 0 || config.IngestRateCoefficient > 1 {
 		return errors.New("IngestRateCoefficient unspecified or out of range (0,1]")

@@ -43,14 +43,17 @@ func TestNewProcessorConfigInvalid(t *testing.T) {
 	assertInvalidConfigError("MaxTraceGroups unspecified or negative")
 	config.MaxTraceGroups = 1
 
-	assertInvalidConfigError("DefaultSampleRate unspecified or out of range (0,1)")
+	for _, invalid := range []float64{-1, 1.0, 2.0} {
+		config.DefaultSampleRate = invalid
+		assertInvalidConfigError("DefaultSampleRate unspecified or out of range [0,1)")
+	}
 	config.DefaultSampleRate = 0.5
 
 	for _, invalid := range []float64{-1, 0, 2.0} {
 		config.IngestRateCoefficient = invalid
 		assertInvalidConfigError("IngestRateCoefficient unspecified or out of range (0,1]")
-		config.IngestRateCoefficient = 0.5
 	}
+	config.IngestRateCoefficient = 0.5
 
 	assertInvalidConfigError("StorageDir unspecified")
 	config.StorageDir = "tbs"
