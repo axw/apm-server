@@ -19,15 +19,21 @@ package beater
 
 import (
 	"context"
+	"net"
 	"net/http"
+	"net/url"
 
 	"go.elastic.co/apm"
+	"golang.org/x/net/netutil"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	"github.com/elastic/beats/v7/libbeat/logp"
 	"github.com/elastic/beats/v7/libbeat/version"
+	"github.com/pkg/errors"
 
 	"github.com/elastic/apm-server/beater/config"
+	"github.com/elastic/apm-server/beater/internal/h2mux"
 	"github.com/elastic/apm-server/beater/jaeger"
 	"github.com/elastic/apm-server/publish"
 )
@@ -76,6 +82,7 @@ type server struct {
 	cfg    *config.Config
 
 	httpServer   *httpServer
+	grpcServer   *grpc.Server
 	jaegerServer *jaeger.Server
 	reporter     publish.Reporter
 }
@@ -85,7 +92,11 @@ func newServer(logger *logp.Logger, cfg *config.Config, tracer *apm.Tracer, repo
 	if err != nil {
 		return server{}, err
 	}
-	jaegerServer, err := jaeger.NewServer(logger, cfg, tracer, reporter)
+	grpcServer, err := newGRPCServer(logger, cfg, tracer)
+	if err != nil {
+		return server{}, err
+	}
+	jaegerServer, err := jaeger.NewServer(logger, cfg, grpcServer, reporter)
 	if err != nil {
 		return server{}, err
 	}
@@ -93,6 +104,7 @@ func newServer(logger *logp.Logger, cfg *config.Config, tracer *apm.Tracer, repo
 		logger:       logger,
 		cfg:          cfg,
 		httpServer:   httpServer,
+		grpcServer:   grpcServer,
 		jaegerServer: jaegerServer,
 		reporter:     reporter,
 	}, nil
@@ -100,12 +112,20 @@ func newServer(logger *logp.Logger, cfg *config.Config, tracer *apm.Tracer, repo
 
 func (s server) run() error {
 	s.logger.Infof("Starting apm-server [%s built %s]. Hit CTRL-C to stop it.", version.Commit(), version.BuildTime())
+
+	httpListener, grpcListener, err := s.listen()
+	if err != nil {
+		return err
+	}
+
+	s.logger.Infof("http: %s, grpc: %s", httpListener.Addr(), grpcListener.Addr())
+
 	var g errgroup.Group
-	if s.jaegerServer != nil {
-		g.Go(s.jaegerServer.Serve)
+	if s.grpcServer != nil {
+		g.Go(func() error { return s.grpcServer.Serve(grpcListener) })
 	}
 	if s.httpServer != nil {
-		g.Go(s.httpServer.start)
+		g.Go(func() error { return s.httpServer.start(httpListener) })
 	}
 	if err := g.Wait(); err != http.ErrServerClosed {
 		return err
@@ -115,10 +135,55 @@ func (s server) run() error {
 }
 
 func (s server) stop() {
-	if s.jaegerServer != nil {
-		s.jaegerServer.Stop()
+	if s.grpcServer != nil {
+		s.grpcServer.GracefulStop()
 	}
 	if s.httpServer != nil {
 		s.httpServer.stop()
 	}
+}
+
+func (s server) listen() (httpListener, grpcListener net.Listener, _ error) {
+	httpListener, err := s.listenHTTP()
+	if err != nil {
+		return nil, nil, err
+	}
+	if s.cfg.MaxConnections > 0 {
+		s.logger.Infof("Connection limit set to: %d", s.cfg.MaxConnections)
+		httpListener = netutil.LimitListener(httpListener, s.cfg.MaxConnections)
+	}
+
+	addr := httpListener.Addr()
+	if addr.Network() == "tcp" {
+		s.logger.Infof("Listening on: %s", addr)
+	} else {
+		s.logger.Infof("Listening on: %s:%s", addr.Network(), addr.String())
+	}
+
+	// TODO(axw) h2mux.ConfigureServer assumes we're using TLS, as it
+	// relies on ALPN upgrade. We also should support muxing when TLS is
+	// disabled by sniffing the content. We don't do this in general as
+	// it breaks TLS-related features in net/http.
+	grpcListener, err = h2mux.ConfigureServer(s.httpServer.Server, nil)
+	if err != nil {
+		httpListener.Close()
+		return nil, nil, errors.Wrap(err, "failed to configure h2mux")
+	}
+	return httpListener, grpcListener, nil
+}
+
+func (s server) listenHTTP() (net.Listener, error) {
+	if url, err := url.Parse(s.cfg.Host); err == nil && url.Scheme == "unix" {
+		return net.Listen("unix", url.Path)
+	}
+
+	const network = "tcp"
+	addr := s.cfg.Host
+	if _, _, err := net.SplitHostPort(addr); err != nil {
+		// Tack on a port if SplitHostPort fails on what should be a
+		// tcp network address. If splitting failed because there were
+		// already too many colons, one more won't change that.
+		addr = net.JoinHostPort(addr, config.DefaultPort)
+	}
+	return net.Listen(network, addr)
 }

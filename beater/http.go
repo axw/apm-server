@@ -21,11 +21,9 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"net/url"
 
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/module/apmhttp"
-	"golang.org/x/net/netutil"
 
 	"github.com/elastic/beats/v7/libbeat/common/transport/tlscommon"
 	"github.com/elastic/beats/v7/libbeat/logp"
@@ -70,18 +68,7 @@ func newHTTPServer(logger *logp.Logger, cfg *config.Config, tracer *apm.Tracer, 
 	return &httpServer{server, cfg, logger, reporter}, nil
 }
 
-func (h *httpServer) start() error {
-	lis, err := h.listen()
-	if err != nil {
-		return err
-	}
-	addr := lis.Addr()
-	if addr.Network() == "tcp" {
-		h.logger.Infof("Listening on: %s", addr)
-	} else {
-		h.logger.Infof("Listening on: %s:%s", addr.Network(), addr.String())
-	}
-
+func (h *httpServer) start(lis net.Listener) error {
 	switch h.cfg.RumConfig.IsEnabled() {
 	case true:
 		h.logger.Info("RUM endpoints enabled!")
@@ -95,15 +82,10 @@ func (h *httpServer) start() error {
 		h.logger.Info("RUM endpoints disabled.")
 	}
 
-	if h.cfg.MaxConnections > 0 {
-		lis = netutil.LimitListener(lis, h.cfg.MaxConnections)
-		h.logger.Infof("Connection limit set to: %d", h.cfg.MaxConnections)
-	}
-
 	// Create the "onboarding" document, which contains the server's listening address.
-	notifyListening(context.Background(), addr, h.reporter)
+	notifyListening(context.Background(), lis.Addr(), h.reporter)
 
-	if h.TLSConfig != nil {
+	if h.cfg.TLS.IsEnabled() {
 		h.logger.Info("SSL enabled.")
 		return h.ServeTLS(lis, "", "")
 	}
@@ -123,23 +105,6 @@ func (h *httpServer) stop() {
 			h.logger.Errorf("error closing http server: %s", err.Error())
 		}
 	}
-}
-
-// listen starts the listener for bt.config.Host.
-func (h *httpServer) listen() (net.Listener, error) {
-	if url, err := url.Parse(h.cfg.Host); err == nil && url.Scheme == "unix" {
-		return net.Listen("unix", url.Path)
-	}
-
-	const network = "tcp"
-	addr := h.cfg.Host
-	if _, _, err := net.SplitHostPort(addr); err != nil {
-		// Tack on a port if SplitHostPort fails on what should be a
-		// tcp network address. If splitting failed because there were
-		// already too many colons, one more won't change that.
-		addr = net.JoinHostPort(addr, config.DefaultPort)
-	}
-	return net.Listen(network, addr)
 }
 
 func doNotTrace(req *http.Request) bool {

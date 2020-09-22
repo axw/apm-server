@@ -57,16 +57,16 @@ apm-server:
   #---------------------------- APM Server - Secure Communication with Agents ----------------------------
 
   # Enable secure communication between APM agents and the server. By default ssl is disabled.
-  #ssl:
+  ssl:
     #enabled: false
 
     # Path to file containing the certificate for server authentication.
     # Needs to be configured when ssl is enabled.
-    #certificate: ''
+    certificate: ./testdata/tls/certificate.pem
 
     # Path to file containing server certificate key.
     # Needs to be configured when ssl is enabled.
-    #key: ''
+    key: ./testdata/tls/key.pem
 
     # Optional configuration options for ssl communication.
 
@@ -384,10 +384,10 @@ apm-server:
 
   # When enabling Jaeger integration, APM Server acts as Jaeger collector. It supports jaeger.thrift over HTTP
   # and gRPC. This is an experimental feature, use with care.
-  #jaeger:
-    #grpc:
+  jaeger:
+    grpc:
       # Set to true to enable the Jaeger gRPC collector service.
-      #enabled: false
+      enabled: true
 
       # Defines the gRPC host and port the server is listening on.
       # Defaults to the standard Jaeger gRPC collector port 14250.

@@ -23,12 +23,7 @@ import (
 	"net/http"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"go.elastic.co/apm"
-	"go.elastic.co/apm/module/apmgrpc"
-	"go.elastic.co/apm/module/apmhttp"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/elastic/beats/v7/libbeat/logp"
 
@@ -43,18 +38,14 @@ import (
 // Server manages Jaeger gRPC and HTTP servers, providing methods for starting and stopping them.
 type Server struct {
 	logger *logp.Logger
-	grpc   struct {
-		server   *grpc.Server
-		listener net.Listener
-	}
-	http struct {
+	http   struct {
 		server   *http.Server
 		listener net.Listener
 	}
 }
 
 // NewServer creates a new Server.
-func NewServer(logger *logp.Logger, cfg *config.Config, tracer *apm.Tracer, reporter publish.Reporter) (*Server, error) {
+func NewServer(logger *logp.Logger, cfg *config.Config, grpcServer *grpc.Server, reporter publish.Reporter) (*Server, error) {
 	if !cfg.JaegerConfig.GRPC.Enabled && !cfg.JaegerConfig.HTTP.Enabled {
 		return nil, nil
 	}
@@ -76,24 +67,7 @@ func NewServer(logger *logp.Logger, cfg *config.Config, tracer *apm.Tracer, repo
 			)
 		}
 
-		// TODO(axw) should the listener respect cfg.MaxConnections?
-		grpcListener, err := net.Listen("tcp", cfg.JaegerConfig.GRPC.Host)
-		if err != nil {
-			return nil, err
-		}
-		grpcOptions := []grpc.ServerOption{grpc.UnaryInterceptor(apmgrpc.NewUnaryServerInterceptor(
-			apmgrpc.WithRecovery(),
-			apmgrpc.WithTracer(tracer))),
-		}
-		if cfg.JaegerConfig.GRPC.TLS != nil {
-			creds := credentials.NewTLS(cfg.JaegerConfig.GRPC.TLS)
-			grpcOptions = append(grpcOptions, grpc.Creds(creds))
-		}
-		srv.grpc.server = grpc.NewServer(grpcOptions...)
-		srv.grpc.listener = grpcListener
-
-		api_v2.RegisterCollectorServiceServer(srv.grpc.server,
-			&grpcCollector{logger, auth, traceConsumer})
+		api_v2.RegisterCollectorServiceServer(grpcServer, &grpcCollector{logger, auth, traceConsumer})
 
 		var client kibana.Client
 		var fetcher *agentcfg.Fetcher
@@ -101,28 +75,29 @@ func NewServer(logger *logp.Logger, cfg *config.Config, tracer *apm.Tracer, repo
 			client = kibana.NewConnectingClient(&cfg.Kibana.ClientConfig)
 			fetcher = agentcfg.NewFetcher(client, cfg.AgentConfig.Cache.Expiration)
 		}
-		api_v2.RegisterSamplingManagerServer(srv.grpc.server,
-			&grpcSampler{logger, client, fetcher})
+		api_v2.RegisterSamplingManagerServer(grpcServer, &grpcSampler{logger, client, fetcher})
 	}
-	if cfg.JaegerConfig.HTTP.Enabled {
-		// TODO(axw) should the listener respect cfg.MaxConnections?
-		httpListener, err := net.Listen("tcp", cfg.JaegerConfig.HTTP.Host)
-		if err != nil {
-			return nil, err
+	/*
+		if cfg.JaegerConfig.HTTP.Enabled {
+			// TODO(axw) should the listener respect cfg.MaxConnections?
+			httpListener, err := net.Listen("tcp", cfg.JaegerConfig.HTTP.Host)
+			if err != nil {
+				return nil, err
+			}
+			httpMux, err := newHTTPMux(traceConsumer)
+			if err != nil {
+				return nil, err
+			}
+			srv.http.listener = httpListener
+			srv.http.server = &http.Server{
+				Handler:        apmhttp.Wrap(httpMux, apmhttp.WithTracer(tracer)),
+				IdleTimeout:    cfg.IdleTimeout,
+				ReadTimeout:    cfg.ReadTimeout,
+				WriteTimeout:   cfg.WriteTimeout,
+				MaxHeaderBytes: cfg.MaxHeaderSize,
+			}
 		}
-		httpMux, err := newHTTPMux(traceConsumer)
-		if err != nil {
-			return nil, err
-		}
-		srv.http.listener = httpListener
-		srv.http.server = &http.Server{
-			Handler:        apmhttp.Wrap(httpMux, apmhttp.WithTracer(tracer)),
-			IdleTimeout:    cfg.IdleTimeout,
-			ReadTimeout:    cfg.ReadTimeout,
-			WriteTimeout:   cfg.WriteTimeout,
-			MaxHeaderBytes: cfg.MaxHeaderSize,
-		}
-	}
+	*/
 	return srv, nil
 }
 
@@ -130,7 +105,8 @@ func NewServer(logger *logp.Logger, cfg *config.Config, tracer *apm.Tracer, repo
 //
 // Serve blocks until Stop is called, or if either of the gRPC or HTTP
 // servers terminates unexpectedly.
-func (s *Server) Serve() error {
+/*
+func (s *Server) Serve(grpcListener net.Listener) error {
 	var g errgroup.Group
 	if s.grpc.server != nil {
 		g.Go(s.serveGRPC)
@@ -140,11 +116,14 @@ func (s *Server) Serve() error {
 	}
 	return g.Wait()
 }
+*/
 
-func (s *Server) serveGRPC() error {
+/*
+func (s *Server) serveGRPC(lis net.Listener) error {
 	s.logger.Infof("Listening for Jaeger gRPC requests on: %s", s.grpc.listener.Addr())
 	return s.grpc.server.Serve(s.grpc.listener)
 }
+*/
 
 func (s *Server) serveHTTP() error {
 	s.logger.Infof("Listening for Jaeger HTTP requests on: %s", s.http.listener.Addr())
@@ -156,10 +135,10 @@ func (s *Server) serveHTTP() error {
 
 // Stop stops the gRPC and HTTP servers gracefully, causing Serve to return.
 func (s *Server) Stop() {
-	if s.grpc.server != nil {
-		s.logger.Infof("Stopping Jaeger gRPC server")
-		s.grpc.server.GracefulStop()
-	}
+	//if s.grpc.server != nil {
+	//	s.logger.Infof("Stopping Jaeger gRPC server")
+	//	s.grpc.server.GracefulStop()
+	//}
 	if s.http.server != nil {
 		s.logger.Infof("Stopping Jaeger HTTP server")
 		if err := s.http.server.Shutdown(context.Background()); err != nil {
