@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go/types"
 	"log"
+	"path"
 
 	"github.com/pkg/errors"
 	"golang.org/x/tools/go/packages"
@@ -21,15 +22,14 @@ func newGenContext() *genContext {
 	}
 }
 
-func genPackage(ctx *genContext, pkg *types.Package, w *bufio.Writer) error {
-	protoPackage := pkg.Name()
+func genPackage(ctx *genContext, pkg *types.Package, protoPackage string, w *bufio.Writer) error {
 	fmt.Fprintf(w, `
 syntax = "proto3";
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 package %s;
 option go_package = "%s";
-`, protoPackage, pkg.Path())
+`, path.Base(protoPackage), protoPackage)
 
 	scope := pkg.Scope()
 	for _, name := range []string{"Transaction", "Span"} {
@@ -48,8 +48,23 @@ option go_package = "%s";
 				continue
 			}
 			fmt.Fprintf(w, "message %s ", typename.Name())
-			if err := genStruct(ctx, typename.Type().Underlying().(*types.Struct), w); err != nil {
-				return err
+			switch typ := typename.Type().Underlying().(type) {
+			case *types.Struct:
+				if err := genStruct(ctx, typ, w); err != nil {
+					return err
+				}
+			case *types.Map:
+				// Synthesise a map entry-compatible struct type,
+				// so we can support maps of maps.
+				//
+				// See https://developers.google.com/protocol-buffers/docs/proto3#backwards_compatibility
+				mapEntry := types.NewStruct([]*types.Var{
+					types.NewField(0, pkg, "key", typ.Key(), false),
+					types.NewField(0, pkg, "value", typ.Elem(), false),
+				}, nil)
+				if err := genStruct(ctx, mapEntry, w); err != nil {
+					return err
+				}
 			}
 			fmt.Fprintln(w)
 			ctx.types[typename] = true
@@ -153,8 +168,8 @@ func genStruct(ctx *genContext, typ *types.Struct, w *bufio.Writer) error {
 }
 
 func Main() error {
+	outpkg := "github.com/elastic/apm-server/model/internal/modelpb"
 	pkgpath := "github.com/elastic/apm-server/model"
-	log.Printf("loading packages: %s", pkgpath)
 	cfg := &packages.Config{Mode: packages.NeedTypes | packages.NeedImports}
 	pkgs, err := packages.Load(cfg, pkgpath)
 	if err != nil {
@@ -164,8 +179,7 @@ func Main() error {
 	w := bufio.NewWriter(&buf)
 	ctx := newGenContext()
 	for _, pkg := range pkgs {
-		fmt.Println("-", pkg)
-		if err := genPackage(ctx, pkg.Types, w); err != nil {
+		if err := genPackage(ctx, pkg.Types, outpkg, w); err != nil {
 			return errors.Wrapf(err, "failed to generate proto for package %s", pkg)
 		}
 	}
@@ -173,7 +187,6 @@ func Main() error {
 		return err
 	}
 	fmt.Println(buf.String())
-	fmt.Println("---")
 	return nil
 }
 
