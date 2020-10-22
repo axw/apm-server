@@ -7,34 +7,39 @@ package eventstorage
 import (
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modelpb"
+	"google.golang.org/protobuf/proto"
 )
 
-// JSONCodec is an implementation of Codec, using JSON encoding.
-type JSONCodec struct{}
+// ProtobufCodec is an implementation of Codec, using protobuf encoding.
+type ProtobufCodec struct{}
 
-// DecodeSpan decodes data as JSON into span.
-func (JSONCodec) DecodeSpan(data []byte, span *model.Span) error {
+// DecodeSpan decodes data as protobuf into span.
+func (ProtobufCodec) DecodeSpan(data []byte, span *model.Span) error {
 	panic("not implemented")
 	//return jsoniter.ConfigFastest.Unmarshal(data, span)
 }
 
-// DecodeTransaction decodes data as JSON into tx.
-func (JSONCodec) DecodeTransaction(data []byte, tx *model.Transaction) error {
-	//return jsoniter.ConfigFastest.Unmarshal(data, tx)
+// DecodeTransaction decodes data as protobuf into tx.
+func (ProtobufCodec) DecodeTransaction(data []byte, tx *model.Transaction) error {
+	var pb modelpb.Transaction
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+	tx.ID = pb.ID
+	tx.TraceID = pb.TraceID
+	return nil
 }
 
-// EncodeSpan encodes span as JSON.
-func (JSONCodec) EncodeSpan(span *model.Span) ([]byte, error) {
+// EncodeSpan encodes span as protobuf.
+func (ProtobufCodec) EncodeSpan(span *model.Span) ([]byte, error) {
 	panic("not implemented")
-	//return json.Marshal(span)
 }
 
-// EncodeTransaction encodes tx as JSON.
-func (JSONCodec) EncodeTransaction(tx *model.Transaction) ([]byte, error) {
+// EncodeTransaction encodes tx as protobuf.
+func (ProtobufCodec) EncodeTransaction(tx *model.Transaction) ([]byte, error) {
 	pb := modelpb.Transaction{
 		TraceID: tx.TraceID,
 		ID:      tx.ID,
 	}
-
-	//return json.Marshal(tx)
+	return proto.Marshal(&pb)
 }

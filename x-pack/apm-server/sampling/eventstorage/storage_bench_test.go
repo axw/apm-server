@@ -43,6 +43,9 @@ func BenchmarkWriteTransaction(b *testing.B) {
 	b.Run("json_codec", func(b *testing.B) {
 		test(b, eventstorage.JSONCodec{})
 	})
+	b.Run("protobuf_codec", func(b *testing.B) {
+		test(b, eventstorage.ProtobufCodec{})
+	})
 	b.Run("nop_codec", func(b *testing.B) {
 		// This tests the eventstorage performance without
 		// JSON encoding. This would be the theoretical
@@ -101,6 +104,9 @@ func BenchmarkReadEvents(b *testing.B) {
 
 	b.Run("json_codec", func(b *testing.B) {
 		test(b, eventstorage.JSONCodec{})
+	})
+	b.Run("protobuf_codec", func(b *testing.B) {
+		test(b, eventstorage.ProtobufCodec{})
 	})
 	b.Run("nop_codec", func(b *testing.B) {
 		// This tests the eventstorage performance without
