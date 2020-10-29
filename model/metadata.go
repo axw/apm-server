@@ -31,7 +31,7 @@ type Metadata struct {
 	UserAgent UserAgent
 	Client    Client
 	Cloud     Cloud
-	Labels    common.MapStr
+	Labels    common.MapStr `json:",omitempty"`
 }
 
 func (m *Metadata) Set(out common.MapStr) common.MapStr {

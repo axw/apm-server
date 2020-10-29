@@ -23,9 +23,9 @@ import (
 
 //Service bundles together information related to the monitored service and the agent used for monitoring
 type Service struct {
-	Name        string
-	Version     string
-	Environment string
+	Name        string `json:",omitempty"`
+	Version     string `json:",omitempty"`
+	Environment string `json:",omitempty"`
 	Language    Language
 	Runtime     Runtime
 	Framework   Framework
@@ -35,31 +35,31 @@ type Service struct {
 
 //Language has an optional version and name
 type Language struct {
-	Name    string
-	Version string
+	Name    string `json:",omitempty"`
+	Version string `json:",omitempty"`
 }
 
 //Runtime has an optional version and name
 type Runtime struct {
-	Name    string
-	Version string
+	Name    string `json:",omitempty"`
+	Version string `json:",omitempty"`
 }
 
 //Framework has an optional version and name
 type Framework struct {
-	Name    string
-	Version string
+	Name    string `json:",omitempty"`
+	Version string `json:",omitempty"`
 }
 
 //Agent has an optional version, name and an ephemeral id
 type Agent struct {
-	Name        string
-	Version     string
-	EphemeralID string
+	Name        string `json:",omitempty"`
+	Version     string `json:",omitempty"`
+	EphemeralID string `json:",omitempty"`
 }
 
 type ServiceNode struct {
-	Name string
+	Name string `json:",omitempty"`
 }
 
 //Fields transforms a service instance into a common.MapStr

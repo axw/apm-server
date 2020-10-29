@@ -22,9 +22,9 @@ import (
 )
 
 type User struct {
-	ID    string
-	Email string
-	Name  string
+	ID    string `json:",omitempty"`
+	Email string `json:",omitempty"`
+	Name  string `json:",omitempty"`
 }
 
 func (u *User) Fields() common.MapStr {

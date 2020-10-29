@@ -24,16 +24,16 @@ import (
 // Cloud holds information about the cloud computing environment
 // in which a service is running.
 type Cloud struct {
-	AccountID        string
-	AccountName      string
-	AvailabilityZone string
-	InstanceID       string
-	InstanceName     string
-	MachineType      string
-	ProjectID        string
-	ProjectName      string
-	Provider         string
-	Region           string
+	AccountID        string `json:",omitempty"`
+	AccountName      string `json:",omitempty"`
+	AvailabilityZone string `json:",omitempty"`
+	InstanceID       string `json:",omitempty"`
+	InstanceName     string `json:",omitempty"`
+	MachineType      string `json:",omitempty"`
+	ProjectID        string `json:",omitempty"`
+	ProjectName      string `json:",omitempty"`
+	Provider         string `json:",omitempty"`
+	Region           string `json:",omitempty"`
 }
 
 func (c *Cloud) fields() common.MapStr {

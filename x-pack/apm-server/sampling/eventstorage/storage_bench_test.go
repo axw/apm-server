@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/x-pack/apm-server/sampling/eventstorage"
@@ -31,6 +32,10 @@ func BenchmarkWriteTransaction(b *testing.B) {
 			TraceID: hex.EncodeToString(traceID),
 			ID:      hex.EncodeToString(transactionID),
 		}
+
+		encoded, err := codec.EncodeTransaction(transaction)
+		require.NoError(b, err)
+		b.SetBytes(int64(len(encoded)))
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
@@ -69,16 +74,21 @@ func BenchmarkReadEvents(b *testing.B) {
 				readWriter := store.NewReadWriter()
 				defer readWriter.Close()
 
+				var totalEncodedBytes int64
 				for i := 0; i < count; i++ {
 					transactionUUID := uuid.Must(uuid.NewV4())
 					transaction := &model.Transaction{
 						TraceID: traceUUID.String(),
 						ID:      transactionUUID.String(),
 					}
+					encoded, err := codec.EncodeTransaction(transaction)
+					require.NoError(b, err)
+					totalEncodedBytes += int64(len(encoded))
 					if err := readWriter.WriteTransaction(transaction); err != nil {
 						b.Fatal(err)
 					}
 				}
+				b.SetBytes(totalEncodedBytes)
 
 				// NOTE(axw) we don't explicitly flush, which is most representative of
 				// real workloads. For larger event counts, this ensures we exercise the

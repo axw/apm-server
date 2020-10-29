@@ -23,12 +23,12 @@ import (
 
 type UserAgent struct {
 	// Original holds the original, full, User-Agent string.
-	Original string
+	Original string `json:",omitempty"`
 
 	// Name holds the user_agent.name value from the parsed User-Agent string.
 	// If Original is set, then this should typically not be set, as the full
 	// User-Agent string can be parsed by ingest node.
-	Name string
+	Name string `json:",omitempty"`
 }
 
 func (u *UserAgent) fields() common.MapStr {

@@ -22,7 +22,7 @@ import (
 )
 
 type Container struct {
-	ID string
+	ID string `json:",omitempty"`
 }
 
 func (k *Container) fields() common.MapStr {

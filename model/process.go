@@ -22,10 +22,10 @@ import (
 )
 
 type Process struct {
-	Pid   int
-	Ppid  *int
-	Title string
-	Argv  []string
+	Pid   int      `json:",omitempty"`
+	Ppid  *int     `json:",omitempty"`
+	Title string   `json:",omitempty"`
+	Argv  []string `json:",omitempty"`
 }
 
 func (p *Process) fields() common.MapStr {

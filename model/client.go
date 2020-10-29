@@ -26,7 +26,7 @@ import (
 // Client holds information about the client of a request.
 type Client struct {
 	// IP holds the client's IP address.
-	IP net.IP
+	IP net.IP `json:",omitempty"`
 
 	// TODO(axw) add client.geo fields, when we have
 	// GeoIP lookup implemented in the server.

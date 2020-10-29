@@ -24,11 +24,11 @@ import (
 )
 
 type System struct {
-	DetectedHostname   string
-	ConfiguredHostname string
-	Architecture       string
-	Platform           string
-	IP                 net.IP
+	DetectedHostname   string `json:",omitempty"`
+	ConfiguredHostname string `json:",omitempty"`
+	Architecture       string `json:",omitempty"`
+	Platform           string `json:",omitempty"`
+	IP                 net.IP `json:",omitempty"`
 
 	Container  Container
 	Kubernetes Kubernetes

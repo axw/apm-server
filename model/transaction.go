@@ -43,40 +43,40 @@ var (
 type Transaction struct {
 	Metadata Metadata
 
-	ID       string
-	ParentID string
-	TraceID  string
+	ID       string `json:",omitempty"`
+	ParentID string `json:",omitempty"`
+	TraceID  string `json:",omitempty"`
 
 	Timestamp time.Time
 
-	Type           string
-	Name           string
-	Result         string
-	Outcome        string
-	Duration       float64
-	Marks          TransactionMarks
-	Message        *Message
-	Sampled        *bool
+	Type           string           `json:",omitempty"`
+	Name           string           `json:",omitempty"`
+	Result         string           `json:",omitempty"`
+	Outcome        string           `json:",omitempty"`
+	Duration       float64          `json:",omitempty"`
+	Marks          TransactionMarks `json:",omitempty"`
+	Message        *Message         `json:",omitempty"`
+	Sampled        *bool            `json:",omitempty"`
 	SpanCount      SpanCount
-	Page           *Page
-	HTTP           *Http
-	URL            *URL
-	Labels         *Labels
-	Custom         *Custom
-	UserExperience *UserExperience
+	Page           *Page           `json:",omitempty"`
+	HTTP           *Http           `json:",omitempty"`
+	URL            *URL            `json:",omitempty"`
+	Labels         *Labels         `json:",omitempty"`
+	Custom         *Custom         `json:",omitempty"`
+	UserExperience *UserExperience `json:",omitempty"`
 
-	Experimental interface{}
+	Experimental interface{} `json:",omitempty"`
 
 	// RepresentativeCount holds the approximate number of
 	// transactions that this transaction represents for aggregation.
 	//
 	// This may be used for scaling metrics; it is not indexed.
-	RepresentativeCount float64
+	RepresentativeCount float64 `json:",omitempty"`
 }
 
 type SpanCount struct {
-	Dropped *int
-	Started *int
+	Dropped *int `json:",omitempty"`
+	Started *int `json:",omitempty"`
 }
 
 // fields creates the fields to populate in the top-level "transaction" object field.

@@ -22,10 +22,10 @@ import (
 )
 
 type Kubernetes struct {
-	Namespace string
-	NodeName  string
-	PodName   string
-	PodUID    string
+	Namespace string `json:",omitempty"`
+	NodeName  string `json:",omitempty"`
+	PodName   string `json:",omitempty"`
+	PodUID    string `json:",omitempty"`
 }
 
 func (k *Kubernetes) fields() common.MapStr {
