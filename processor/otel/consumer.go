@@ -118,7 +118,12 @@ func (c *Consumer) convert(td consumerdata.TraceData) *model.Batch {
 			}
 			parseTransaction(otelSpan, td.SourceFormat, hostname, &transaction)
 			batch.Transactions = append(batch.Transactions, &transaction)
-			for _, err := range parseErrors(logger, td.SourceFormat, otelSpan) {
+			logRecords, errorLogs := parseSpanEvents(logger, td.SourceFormat, otelSpan)
+			for _, log := range logRecords {
+				addTransactionCtxToLog(transaction, log)
+				batch.Logs = append(batch.Logs, log)
+			}
+			for _, err := range errorLogs {
 				addTransactionCtxToErr(transaction, err)
 				batch.Errors = append(batch.Errors, err)
 			}
@@ -136,7 +141,12 @@ func (c *Consumer) convert(td consumerdata.TraceData) *model.Batch {
 			}
 			parseSpan(otelSpan, td.SourceFormat, &span)
 			batch.Spans = append(batch.Spans, &span)
-			for _, err := range parseErrors(logger, td.SourceFormat, otelSpan) {
+			logRecords, errorLogs := parseSpanEvents(logger, td.SourceFormat, otelSpan)
+			for _, log := range logRecords {
+				addSpanCtxToLog(span, log)
+				batch.Logs = append(batch.Logs, log)
+			}
+			for _, err := range errorLogs {
 				addSpanCtxToErr(span, hostname, err)
 				batch.Errors = append(batch.Errors, err)
 			}
@@ -558,7 +568,8 @@ func parseSamplerAttributes(samplerType, samplerParam *tracepb.AttributeValue, r
 	}
 }
 
-func parseErrors(logger *logp.Logger, source string, otelSpan *tracepb.Span) []*model.Error {
+func parseSpanEvents(logger *logp.Logger, source string, otelSpan *tracepb.Span) ([]*model.LogRecord, []*model.Error) {
+	var logs []*model.LogRecord
 	var errors []*model.Error
 	for _, log := range otelSpan.GetTimeEvents().GetTimeEvent() {
 		var isError, hasMinimalInfo bool
@@ -607,7 +618,7 @@ func parseErrors(logger *logp.Logger, source string, otelSpan *tracepb.Span) []*
 		}
 
 		if logMessage != "" {
-			err.Log = &model.Log{Message: logMessage}
+			err.Log = &model.ErrorLog{Message: logMessage}
 		}
 		if exMessage != "" || exType != "" {
 			err.Exception = &model.Exception{}
@@ -621,7 +632,7 @@ func parseErrors(logger *logp.Logger, source string, otelSpan *tracepb.Span) []*
 		err.Timestamp = parseTimestamp(log.GetTime())
 		errors = append(errors, &err)
 	}
-	return errors
+	return logs, errors
 }
 
 func addTransactionCtxToErr(transaction model.Transaction, err *model.Error) {
@@ -632,6 +643,12 @@ func addTransactionCtxToErr(transaction model.Transaction, err *model.Error) {
 	err.HTTP = transaction.HTTP
 	err.URL = transaction.URL
 	err.TransactionType = &transaction.Type
+}
+
+func addTransactionCtxToLog(transaction model.Transaction, log *model.LogRecord) {
+	log.Metadata = transaction.Metadata
+	log.TransactionID = transaction.ID
+	log.TraceID = transaction.TraceID
 }
 
 func addSpanCtxToErr(span model.Span, hostname string, err *model.Error) {
@@ -651,6 +668,13 @@ func addSpanCtxToErr(span model.Span, hostname string, err *model.Error) {
 			err.URL = model.ParseURL(*span.HTTP.URL, hostname)
 		}
 	}
+}
+
+func addSpanCtxToLog(span model.Span, log *model.LogRecord) {
+	log.Metadata = span.Metadata
+	log.TransactionID = span.TransactionID
+	log.TraceID = span.TraceID
+	log.SpanID = span.ID
 }
 
 func replaceDots(s string) string {
