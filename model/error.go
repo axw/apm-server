@@ -66,7 +66,7 @@ type Error struct {
 	Custom  *Custom
 
 	Exception *Exception
-	Log       *Log
+	Log       *ErrorLog
 
 	TransactionSampled *bool
 	TransactionType    *string
@@ -91,7 +91,7 @@ type Exception struct {
 	Parent     *int
 }
 
-type Log struct {
+type ErrorLog struct {
 	Message      string
 	Level        *string
 	ParamMessage *string

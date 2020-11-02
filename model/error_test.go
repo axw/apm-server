@@ -58,16 +58,16 @@ func (e *Exception) withFrames(frames []*StacktraceFrame) *Exception {
 	return e
 }
 
-func baseLog() *Log {
-	return &Log{Message: "error log message"}
+func baseLog() *ErrorLog {
+	return &ErrorLog{Message: "error log message"}
 }
 
-func (l *Log) withParamMsg(msg string) *Log {
+func (l *ErrorLog) withParamMsg(msg string) *ErrorLog {
 	l.ParamMessage = &msg
 	return l
 }
 
-func (l *Log) withFrames(frames []*StacktraceFrame) *Log {
+func (l *ErrorLog) withFrames(frames []*StacktraceFrame) *ErrorLog {
 	l.Stacktrace = frames
 	return l
 }
@@ -141,7 +141,7 @@ func TestEventFields(t *testing.T) {
 	loggerName := "logger"
 	logMsg := "error log message"
 	paramMsg := "param message"
-	log := Log{
+	log := ErrorLog{
 		Level:        &level,
 		Message:      logMsg,
 		ParamMessage: &paramMsg,
@@ -447,15 +447,15 @@ func TestCulprit(t *testing.T) {
 			msg:     "No Stacktrace Frame given.",
 		},
 		{
-			event:   Error{Culprit: &c, Log: &Log{Stacktrace: st}},
+			event:   Error{Culprit: &c, Log: &ErrorLog{Stacktrace: st}},
 			config:  transform.Config{RUM: transform.RUMConfig{SourcemapStore: store}},
 			culprit: "foo",
-			msg:     "Log.StacktraceFrame has no updated frame",
+			msg:     "ErrorLog.StacktraceFrame has no updated frame",
 		},
 		{
 			event: Error{
 				Culprit: &c,
-				Log: &Log{
+				Log: &ErrorLog{
 					Stacktrace: Stacktrace{
 						&StacktraceFrame{
 							Filename:         tests.StringPtr("f"),
@@ -467,12 +467,12 @@ func TestCulprit(t *testing.T) {
 			},
 			config:  transform.Config{RUM: transform.RUMConfig{SourcemapStore: store}},
 			culprit: "f",
-			msg:     "Adapt culprit to first valid Log.StacktraceFrame filename information.",
+			msg:     "Adapt culprit to first valid ErrorLog.StacktraceFrame filename information.",
 		},
 		{
 			event: Error{
 				Culprit: &c,
-				Log: &Log{
+				Log: &ErrorLog{
 					Stacktrace: Stacktrace{
 						&StacktraceFrame{
 							Classname:        tests.StringPtr("xyz"),
@@ -483,7 +483,7 @@ func TestCulprit(t *testing.T) {
 			},
 			config:  transform.Config{RUM: transform.RUMConfig{SourcemapStore: store}},
 			culprit: "xyz",
-			msg:     "Adapt culprit Log.StacktraceFrame classname information.",
+			msg:     "Adapt culprit ErrorLog.StacktraceFrame classname information.",
 		},
 		{
 			event: Error{
@@ -497,17 +497,17 @@ func TestCulprit(t *testing.T) {
 		{
 			event: Error{
 				Culprit:   &c,
-				Log:       &Log{Stacktrace: st},
+				Log:       &ErrorLog{Stacktrace: st},
 				Exception: &Exception{Stacktrace: stUpdate},
 			},
 			config:  transform.Config{RUM: transform.RUMConfig{SourcemapStore: store}},
 			culprit: "f in fct",
-			msg:     "Log and Exception StacktraceFrame given, only one changes culprit.",
+			msg:     "ErrorLog and Exception StacktraceFrame given, only one changes culprit.",
 		},
 		{
 			event: Error{
 				Culprit: &c,
-				Log: &Log{
+				Log: &ErrorLog{
 					Stacktrace: Stacktrace{
 						&StacktraceFrame{
 							Filename:         tests.StringPtr("a"),
@@ -520,7 +520,7 @@ func TestCulprit(t *testing.T) {
 			},
 			config:  transform.Config{RUM: transform.RUMConfig{SourcemapStore: store}},
 			culprit: "a in fct",
-			msg:     "Log Stacktrace is prioritized over Exception StacktraceFrame",
+			msg:     "ErrorLog Stacktrace is prioritized over Exception StacktraceFrame",
 		},
 	}
 	for idx, test := range tests {

@@ -26,6 +26,7 @@ type Batch struct {
 	Spans        []*Span
 	Metricsets   []*Metricset
 	Errors       []*Error
+	Logs         []*LogRecord
 }
 
 // Reset resets the batch to be empty, but it retains the underlying storage.
@@ -34,13 +35,14 @@ func (b *Batch) Reset() {
 	b.Spans = b.Spans[:0]
 	b.Metricsets = b.Metricsets[:0]
 	b.Errors = b.Errors[:0]
+	b.Logs = b.Logs[:0]
 }
 
 func (b *Batch) Len() int {
 	if b == nil {
 		return 0
 	}
-	return len(b.Transactions) + len(b.Spans) + len(b.Metricsets) + len(b.Errors)
+	return len(b.Transactions) + len(b.Spans) + len(b.Metricsets) + len(b.Errors) + len(b.Logs)
 }
 
 func (b *Batch) Transformables() []transform.Transformable {
@@ -56,6 +58,9 @@ func (b *Batch) Transformables() []transform.Transformable {
 	}
 	for _, err := range b.Errors {
 		transformables = append(transformables, err)
+	}
+	for _, log := range b.Logs {
+		transformables = append(transformables, log)
 	}
 	return transformables
 }

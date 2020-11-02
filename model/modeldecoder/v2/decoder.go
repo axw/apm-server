@@ -306,7 +306,7 @@ func mapToErrorModel(from *errorEvent, metadata *model.Metadata, reqTime time.Ti
 		out.ID = &val
 	}
 	if from.Log.IsSet() {
-		log := model.Log{}
+		log := model.ErrorLog{}
 		if from.Log.Level.IsSet() {
 			val := from.Log.Level.Val
 			log.Level = &val
