@@ -29,13 +29,14 @@ import (
 	commonpb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1"
 	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/open-telemetry/opentelemetry-collector/consumer/consumerdata"
-	tracetranslator "github.com/open-telemetry/opentelemetry-collector/translator/trace"
+	"go.opentelemetry.io/collector/consumer/consumerdata"
+	"go.opentelemetry.io/collector/consumer/pdata"
+	"go.opentelemetry.io/collector/translator/internaldata"
+	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 
 	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/beats/v7/libbeat/logp"
 
-	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/publish"
 	"github.com/elastic/apm-server/utility"
@@ -59,9 +60,15 @@ type Consumer struct {
 	Reporter publish.Reporter
 }
 
-// ConsumeTraceData consumes OpenTelemetry trace data,
-// converting into Elastic APM events and reporting to the Elastic APM schema.
+// TODO(axw) remove this.
 func (c *Consumer) ConsumeTraceData(ctx context.Context, td consumerdata.TraceData) error {
+	traces := internaldata.OCToTraceData(td)
+	return c.ConsumeTraces(ctx, traces)
+}
+
+// ConsumeTraces consumes OpenTelemetry trace data,
+// converting into Elastic APM events and reporting to the Elastic APM schema.
+func (c *Consumer) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
 	batch := c.convert(td)
 	return c.Reporter(ctx, publish.PendingReq{
 		Transformables: batch.Transformables(),
@@ -69,63 +76,84 @@ func (c *Consumer) ConsumeTraceData(ctx context.Context, td consumerdata.TraceDa
 	})
 }
 
-func (c *Consumer) convert(td consumerdata.TraceData) *model.Batch {
-	md := model.Metadata{}
-	parseMetadata(td, &md)
-	hostname := md.System.DetectedHostname
-
-	logger := logp.NewLogger(logs.Otel)
+func (c *Consumer) convert(td pdata.Traces) *model.Batch {
 	batch := model.Batch{}
-	for _, otelSpan := range td.Spans {
-		if otelSpan == nil {
+	resourceSpans := td.ResourceSpans()
+	for i := 0; i < resourceSpans.Len(); i++ {
+		c.convertResourceSpans(resourceSpans.At(i), &batch)
+	}
+	return &batch
+}
+
+func (c *Consumer) convertResourceSpans(resourceSpans pdata.ResourceSpans, out *model.Batch) {
+	if resourceSpans.IsNil() {
+		return
+	}
+	var metadata model.Metadata
+	translateResourceMetadata(resourceSpans.Resource(), &metadata)
+	instrumentationLibrarySpans := resourceSpans.InstrumentationLibrarySpans()
+	for i := 0; i < instrumentationLibrarySpans.Len(); i++ {
+		c.convertInstrumentationLibrarySpans(instrumentationLibrarySpans.At(i), metadata, out)
+	}
+}
+
+func (c *Consumer) convertInstrumentationLibrarySpans(in pdata.InstrumentationLibrarySpans, metadata model.Metadata, out *model.Batch) {
+	if in.IsNil() {
+		return
+	}
+	//logger := logp.NewLogger(logs.Otel)
+	otelSpans := in.Spans()
+	for i := 0; i < otelSpans.Len(); i++ {
+		otelSpan := otelSpans.At(i)
+		if otelSpan.IsNil() {
 			continue
 		}
+		root := len(otelSpan.ParentSpanID().Bytes()) == 0
 
-		root := len(otelSpan.ParentSpanId) == 0
+		const sourceFormat = sourceFormatJaeger // TODO(axw)
 
+		// TODO(axw) special formatting for Jaeger span IDs, for log correlation.
 		var parentID, spanID, traceID string
-		if td.SourceFormat == sourceFormatJaeger {
+		if sourceFormat == sourceFormatJaeger {
 			if !root {
-				parentID = formatJaegerSpanID(otelSpan.ParentSpanId)
+				parentID = formatJaegerSpanID(otelSpan.ParentSpanID().Bytes())
 			}
-
-			traceID = formatJaegerTraceID(otelSpan.TraceId)
-			spanID = formatJaegerSpanID(otelSpan.SpanId)
+			traceID = formatJaegerTraceID(otelSpan.TraceID().Bytes())
+			spanID = formatJaegerSpanID(otelSpan.SpanID().Bytes())
 		} else {
 			if !root {
-				parentID = fmt.Sprintf("%x", otelSpan.ParentSpanId)
+				parentID = otelSpan.ParentSpanID().HexString()
 			}
-
-			traceID = fmt.Sprintf("%x", otelSpan.TraceId)
-			spanID = fmt.Sprintf("%x", otelSpan.SpanId)
+			traceID = otelSpan.TraceID().HexString()
+			spanID = otelSpan.SpanID().HexString()
 		}
 
-		startTime := parseTimestamp(otelSpan.StartTime)
+		startTime := pdata.UnixNanoToTime(otelSpan.StartTime())
+		endTime := pdata.UnixNanoToTime(otelSpan.EndTime())
 		var duration float64
-		if otelSpan.EndTime != nil && !startTime.IsZero() {
-			duration = parseTimestamp(otelSpan.EndTime).Sub(startTime).Seconds() * 1000
+		if endTime.After(startTime) {
+			duration = endTime.Sub(startTime).Seconds() * 1000
 		}
-		name := otelSpan.GetName().GetValue()
-		if root || otelSpan.Kind == tracepb.Span_SERVER {
-			transaction := model.Transaction{
-				Metadata:  md,
-				ID:        spanID,
-				ParentID:  parentID,
-				TraceID:   traceID,
-				Timestamp: startTime,
-				Duration:  duration,
-				Name:      name,
-			}
-			parseTransaction(otelSpan, td.SourceFormat, hostname, &transaction)
-			batch.Transactions = append(batch.Transactions, &transaction)
-			for _, err := range parseErrors(logger, td.SourceFormat, otelSpan) {
-				addTransactionCtxToErr(transaction, err)
-				batch.Errors = append(batch.Errors, err)
-			}
 
+		name := otelSpan.Name()
+		if root || otelSpan.Kind() == pdata.SpanKindSERVER {
+			transaction := model.Transaction{
+				Metadata: metadata,
+				ID:       spanID,
+				ParentID: parentID,
+				TraceID:  traceID,
+				Duration: duration,
+				Name:     name,
+			}
+			translateTransaction(otelSpan, &transaction)
+			out.Transactions = append(out.Transactions, &transaction)
+			//for _, err := range parseErrors(logger, td.SourceFormat, otelSpan) {
+			//	addTransactionCtxToErr(transaction, err)
+			//	batch.Errors = append(batch.Errors, err)
+			//}
 		} else {
 			span := model.Span{
-				Metadata:  md,
+				Metadata:  metadata,
 				ID:        spanID,
 				ParentID:  parentID,
 				TraceID:   traceID,
@@ -134,31 +162,20 @@ func (c *Consumer) convert(td consumerdata.TraceData) *model.Batch {
 				Name:      name,
 				Outcome:   outcomeUnknown,
 			}
-			parseSpan(otelSpan, td.SourceFormat, &span)
-			batch.Spans = append(batch.Spans, &span)
-			for _, err := range parseErrors(logger, td.SourceFormat, otelSpan) {
-				addSpanCtxToErr(span, hostname, err)
-				batch.Errors = append(batch.Errors, err)
-			}
+			translateSpan(otelSpan, &span)
+			out.Spans = append(out.Spans, &span)
+			//for _, err := range parseErrors(logger, td.SourceFormat, otelSpan) {
+			//	addSpanCtxToErr(span, hostname, err)
+			//	batch.Errors = append(batch.Errors, err)
+			//}
 		}
 	}
-	return &batch
 }
 
-func parseMetadata(td consumerdata.TraceData, md *model.Metadata) {
-	md.Service.Name = truncate(td.Node.GetServiceInfo().GetName())
-	if md.Service.Name == "" {
-		md.Service.Name = "unknown"
-	}
-
+/*
+func parseMetadata(td pdata.Traces, md *model.Metadata) {
 	if ident := td.Node.GetIdentifier(); ident != nil {
 		md.Process.Pid = int(ident.Pid)
-		if hostname := truncate(ident.HostName); hostname != "" {
-			md.System.DetectedHostname = hostname
-		}
-	}
-	if languageName, ok := languageName[td.Node.GetLibraryInfo().GetLanguage()]; ok {
-		md.Service.Language.Name = languageName
 	}
 
 	switch td.SourceFormat {
@@ -210,8 +227,11 @@ func parseMetadata(td consumerdata.TraceData, md *model.Metadata) {
 		md.Labels[replaceDots(key)] = truncate(val)
 	}
 }
+*/
 
-func parseTransaction(span *tracepb.Span, sourceFormat string, hostname string, event *model.Transaction) {
+func translateTransaction(span pdata.Span, out *model.Transaction) {
+	const sourceFormat = sourceFormatJaeger // TODO(axw)
+
 	labels := make(common.MapStr)
 	var http model.Http
 	var httpStatusCode int
@@ -220,98 +240,103 @@ func parseTransaction(span *tracepb.Span, sourceFormat string, hostname string, 
 	var outcome, result string
 	var hasFailed bool
 	var isHTTP, isMessaging bool
-	var samplerType, samplerParam *tracepb.AttributeValue
-	for kDots, v := range span.Attributes.GetAttributeMap() {
+	var samplerType, samplerParam pdata.AttributeValue
+	span.Attributes().ForEach(func(kDots string, v pdata.AttributeValue) {
 		if sourceFormat == sourceFormatJaeger {
 			switch kDots {
 			case "sampler.type":
 				samplerType = v
-				continue
+				return
 			case "sampler.param":
 				samplerParam = v
-				continue
+				return
 			}
 		}
 
 		k := replaceDots(kDots)
-		switch v := v.Value.(type) {
-		case *tracepb.AttributeValue_BoolValue:
-			utility.DeepUpdate(labels, k, v.BoolValue)
+		switch v.Type() {
+		case pdata.AttributeValueBOOL:
+			utility.DeepUpdate(labels, k, v.BoolVal())
 			if k == "error" {
-				hasFailed = v.BoolValue
+				hasFailed = v.BoolVal()
 			}
-		case *tracepb.AttributeValue_DoubleValue:
-			utility.DeepUpdate(labels, k, v.DoubleValue)
-		case *tracepb.AttributeValue_IntValue:
+		case pdata.AttributeValueDOUBLE:
+			utility.DeepUpdate(labels, k, v.DoubleVal())
+		case pdata.AttributeValueINT:
 			switch kDots {
 			case "http.status_code":
-				httpStatusCode = int(v.IntValue)
+				httpStatusCode = int(v.IntVal())
 				isHTTP = true
 			default:
-				utility.DeepUpdate(labels, k, v.IntValue)
+				utility.DeepUpdate(labels, k, v.IntVal())
 			}
-		case *tracepb.AttributeValue_StringValue:
+		case pdata.AttributeValueSTRING:
+			stringval := truncate(v.StringVal())
 			switch kDots {
 			case "span.kind": // filter out
 			case "http.method":
-				http.Request = &model.Req{Method: truncate(v.StringValue.Value)}
+				http.Request = &model.Req{Method: stringval}
 				isHTTP = true
 			case "http.url", "http.path":
-				event.URL = model.ParseURL(v.StringValue.Value, hostname)
+				out.URL = model.ParseURL(stringval, out.Metadata.System.Hostname())
 				isHTTP = true
 			case "http.status_code":
-				if intv, err := strconv.Atoi(v.StringValue.Value); err == nil {
+				if intv, err := strconv.Atoi(stringval); err == nil {
 					httpStatusCode = intv
 				}
 				isHTTP = true
 			case "http.protocol":
-				if strings.HasPrefix(v.StringValue.Value, "HTTP/") {
-					version := truncate(strings.TrimPrefix(v.StringValue.Value, "HTTP/"))
+				if strings.HasPrefix(stringval, "HTTP/") {
+					version := strings.TrimPrefix(stringval, "HTTP/")
 					http.Version = &version
 				} else {
-					utility.DeepUpdate(labels, k, v.StringValue.Value)
+					utility.DeepUpdate(labels, k, stringval)
 				}
 				isHTTP = true
 			case "message_bus.destination":
-				message.QueueName = &v.StringValue.Value
+				message.QueueName = &stringval
 				isMessaging = true
 			case "type":
-				event.Type = truncate(v.StringValue.Value)
+				out.Type = stringval
 			case "service.version":
-				event.Metadata.Service.Version = truncate(v.StringValue.Value)
+				out.Metadata.Service.Version = stringval
 			case "component":
-				component = truncate(v.StringValue.Value)
+				component = stringval
 				fallthrough
 			default:
-				utility.DeepUpdate(labels, k, truncate(v.StringValue.Value))
+				utility.DeepUpdate(labels, k, stringval)
 			}
 		}
-	}
+	})
 
-	if event.Type == "" {
+	if out.Type == "" {
 		if isHTTP {
-			event.Type = "request"
+			out.Type = "request"
 		} else if isMessaging {
-			event.Type = "messaging"
+			out.Type = "messaging"
 		} else if component != "" {
-			event.Type = component
+			out.Type = component
 		} else {
-			event.Type = "custom"
+			out.Type = "custom"
 		}
 	}
 
 	if isHTTP {
 		if httpStatusCode == 0 {
-			httpStatusCode = int(span.GetStatus().GetCode())
+			// TODO(axw) check this
+			status := span.Status()
+			if !status.IsNil() {
+				httpStatusCode = int(status.Code())
+			}
 		}
 		if httpStatusCode > 0 {
 			http.Response = &model.Resp{MinimalResp: model.MinimalResp{StatusCode: &httpStatusCode}}
 			result = statusCodeResult(httpStatusCode)
 			outcome = serverStatusCodeOutcome(httpStatusCode)
 		}
-		event.HTTP = &http
+		out.HTTP = &http
 	} else if isMessaging {
-		event.Message = &message
+		out.Message = &message
 	}
 
 	if result == "" {
@@ -323,24 +348,26 @@ func parseTransaction(span *tracepb.Span, sourceFormat string, hostname string, 
 			outcome = outcomeSuccess
 		}
 	}
-	event.Result = result
-	event.Outcome = outcome
+	out.Result = result
+	out.Outcome = outcome
 
-	if samplerType != nil && samplerParam != nil {
+	if samplerType != (pdata.AttributeValue{}) && samplerParam != (pdata.AttributeValue{}) {
 		// The client has reported its sampling rate, so
 		// we can use it to extrapolate span metrics.
-		parseSamplerAttributes(samplerType, samplerParam, &event.RepresentativeCount, labels)
+		parseSamplerAttributes(samplerType, samplerParam, &out.RepresentativeCount, labels)
 	}
 
 	if len(labels) == 0 {
 		return
 	}
 	l := model.Labels(labels)
-	event.Labels = &l
+	out.Labels = &l
 }
 
-func parseSpan(span *tracepb.Span, sourceFormat string, event *model.Span) {
+func translateSpan(span pdata.Span, out *model.Span) {
 	labels := make(common.MapStr)
+
+	const sourceFormat = sourceFormatJaeger // TODO(axw)
 
 	var http model.HTTP
 	var message model.Message
@@ -349,102 +376,94 @@ func parseSpan(span *tracepb.Span, sourceFormat string, event *model.Span) {
 	var destinationService model.DestinationService
 	var isDBSpan, isHTTPSpan, isMessagingSpan bool
 	var component string
-	var samplerType, samplerParam *tracepb.AttributeValue
-	for kDots, v := range span.Attributes.GetAttributeMap() {
+	var samplerType, samplerParam pdata.AttributeValue
+	span.Attributes().ForEach(func(kDots string, v pdata.AttributeValue) {
 		if sourceFormat == sourceFormatJaeger {
 			switch kDots {
 			case "sampler.type":
 				samplerType = v
-				continue
+				return
 			case "sampler.param":
 				samplerParam = v
-				continue
+				return
 			}
 		}
 
 		k := replaceDots(kDots)
-		switch v := v.Value.(type) {
-		case *tracepb.AttributeValue_BoolValue:
-			utility.DeepUpdate(labels, k, v.BoolValue)
-		case *tracepb.AttributeValue_DoubleValue:
-			utility.DeepUpdate(labels, k, v.DoubleValue)
-		case *tracepb.AttributeValue_IntValue:
+		switch v.Type() {
+		case pdata.AttributeValueBOOL:
+			utility.DeepUpdate(labels, k, v.BoolVal())
+		case pdata.AttributeValueDOUBLE:
+			utility.DeepUpdate(labels, k, v.DoubleVal())
+		case pdata.AttributeValueINT:
 			switch kDots {
 			case "http.status_code":
-				code := int(v.IntValue)
+				code := int(v.IntVal())
 				http.StatusCode = &code
 				isHTTPSpan = true
 			case "peer.port":
-				port := int(v.IntValue)
+				port := int(v.IntVal())
 				destination.Port = &port
 			default:
-				utility.DeepUpdate(labels, k, v.IntValue)
+				utility.DeepUpdate(labels, k, v.IntVal())
 			}
-		case *tracepb.AttributeValue_StringValue:
+		case pdata.AttributeValueSTRING:
+			stringval := truncate(v.StringVal())
 			switch kDots {
 			case "span.kind": // filter out
 			case "http.url":
-				url := truncate(v.StringValue.Value)
-				http.URL = &url
+				http.URL = &stringval
 				isHTTPSpan = true
 			case "http.method":
-				method := truncate(v.StringValue.Value)
-				http.Method = &method
+				http.Method = &stringval
 				isHTTPSpan = true
 			case "sql.query":
-				db.Statement = &v.StringValue.Value
+				db.Statement = &stringval
 				if db.Type == nil {
 					dbType := "sql"
 					db.Type = &dbType
 				}
 				isDBSpan = true
 			case "db.statement":
-				db.Statement = &v.StringValue.Value
+				db.Statement = &stringval
 				isDBSpan = true
 			case "db.instance":
-				val := truncate(v.StringValue.Value)
-				db.Instance = &val
+				db.Instance = &stringval
 				isDBSpan = true
 			case "db.type":
-				val := truncate(v.StringValue.Value)
-				db.Type = &val
+				db.Type = &stringval
 				isDBSpan = true
 			case "db.user":
-				val := truncate(v.StringValue.Value)
-				db.UserName = &val
+				db.UserName = &stringval
 				isDBSpan = true
 			case "peer.address":
-				val := truncate(v.StringValue.Value)
-				destinationService.Resource = &val
-				if !strings.ContainsRune(val, ':') || net.ParseIP(val) != nil {
+				destinationService.Resource = &stringval
+				if !strings.ContainsRune(stringval, ':') || net.ParseIP(stringval) != nil {
 					// peer.address is not necessarily a hostname
 					// or IP address; it could be something like
 					// a JDBC connection string or ip:port. Ignore
 					// values containing colons, except for IPv6.
-					destination.Address = &val
+					destination.Address = &stringval
 				}
 			case "peer.hostname", "peer.ipv4", "peer.ipv6":
-				val := truncate(v.StringValue.Value)
-				destination.Address = &val
+				destination.Address = &stringval
 			case "peer.service":
-				val := truncate(v.StringValue.Value)
-				destinationService.Name = &val
+				destinationService.Name = &stringval
 				if destinationService.Resource == nil {
 					// Prefer using peer.address for resource.
-					destinationService.Resource = &val
+					destinationService.Resource = &stringval
 				}
 			case "message_bus.destination":
-				val := truncate(v.StringValue.Value)
-				message.QueueName = &val
+				message.QueueName = &stringval
 				isMessagingSpan = true
 			case "component":
-				component = truncate(v.StringValue.Value)
+				component = stringval
 				fallthrough
 			default:
-				utility.DeepUpdate(labels, k, truncate(v.StringValue.Value))
+				utility.DeepUpdate(labels, k, stringval)
 			}
 		}
-	}
+	})
 
 	if http.URL != nil {
 		if fullURL, err := url.Parse(*http.URL); err == nil {
@@ -487,73 +506,77 @@ func parseSpan(span *tracepb.Span, sourceFormat string, event *model.Span) {
 	}
 
 	if destination != (model.Destination{}) {
-		event.Destination = &destination
+		out.Destination = &destination
 	}
 
 	switch {
 	case isHTTPSpan:
 		if http.StatusCode == nil {
-			if code := int(span.GetStatus().GetCode()); code != 0 {
-				http.StatusCode = &code
+			// TODO(axw) check this
+			status := span.Status()
+			if !status.IsNil() {
+				if code := int(status.Code()); code != 0 {
+					http.StatusCode = &code
+				}
 			}
 		}
 		if http.StatusCode != nil {
-			event.Outcome = clientStatusCodeOutcome(*http.StatusCode)
+			out.Outcome = clientStatusCodeOutcome(*http.StatusCode)
 		}
-		event.Type = "external"
+		out.Type = "external"
 		subtype := "http"
-		event.Subtype = &subtype
-		event.HTTP = &http
+		out.Subtype = &subtype
+		out.HTTP = &http
 	case isDBSpan:
-		event.Type = "db"
+		out.Type = "db"
 		if db.Type != nil && *db.Type != "" {
-			event.Subtype = db.Type
+			out.Subtype = db.Type
 		}
-		event.DB = &db
+		out.DB = &db
 	case isMessagingSpan:
-		event.Type = "messaging"
-		event.Message = &message
+		out.Type = "messaging"
+		out.Message = &message
 	default:
-		event.Type = "custom"
+		out.Type = "custom"
 		if component != "" {
-			event.Subtype = &component
+			out.Subtype = &component
 		}
 	}
 
 	if destinationService != (model.DestinationService{}) {
 		if destinationService.Type == nil {
 			// Copy span type to destination.service.type.
-			destinationService.Type = &event.Type
+			destinationService.Type = &out.Type
 		}
-		event.DestinationService = &destinationService
+		out.DestinationService = &destinationService
 	}
 
-	if samplerType != nil && samplerParam != nil {
+	if samplerType != (pdata.AttributeValue{}) && samplerParam != (pdata.AttributeValue{}) {
 		// The client has reported its sampling rate, so
 		// we can use it to extrapolate transaction metrics.
-		parseSamplerAttributes(samplerType, samplerParam, &event.RepresentativeCount, labels)
+		parseSamplerAttributes(samplerType, samplerParam, &out.RepresentativeCount, labels)
 	}
 
 	if len(labels) == 0 {
 		return
 	}
-	event.Labels = labels
+	out.Labels = labels
 }
 
-func parseSamplerAttributes(samplerType, samplerParam *tracepb.AttributeValue, representativeCount *float64, labels common.MapStr) {
-	switch samplerType.GetStringValue().GetValue() {
+func parseSamplerAttributes(samplerType, samplerParam pdata.AttributeValue, representativeCount *float64, labels common.MapStr) {
+	switch samplerType.StringVal() {
 	case "probabilistic":
-		probability := samplerParam.GetDoubleValue()
+		probability := samplerParam.DoubleVal()
 		if probability > 0 && probability <= 1 {
 			*representativeCount = 1 / probability
 		}
 	default:
-		utility.DeepUpdate(labels, "sampler_type", samplerType.GetStringValue().GetValue())
-		switch v := samplerParam.Value.(type) {
-		case *tracepb.AttributeValue_BoolValue:
-			utility.DeepUpdate(labels, "sampler_param", v.BoolValue)
-		case *tracepb.AttributeValue_DoubleValue:
-			utility.DeepUpdate(labels, "sampler_param", v.DoubleValue)
+		utility.DeepUpdate(labels, "sampler_type", samplerType.StringVal())
+		switch samplerParam.Type() {
+		case pdata.AttributeValueBOOL:
+			utility.DeepUpdate(labels, "sampler_param", samplerParam.BoolVal())
+		case pdata.AttributeValueDOUBLE:
+			utility.DeepUpdate(labels, "sampler_param", samplerParam.DoubleVal())
 		}
 	}
 }
