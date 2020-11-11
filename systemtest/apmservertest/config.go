@@ -41,12 +41,15 @@ const (
 
 // Config holds APM Server configuration.
 type Config struct {
-	SecretToken string             `json:"apm-server.secret_token,omitempty"`
-	Jaeger      *JaegerConfig      `json:"apm-server.jaeger,omitempty"`
-	Kibana      *KibanaConfig      `json:"apm-server.kibana,omitempty"`
-	Aggregation *AggregationConfig `json:"apm-server.aggregation,omitempty"`
-	Sampling    *SamplingConfig    `json:"apm-server.sampling,omitempty"`
-	RUM         *RUMConfig         `json:"apm-server.rum,omitempty"`
+	SecretToken      string                  `json:"apm-server.secret_token,omitempty"`
+	Jaeger           *JaegerConfig           `json:"apm-server.jaeger,omitempty"`
+	Kibana           *KibanaConfig           `json:"apm-server.kibana,omitempty"`
+	Aggregation      *AggregationConfig      `json:"apm-server.aggregation,omitempty"`
+	Sampling         *SamplingConfig         `json:"apm-server.sampling,omitempty"`
+	RUM              *RUMConfig              `json:"apm-server.rum,omitempty"`
+	DataStreams      *DataStreamsConfig      `json:"apm-server.data_streams,omitempty"`
+	RegisterPipeline *RegisterPipelineConfig `json:"apm-server.register.ingest.pipeline",omitempty`
+	ILM              *ILMConfig              `json:"apm-server.ilm",omitempty`
 
 	// Instrumentation holds configuration for libbeat and apm-server instrumentation.
 	Instrumentation *InstrumentationConfig `json:"instrumentation,omitempty"`
@@ -144,6 +147,21 @@ type RUMConfig struct {
 	Enabled bool `json:"enabled"`
 }
 
+// DataStreamsConfig holds APM Server data streams configuration.
+type DataStreamsConfig struct {
+	Enabled bool `json:"enabled"`
+}
+
+// RegisterPipelineConfig holds APM Server ingest pipeline registration configuration.
+type RegisterPipelineConfig struct {
+	Enabled bool `json:"enabled"`
+}
+
+// ILMConfig holds APM Server ILM configuration.
+type ILMConfig struct {
+	SetupEnabled bool `json:"setup.enabled"`
+}
+
 // InstrumentationConfig holds APM Server instrumentation configuration.
 type InstrumentationConfig struct {
 	Enabled bool `json:"enabled"`
@@ -159,11 +177,18 @@ type ElasticsearchOutputConfig struct {
 	Hosts    []string `json:"hosts,omitempty"`
 	Username string   `json:"username,omitempty"`
 	Password string   `json:"password,omitempty"`
+	APIKey   string   `json:"api_key,omitempty"`
+
+	// Pipeline holds the pipeline to use for indexing operations.
+	// This can be set to "_none" to disable the pipeline.
+	Pipeline string `json:"pipeline,omitempty"`
 }
 
 // SetupConfig holds APM Server libbeat setup configuration.
 type SetupConfig struct {
-	IndexTemplate IndexTemplateConfig `json:"template.settings.index"`
+	IndexTemplate   IndexTemplateConfig `json:"template.settings.index"`
+	ILMEnabled      bool                `json:"ilm.enabled"`
+	TemplateEnabled bool                `json:"template.enabled"`
 }
 
 // IndexTemplateConfig holds APM Server libbeat index template setup configuration.
@@ -353,6 +378,8 @@ func DefaultConfig() Config {
 				Shards:          1,
 				RefreshInterval: "250ms",
 			},
+			ILMEnabled:      true,
+			TemplateEnabled: true,
 		},
 		Queue: QueueConfig{
 			Memory: &MemoryQueueConfig{
