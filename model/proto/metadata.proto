@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "apm-server/model/proto/common.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Metadata {
+  Service service = 1;
+  Process process = 2;
+  System system = 3;
+  User user = 4;
+  UserAgent user_agent = 5;
+  Client client = 6;
+  Cloud cloud = 7;
+  repeated KeyValue labels = 8;
+}
+
+message Service {
+  string name = 1;
+  string version = 2;
+  string environment = 3;
+  Language language = 4;
+  Runtime runtime = 5;
+  Framework framework = 6;
+  Agent agent = 7;
+  ServiceNode node = 8;
+}
+
+message Language {
+  string name = 1;
+  string version = 2;
+}
+
+message Runtime {
+  string name = 1;
+  string version = 2;
+}
+
+message Framework {
+  string name = 1;
+  string version = 2;
+}
+
+message Agent {
+  string name = 1;
+  string version = 2;
+  string ephemeral_id = 3;
+}
+
+message ServiceNode {
+  string name = 1;
+}
+
+message Process {
+  int64 pid = 1; // TODO int32?
+  int64 ppid = 2;
+  string title = 3;
+  repeated string argv = 4;
+}
+
+message System {
+  string detected_hostname = 1; // TODO(axw) do we need both detected/configured in the model?
+  string configured_hostname = 2;
+  string architecture = 3;
+  string ip = 4; // TODO how to make this net.IP
+  Container container = 5;
+  Kubernetes kubernetes = 6;
+}
+
+message Container {
+  string id = 1;
+}
+
+message Kubernetes {
+  string namespace = 1;
+  KubernetesNode node = 2;
+  KubernetesPod pod = 3;
+}
+
+message KubernetesNode {
+  string name = 1;
+}
+
+message KubernetesPod {
+  string name = 1;
+  string uid = 2;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+}
+
+message UserAgent {
+  string original = 1;
+  string name = 2;
+}
+
+message Client {
+  string ip = 1;
+}
+
+message Cloud {
+  CloudAccount account = 1;
+  string availability_zone = 2;
+  // TODO the rest
+}
+
+message CloudAccount {
+  string id = 1;
+  string name = 2;
+}
