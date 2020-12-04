@@ -152,6 +152,10 @@ func (e *Error) appendBeatEvents(ctx context.Context, cfg *transform.Config, eve
 	fields.maybeSetMapStr("trace", common.MapStr(trace))
 	fields.maybeSetMapStr("timestamp", utility.TimeAsMicros(e.Timestamp))
 
+	if e.RUM {
+		setRUMConfig(fields, &cfg.RUM)
+	}
+
 	return append(events, beat.Event{
 		Fields:    common.MapStr(fields),
 		Timestamp: e.Timestamp,
@@ -169,46 +173,10 @@ func (e *Error) fields(ctx context.Context, cfg *transform.Config) common.MapStr
 	}
 	fields.maybeSetMapStr("log", e.logFields(ctx, cfg))
 
-	e.updateCulprit(cfg)
 	fields.maybeSetString("culprit", e.Culprit)
 	fields.maybeSetMapStr("custom", customFields(e.Custom))
 	fields.maybeSetString("grouping_key", e.calcGroupingKey(exceptionChain))
 	return common.MapStr(fields)
-}
-
-func (e *Error) updateCulprit(cfg *transform.Config) {
-	if cfg.RUM.SourcemapStore == nil {
-		return
-	}
-	var fr *StacktraceFrame
-	if e.Log != nil {
-		fr = findSmappedNonLibraryFrame(e.Log.Stacktrace)
-	}
-	if fr == nil && e.Exception != nil {
-		fr = findSmappedNonLibraryFrame(e.Exception.Stacktrace)
-	}
-	if fr == nil {
-		return
-	}
-	var culprit string
-	if fr.Filename != "" {
-		culprit = fr.Filename
-	} else if fr.Classname != "" {
-		culprit = fr.Classname
-	}
-	if fr.Function != "" {
-		culprit += fmt.Sprintf(" in %v", fr.Function)
-	}
-	e.Culprit = culprit
-}
-
-func findSmappedNonLibraryFrame(frames []*StacktraceFrame) *StacktraceFrame {
-	for _, fr := range frames {
-		if fr.IsSourcemapApplied() && !fr.IsLibraryFrame() {
-			return fr
-		}
-	}
-	return nil
 }
 
 func (e *Error) exceptionFields(ctx context.Context, cfg *transform.Config, chain []Exception) []common.MapStr {
@@ -313,9 +281,10 @@ func (e *Error) calcGroupingKey(chain []Exception) string {
 	}
 
 	for _, fr := range stacktrace {
-		if fr.ExcludeFromGrouping {
-			continue
-		}
+		// TODO(axw) ingest pipeline
+		//if fr.ExcludeFromGrouping {
+		//	continue
+		//}
 		k.addEither(fr.Module, fr.Filename, fr.Classname)
 		k.add(fr.Function)
 	}

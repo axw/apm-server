@@ -1,130 +1,241 @@
 [
-{
-  "id": "apm",
-  "body": {
-    "description" : "Default enrichment for APM events",
-    "processors" : [
-      {
-        "pipeline": {
-          "name": "apm_user_agent"
+  {
+    "id": "apm",
+    "body": {
+      "description": "Default enrichment for APM events",
+      "processors": [
+        {
+          "pipeline": {
+            "name": "apm_user_agent"
+          }
+        },
+        {
+          "pipeline": {
+            "name": "apm_user_geo"
+          }
+        },
+        {
+          "pipeline": {
+            "name": "apm_ingest_timestamp"
+          }
+        },
+        {
+          "pipeline": {
+            "name": "apm_remove_span_metadata"
+          }
+        },
+        {
+          "pipeline": {
+            "name": "apm_error_grouping_name",
+            "if": "ctx.processor?.event == 'error'"
+          }
+        },
+        {
+          "pipeline": {
+            "name": "apm_enrich_sourcemap",
+            "if": "ctx.agent?.name == 'rum-js' && ctx.service?.name != null && ctx.service?.version != null",
+            "on_failure": [
+              {
+                "set": {
+                  "field": "sourcemap.error",
+                  "value": "{{_ingest.on_failure_pipeline}}: {{_ingest.on_failure_message}}"
+                }
+              }
+            ]
+          }
         }
-      },
-      {
-        "pipeline": {
-          "name": "apm_user_geo"
+      ]
+    }
+  },
+  {
+    "id": "apm_user_agent",
+    "body": {
+      "description": "Add user agent information for APM events",
+      "processors": [
+        {
+          "user_agent": {
+            "field": "user_agent.original",
+            "target_field": "user_agent",
+            "ignore_missing": true,
+            "ignore_failure": true
+          }
         }
-      },
-      {
-        "pipeline": {
-          "name": "apm_ingest_timestamp"
-        }
-      },
-      {
-        "pipeline": {
-          "name": "apm_remove_span_metadata"
-        }
-      },
-      {
-        "pipeline": {
-          "name": "apm_error_grouping_name",
-          "if": "ctx.processor?.event == 'error'"
-        }
-      }
-    ]
-  }
-},
-{
-  "id": "apm_user_agent",
-  "body": {
-    "description" : "Add user agent information for APM events",
-    "processors" : [
-      {
-        "user_agent" : {
-          "field": "user_agent.original",
-          "target_field": "user_agent",
-          "ignore_missing": true,
-          "ignore_failure": true
-        }
-      }
-    ]
-  }
-},
-{
-  "id": "apm_user_geo",
-  "body": {
-    "description" : "Add user geo information for APM events",
-    "processors" : [
-      {
-        "geoip" : {
-          "database_file": "GeoLite2-City.mmdb",
-          "field": "client.ip",
-          "target_field": "client.geo",
-          "ignore_missing": true,
-          "on_failure": [
-            {
-              "remove": {
+      ]
+    }
+  },
+  {
+    "id": "apm_user_geo",
+    "body": {
+      "description": "Add user geo information for APM events",
+      "processors": [
+        {
+          "geoip": {
+            "database_file": "GeoLite2-City.mmdb",
+            "field": "client.ip",
+            "target_field": "client.geo",
+            "ignore_missing": true,
+            "on_failure": [
+              {
+                "remove": {
                   "field": "client.ip",
                   "ignore_missing": true,
                   "ignore_failure": true
+                }
               }
-            }
-          ]
+            ]
+          }
         }
-      }
-    ]
+      ]
+    }
+  },
+  {
+    "id": "apm_ingest_timestamp",
+    "body": {
+      "description": "Add an ingest timestamp for APM events",
+      "processors": [
+        {
+          "set": {
+            "if": "ctx.processor?.event != 'span'",
+            "field": "event.ingested",
+            "value": "{{_ingest.timestamp}}"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "apm_remove_span_metadata",
+    "body": {
+      "description": "Removes metadata fields available already on the parent transaction, to save storage",
+      "processors": [
+        {
+          "remove": {
+            "if": "ctx.processor?.event == 'span'",
+            "field": [
+              "host",
+              "process",
+              "user",
+              "user_agent",
+              "container",
+              "kubernetes",
+              "service.node",
+              "service.version",
+              "service.language",
+              "service.runtime",
+              "service.framework"
+            ],
+            "ignore_missing": true,
+            "ignore_failure": true
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "apm_error_grouping_name",
+    "body": {
+      "description": "Set error.grouping_name for APM error events",
+      "processors": [
+        {
+          "script": {
+            "source": "ctx.error.grouping_name = ctx.error.exception[0].message",
+            "if": "ctx.error?.exception?.length != null && ctx.error?.exception?.length > 0"
+          }
+        },
+        {
+          "set": {
+            "field": "error.grouping_name",
+            "copy_from": "error.log.message",
+            "if": "ctx.error?.log?.message != null"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "apm_enrich_sourcemap",
+    "body": {
+      "description": "Adds sourcemaps to the RUM spans and errors",
+      "processors": [
+        {
+          "set": {
+            "field": "rum.service.name_version",
+            "value": "{{service.name}}/{{service.version}}"
+          }
+        },
+        {
+          "enrich": {
+            "policy_name": "apm-rum-sourcemaps",
+            "field": "rum.service.name_version",
+            "target_field": "sourcemap",
+            "max_matches": 10
+          }
+        },
+        {
+          "script": {
+            "source": "boolean pred(Map mapping, Map frame) {\n  int cmp = (int)mapping.get(\"gen_line\") - (int)frame.line.number;\n  if (cmp == 0) {\n    return (int)mapping.get(\"gen_column\") >= (int)frame.line.column;\n  }\n  return cmp > 0;\n}\n\nint binarySearch(List mappings, Map frame) {\n    int i = 0;\n    int j = mappings.size();\n    while (i < j) {\n        int h = (int)((i+j) / 2);\n        if (!pred(mappings.get(h), frame)) {\n            i = h + 1;\n        } else {\n            j = h;\n        }\n    }\n    return i;\n}\n\nMap getMatch(List mappings, Map frame) {\n  int i = binarySearch(mappings, frame);\n  if (i == mappings.size()) {\n    return null;\n  }\n  Map match = mappings.get(i);\n  if ((int)match.get(\"gen_line\") > (int)frame.line.number ||\n      (int)match.get(\"gen_column\") > (int)frame.line.column) {\n    if (i == 0) {\n      return null;\n    }\n    match = mappings.get(i-1);\n  }\n  return match;\n}\n\nboolean updateStacktrace(List stacktrace, Map sourcemaps) {\n  if (stacktrace == null) {\n    return false;\n  }\n  def anyUpdated = false;\n  def function = \"<anonymous>\";\n  for (int i = stacktrace.size()-1; i >= 0; i--) {\n    def frame = stacktrace[i];\n    def bundle_filepath = frame.remove(\"rum.bundle_filepath\");\n    if (bundle_filepath == null) {\n      continue;\n    }\n    Map sourcemap = sourcemaps.get(bundle_filepath);\n    if (sourcemap == null) {\n      continue;\n    }\n    def match = getMatch(sourcemap.mappings, frame);\n    if (match != null) {\n      // Record original source information.\n      frame.original = new HashMap();\n      if (frame.library_frame != null) {\n        frame.original.library_frame = frame.library_frame;\n      }\n      if (frame.filename != null) {\n        frame.original.filename = frame.filename;\n      }\n      if (frame.classname != null) {\n        frame.original.classname = frame.classname;\n      }\n      if (frame.abs_path != null) {\n        frame.original.abs_path = frame.abs_path;\n      }\n      if (frame.function != null) {\n        frame.original.function = frame.function;\n      }\n      if (frame.line?.number != null) {\n        frame.original.lineno = frame.line.number;\n      }\n      if (frame.line?.column != null) {\n        frame.original.colno = frame.line.column;\n      }\n      \n      // Set new source information.\n      frame.line.number = match.source_line;\n      frame.line.column = match.source_column;\n      frame.filename = match.source;\n      frame.function = function;\n      if (frame.sourcemap == null) {\n        frame.sourcemap = new HashMap();\n      }\n      frame.sourcemap.updated = true;\n      anyUpdated = true;\n      \n      def name = match.get(\"name\");\n      if (name != null) {\n        function = name;\n      } else {\n        function = \"<unknown>\";\n      }\n      \n      def sourceContent = sourcemap.source_content.get(match.source);\n      def numLines = sourceContent.size();\n      if (match.source_line < numLines) {\n          frame.line.context = sourceContent[match.source_line-1];\n          \n          // TODO(axw) make the number of pre/post context lines a parameter.\n          int preIndex = (int)Math.max(match.source_line-5-1, 0);\n          int postIndex = (int)Math.min(match.source_line+5, numLines);\n          frame.context = new HashMap();\n          frame.context.pre = sourceContent.subList(preIndex, match.source_line-1);\n          frame.context.post = sourceContent.subList(match.source_line, postIndex);\n      }\n    }\n  }\n  return anyUpdated;\n}\n\n// TODO(axw) sourcemap docs should have a unique key\n// <service.name, service.version, bundle_filepath>\nMap sourcemaps = new HashMap();\nfor (sourcemap in ctx.sourcemap) {\n  sourcemaps[sourcemap.bundle_filepath] = sourcemap;\n}\n\nupdateStacktrace(ctx?.span?.stacktrace, sourcemaps);\nupdateStacktrace(ctx?.error?.log?.stacktrace, sourcemaps);\nfor (exception in ctx?.error?.exception) {\n  if (updateStacktrace(exception.stacktrace, sourcemaps)) {\n    // Remove grouping key so it will be recalculated.\n    ctx.error.remove(\"grouping_key\");\n  }\n}\n"
+          }
+        },
+        {
+          "script": {
+            "source": "boolean match(String s, Map matcher) {\n  String[] parts = matcher.parts;\n  boolean wildcard_begin = matcher.wildcard_begin;\n  boolean wildcard_end = matcher.wildcard_end;\n  if (parts.length == 0 && !wildcard_begin && !wildcard_end) {\n    return s == \"\";\n  }\n  if (parts.length == 1 && !wildcard_begin && !wildcard_end) {\n    return s == parts[0];\n  }\n  int n = parts.length;\n  if (!wildcard_end && parts.length > 0) {\n    String part = parts[--n];\n    if (!s.endsWith(part)) {\n      return false;\n    }\n  }\n  for (int i = 0; i < n; i++) {\n    String part = parts[i];\n    if (i > 0 || wildcard_begin) {\n      int j = s.indexOf(part);\n      if (j == -1) {\n        return false;\n      }\n      s = s.substring(j+part.length());\n    } else {\n      if (!s.startsWith(part)) {\n        return false;\n      }\n      s = s.substring(part.length());\n    }\n  }\n  return true;\n}\n\nboolean matchAny(String s, List matchers) {\n  for (matcher in matchers) {\n    if (match(s, matcher)) {\n      return true;\n    }\n  }\n  return false;\n}\n\nvoid setLibraryFrames(List stacktrace, List matchers) {\n  if (stacktrace == null) {\n    return;\n  }\n  \n  for (frame in stacktrace) {\n    if (frame.filename != \"\") {\n      frame.matchers = matchers;\n      frame.library_frame = matchAny(frame.filename, matchers);\n    }\n  }\n}\n\nList library_patterns = ctx.rum?.library_patterns;\nif (library_patterns != null) {\n  List matchers = new ArrayList();\n  for (library_pattern in library_patterns) {\n    Map matcher = new HashMap();\n    matcher.parts = library_pattern.splitOnToken(\"*\");\n    matcher.wildcard_begin = library_pattern.startsWith(\"*\");\n    matcher.wildcard_end = library_pattern.endsWith(\"*\");\n    matchers.add(matcher);\n  }\n\n  setLibraryFrames(ctx?.span?.stacktrace, matchers);\n  setLibraryFrames(ctx?.error?.log?.stacktrace, matchers);\n  for (exception in ctx?.error?.exception) {\n    setLibraryFrames(exception.stacktrace, matchers);\n  }\n}\n"
+          }
+        },
+        {
+          "script": {
+            "if": "ctx.error != null",
+            "source": "Map firstApplicationFrame(List stacktrace) {\n  if (stacktrace == null) {\n    return null;\n  }\n  for (frame in stacktrace) {\n    if (frame.library_frame != null && !frame.library_frame) {\n      return frame;\n    }\n  }\n  return null;\n}\n\ndef app_frame = firstApplicationFrame(ctx.error.log?.stacktrace);\nif (app_frame == null) {\n  for (exception in ctx.error?.exception) {\n    app_frame = firstApplicationFrame(exception.stacktrace);\n    if (app_frame != null) {\n      break;\n    }\n  }\n}\nif (app_frame != null) {\n  ctx.error.culprit = app_frame.filename;\n  if (app_frame.function != null) {\n    ctx.error.culprit += \" in \" + app_frame.function;\n  }\n}\n"
+          }
+        },
+        {
+          "pipeline": {
+            "name": "apm_error_grouping_key"
+          }
+        },
+        {
+          "remove": {
+            "field": [
+              "sourcemap",
+              "rum.service.name_version",
+              "rum.library_patterns"
+            ],
+            "ignore_missing": true
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "apm_error_grouping_key",
+    "body": {
+      "description": "Set error.grouping_key for APM error events",
+      "processors": [
+        {
+          "script": {
+            "if": "ctx.error != null && ctx.error.grouping_key == null",
+            "source": "def source = \"\";\nList stacktrace = new ArrayList();\nfor (exception in ctx.error?.exception) {\n  source += exception.type != null ? exception.type : \"\";\n  if (exception.stacktrace != null) {\n    stacktrace.addAll(exception.stacktrace);\n  }\n}\nif (ctx.log != null) {\n  if (ctx.log.param_message != null) {\n    source += ctx.log.param_message;\n  }\n  if (stacktrace.size() == 0 && ctx.log.stacktrace != null) {\n    stacktrace.addAll(ctx.log.stacktrace);\n  }\n}\nfor (frame in stacktrace) {\n  // TODO(axw) exclude_from_grouping\n  if (frame.module != null && frame.module != \"\") {\n    source += frame.module;\n  } else if (frame.filename != null && frame.filename != \"\") {\n    source += frame.filename;\n  } else if (frame.classname != null && frame.classname != \"\") {\n    source += frame.classname;\n  }\n  source += frame.function != null ? frame.function : \"\";\n}\nif (source == \"\") {\n  for (exception in ctx.error?.exception) {\n    source += exception.message != null ? exception.message : \"\";\n  }\n  if (source == \"\" && ctx?.log?.message != null) {\n    source = ctx.log.message;\n  }\n}\nctx.grouping_key_source = source;\n"
+          }
+        },
+        {
+          "fingerprint": {
+            "fields": [
+              "grouping_key_source"
+            ],
+            "method": "MD5",
+            "target_field": "error.grouping_key",
+            "ignore_missing": true
+          }
+        },
+        {
+          "remove": {
+            "field": [
+              "rum.exclude_from_grouping",
+              "grouping_key_source"
+            ],
+            "ignore_missing": true
+          }
+        }
+      ]
+    }
   }
-},
-{
-  "id": "apm_ingest_timestamp",
-  "body": {
-    "description": "Add an ingest timestamp for APM events",
-    "processors": [
-      {
-        "set": {
-          "if": "ctx.processor?.event != 'span'",
-          "field": "event.ingested",
-          "value": "{{_ingest.timestamp}}"
-        }
-      }
-    ]
-  }
-},
-{
-  "id": "apm_remove_span_metadata",
-  "body": {
-    "description": "Removes metadata fields available already on the parent transaction, to save storage",
-    "processors": [
-      {
-        "remove": {
-          "if": "ctx.processor?.event == 'span'",
-          "field": ["host", "process", "user", "user_agent", "container", "kubernetes", 
-          "service.node", "service.version", "service.language", "service.runtime", "service.framework"],
-          "ignore_missing": true,
-          "ignore_failure": true
-        }
-      }
-    ]
-  }
-},
-{
-  "id": "apm_error_grouping_name",
-  "body": {
-    "description" : "Set error.grouping_name for APM error events",
-    "processors" : [
-      {
-        "script" : {
-          "source": "ctx.error.grouping_name = ctx.error.exception[0].message",
-          "if": "ctx.error?.exception?.length != null && ctx.error?.exception?.length > 0"
-        }
-      },
-      {
-        "set" : {
-          "field": "error.grouping_name",
-          "copy_from": "error.log.message",
-          "if": "ctx.error?.log?.message != null"
-        }
-      }
-    ]
-  }
-}
 ]

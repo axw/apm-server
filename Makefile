@@ -132,7 +132,7 @@ apm-server.yml apm-server.docker.yml: $(MAGE) magefile.go _meta/beat.yml
 
 .PHONY: go-generate
 go-generate:
-	@$(GO) generate
+	@$(GO) generate . ./ingest/pipeline
 
 notice: NOTICE.txt
 NOTICE.txt: $(PYTHON) go.mod

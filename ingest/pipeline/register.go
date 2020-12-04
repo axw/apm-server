@@ -15,11 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:generate go run generate.go
+
 package pipeline
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"os"
 
 	logs "github.com/elastic/apm-server/log"
 
@@ -43,9 +47,11 @@ func RegisterPipelines(conn *eslegclient.Connection, overwrite bool, path string
 			}
 		}
 		if overwrite || !exists {
+			logger.Infof("%s", p.Body)
 			_, _, err := conn.CreatePipeline(p.Id, nil, p.Body)
 			if err != nil {
 				logger.Errorf("Pipeline registration failed for %s.", p.Id)
+				fmt.Fprintln(os.Stderr, err)
 				return err
 			}
 			logger.Infof("Pipeline successfully registered: %s", p.Id)

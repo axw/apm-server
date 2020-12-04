@@ -21,9 +21,6 @@ import (
 	"context"
 
 	"github.com/elastic/beats/v7/libbeat/common"
-	"github.com/elastic/beats/v7/libbeat/logp"
-
-	logs "github.com/elastic/apm-server/log"
 
 	"github.com/elastic/apm-server/transform"
 )
@@ -50,28 +47,7 @@ func (st *Stacktrace) transform(ctx context.Context, cfg *transform.Config, rum 
 	// - lineno
 	// - abs_path is set to the cleaned abs_path
 	// - sourcmeap.updated is set to true
-
-	if !rum || cfg.RUM.SourcemapStore == nil {
-		return st.transformFrames(cfg, rum, noSourcemapping)
-	}
-	if service == nil || service.Name == "" || service.Version == "" {
-		return st.transformFrames(cfg, rum, noSourcemapping)
-	}
-
-	var errMsg string
-	var sourcemapErrorSet = map[string]interface{}{}
-	logger := logp.NewLogger(logs.Stacktrace)
-	fct := "<anonymous>"
-	return st.transformFrames(cfg, rum, func(frame *StacktraceFrame) {
-		fct, errMsg = frame.applySourcemap(ctx, cfg.RUM.SourcemapStore, service, fct)
-		if errMsg == "" || !logger.IsDebug() {
-			return
-		}
-		if _, ok := sourcemapErrorSet[errMsg]; !ok {
-			logger.Debug(errMsg)
-			sourcemapErrorSet[errMsg] = nil
-		}
-	})
+	return st.transformFrames(cfg, rum, noSourcemapping)
 }
 
 func (st *Stacktrace) transformFrames(cfg *transform.Config, rum bool, apply func(*StacktraceFrame)) []common.MapStr {
@@ -88,6 +64,17 @@ func (st *Stacktrace) transformFrames(cfg *transform.Config, rum bool, apply fun
 		frames[idx] = fr.transform(cfg, rum)
 	}
 	return frames
+}
+
+func setRUMConfig(m mapStr, rumConfig *transform.RUMConfig) {
+	if rumConfig.LibraryPattern != nil {
+		// TODO(axw) pass original pattern in (currently it's parsed)
+		m.set("rum.library_patterns", []string{"*node_modules*", "*bower_components*", "*~*"})
+	}
+	if rumConfig.ExcludeFromGrouping != nil {
+		// TODO(axw) pass original pattern in (currently it's parsed)
+		m.set("rum.exclude_from_grouping", []string{"/webpack*"})
+	}
 }
 
 func noSourcemapping(_ *StacktraceFrame) {}

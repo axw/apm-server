@@ -230,6 +230,10 @@ func (e *Span) appendBeatEvents(ctx context.Context, cfg *transform.Config, even
 
 	common.MapStr(fields).Put("event.outcome", e.Outcome)
 
+	if e.RUM {
+		setRUMConfig(fields, &cfg.RUM)
+	}
+
 	return append(events, beat.Event{
 		Fields:    common.MapStr(fields),
 		Timestamp: e.Timestamp,

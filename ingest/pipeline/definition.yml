@@ -1,0 +1,407 @@
+apm:
+  description: Default enrichment for APM events
+  processors:
+  - pipeline:
+      name: apm_user_agent
+  - pipeline:
+      name: apm_user_geo
+  - pipeline:
+      name: apm_ingest_timestamp
+  - pipeline:
+      name: apm_remove_span_metadata
+  - pipeline:
+      name: apm_error_grouping_name
+      if: ctx.processor?.event == 'error'
+  - pipeline:
+      name: apm_enrich_sourcemap
+      if: ctx.agent?.name == 'rum-js' && ctx.service?.name != null && ctx.service?.version != null
+      on_failure:
+      - set:
+          field: sourcemap.error
+          value: "{{_ingest.on_failure_pipeline}}: {{_ingest.on_failure_message}}"
+
+apm_user_agent:
+  description: Add user agent information for APM events
+  processors:
+  - user_agent:
+      field: user_agent.original
+      target_field: user_agent
+      ignore_missing: true
+      ignore_failure: true
+
+apm_user_geo:
+  description: Add user geo information for APM events
+  processors:
+  - geoip:
+      database_file: GeoLite2-City.mmdb
+      field: client.ip
+      target_field: client.geo
+      ignore_missing: true
+      on_failure:
+      - remove:
+          field: client.ip
+          ignore_missing: true
+          ignore_failure: true
+
+apm_ingest_timestamp:
+  description: Add an ingest timestamp for APM events
+  processors:
+  - set:
+      if: ctx.processor?.event != 'span'
+      field: event.ingested
+      value: "{{_ingest.timestamp}}"
+
+apm_remove_span_metadata:
+  description: Removes metadata fields available already on the parent transaction, to save storage
+  processors:
+  - remove:
+      if: ctx.processor?.event == 'span'
+      field:
+      - host
+      - process
+      - user
+      - user_agent
+      - container
+      - kubernetes
+      - service.node
+      - service.version
+      - service.language
+      - service.runtime
+      - service.framework
+      ignore_missing: true
+      ignore_failure: true
+
+apm_error_grouping_name:
+  description: Set error.grouping_name for APM error events
+  processors:
+  - script:
+      source: ctx.error.grouping_name = ctx.error.exception[0].message
+      if: ctx.error?.exception?.length != null && ctx.error?.exception?.length > 0
+  - set:
+      field: error.grouping_name
+      copy_from: error.log.message
+      if: ctx.error?.log?.message != null
+
+apm_enrich_sourcemap:
+  description: Adds sourcemaps to the RUM spans and errors
+  processors:
+  - set:
+      field: "rum.service.name_version"
+      value: "{{service.name}}/{{service.version}}"
+  - enrich:
+      policy_name: "apm-rum-sourcemaps"
+      field: "rum.service.name_version"
+      target_field: "sourcemap"
+      max_matches: 10
+
+  - script:
+      # Apply the sourcemap to matching stack frames.
+      source: |
+        boolean pred(Map mapping, Map frame) {
+          int cmp = (int)mapping.get("gen_line") - (int)frame.line.number;
+          if (cmp == 0) {
+            return (int)mapping.get("gen_column") >= (int)frame.line.column;
+          }
+          return cmp > 0;
+        }
+        
+        int binarySearch(List mappings, Map frame) {
+            int i = 0;
+            int j = mappings.size();
+            while (i < j) {
+                int h = (int)((i+j) / 2);
+                if (!pred(mappings.get(h), frame)) {
+                    i = h + 1;
+                } else {
+                    j = h;
+                }
+            }
+            return i;
+        }
+        
+        Map getMatch(List mappings, Map frame) {
+          int i = binarySearch(mappings, frame);
+          if (i == mappings.size()) {
+            return null;
+          }
+          Map match = mappings.get(i);
+          if ((int)match.get("gen_line") > (int)frame.line.number ||
+              (int)match.get("gen_column") > (int)frame.line.column) {
+            if (i == 0) {
+              return null;
+            }
+            match = mappings.get(i-1);
+          }
+          return match;
+        }
+        
+        boolean updateStacktrace(List stacktrace, Map sourcemaps) {
+          if (stacktrace == null) {
+            return false;
+          }
+          def anyUpdated = false;
+          def function = "<anonymous>";
+          for (int i = stacktrace.size()-1; i >= 0; i--) {
+            def frame = stacktrace[i];
+            def bundle_filepath = frame.remove("rum.bundle_filepath");
+            if (bundle_filepath == null) {
+              continue;
+            }
+            Map sourcemap = sourcemaps.get(bundle_filepath);
+            if (sourcemap == null) {
+              continue;
+            }
+            def match = getMatch(sourcemap.mappings, frame);
+            if (match != null) {
+              // Record original source information.
+              frame.original = new HashMap();
+              if (frame.library_frame != null) {
+                frame.original.library_frame = frame.library_frame;
+              }
+              if (frame.filename != null) {
+                frame.original.filename = frame.filename;
+              }
+              if (frame.classname != null) {
+                frame.original.classname = frame.classname;
+              }
+              if (frame.abs_path != null) {
+                frame.original.abs_path = frame.abs_path;
+              }
+              if (frame.function != null) {
+                frame.original.function = frame.function;
+              }
+              if (frame.line?.number != null) {
+                frame.original.lineno = frame.line.number;
+              }
+              if (frame.line?.column != null) {
+                frame.original.colno = frame.line.column;
+              }
+              
+              // Set new source information.
+              frame.line.number = match.source_line;
+              frame.line.column = match.source_column;
+              frame.filename = match.source;
+              frame.function = function;
+              if (frame.sourcemap == null) {
+                frame.sourcemap = new HashMap();
+              }
+              frame.sourcemap.updated = true;
+              anyUpdated = true;
+              
+              def name = match.get("name");
+              if (name != null) {
+                function = name;
+              } else {
+                function = "<unknown>";
+              }
+              
+              def sourceContent = sourcemap.source_content.get(match.source);
+              def numLines = sourceContent.size();
+              if (match.source_line < numLines) {
+                  frame.line.context = sourceContent[match.source_line-1];
+                  
+                  // TODO(axw) make the number of pre/post context lines a parameter.
+                  int preIndex = (int)Math.max(match.source_line-5-1, 0);
+                  int postIndex = (int)Math.min(match.source_line+5, numLines);
+                  frame.context = new HashMap();
+                  frame.context.pre = sourceContent.subList(preIndex, match.source_line-1);
+                  frame.context.post = sourceContent.subList(match.source_line, postIndex);
+              }
+            }
+          }
+          return anyUpdated;
+        }
+        
+        // TODO(axw) sourcemap docs should have a unique key
+        // <service.name, service.version, bundle_filepath>
+        Map sourcemaps = new HashMap();
+        for (sourcemap in ctx.sourcemap) {
+          sourcemaps[sourcemap.bundle_filepath] = sourcemap;
+        }
+        
+        updateStacktrace(ctx?.span?.stacktrace, sourcemaps);
+        updateStacktrace(ctx?.error?.log?.stacktrace, sourcemaps);
+        for (exception in ctx?.error?.exception) {
+          if (updateStacktrace(exception.stacktrace, sourcemaps)) {
+            // Remove grouping key so it will be recalculated.
+            ctx.error.remove("grouping_key");
+          }
+        }
+
+  - script:
+      # Identify library frames.
+      source: |
+        boolean match(String s, Map matcher) {
+          String[] parts = matcher.parts;
+          boolean wildcard_begin = matcher.wildcard_begin;
+          boolean wildcard_end = matcher.wildcard_end;
+          if (parts.length == 0 && !wildcard_begin && !wildcard_end) {
+            return s == "";
+          }
+          if (parts.length == 1 && !wildcard_begin && !wildcard_end) {
+            return s == parts[0];
+          }
+          int n = parts.length;
+          if (!wildcard_end && parts.length > 0) {
+            String part = parts[--n];
+            if (!s.endsWith(part)) {
+              return false;
+            }
+          }
+          for (int i = 0; i < n; i++) {
+            String part = parts[i];
+            if (i > 0 || wildcard_begin) {
+              int j = s.indexOf(part);
+              if (j == -1) {
+                return false;
+              }
+              s = s.substring(j+part.length());
+            } else {
+              if (!s.startsWith(part)) {
+                return false;
+              }
+              s = s.substring(part.length());
+            }
+          }
+          return true;
+        }
+        
+        boolean matchAny(String s, List matchers) {
+          for (matcher in matchers) {
+            if (match(s, matcher)) {
+              return true;
+            }
+          }
+          return false;
+        }
+        
+        void setLibraryFrames(List stacktrace, List matchers) {
+          if (stacktrace == null) {
+            return;
+          }
+          
+          for (frame in stacktrace) {
+            if (frame.filename != "") {
+              frame.matchers = matchers;
+              frame.library_frame = matchAny(frame.filename, matchers);
+            }
+          }
+        }
+        
+        List library_patterns = ctx.rum?.library_patterns;
+        if (library_patterns != null) {
+          List matchers = new ArrayList();
+          for (library_pattern in library_patterns) {
+            Map matcher = new HashMap();
+            matcher.parts = library_pattern.splitOnToken("*");
+            matcher.wildcard_begin = library_pattern.startsWith("*");
+            matcher.wildcard_end = library_pattern.endsWith("*");
+            matchers.add(matcher);
+          }
+        
+          setLibraryFrames(ctx?.span?.stacktrace, matchers);
+          setLibraryFrames(ctx?.error?.log?.stacktrace, matchers);
+          for (exception in ctx?.error?.exception) {
+            setLibraryFrames(exception.stacktrace, matchers);
+          }
+        }
+
+  - script:
+      if: ctx.error != null
+      source: |
+        Map firstApplicationFrame(List stacktrace) {
+          if (stacktrace == null) {
+            return null;
+          }
+          for (frame in stacktrace) {
+            if (frame.library_frame != null && !frame.library_frame) {
+              return frame;
+            }
+          }
+          return null;
+        }
+        
+        def app_frame = firstApplicationFrame(ctx.error.log?.stacktrace);
+        if (app_frame == null) {
+          for (exception in ctx.error?.exception) {
+            app_frame = firstApplicationFrame(exception.stacktrace);
+            if (app_frame != null) {
+              break;
+            }
+          }
+        }
+        if (app_frame != null) {
+          ctx.error.culprit = app_frame.filename;
+          if (app_frame.function != null) {
+            ctx.error.culprit += " in " + app_frame.function;
+          }
+        }
+
+  - pipeline:
+      # Recalculate error.grouping_key
+      name: apm_error_grouping_key
+
+  - remove:
+      # Remove fields added for use during the enrichment process,
+      # and subsequent processing (e.g. library frames config).
+      field:
+        - sourcemap
+        - rum.service.name_version
+        - rum.library_patterns
+      ignore_missing: true
+
+apm_error_grouping_key:
+  description: Set error.grouping_key for APM error events
+  processors:
+  - script:
+      if: ctx.error != null && ctx.error.grouping_key == null
+      source: |
+        def source = "";
+        List stacktrace = new ArrayList();
+        for (exception in ctx.error?.exception) {
+          source += exception.type != null ? exception.type : "";
+          if (exception.stacktrace != null) {
+            stacktrace.addAll(exception.stacktrace);
+          }
+        }
+        if (ctx.log != null) {
+          if (ctx.log.param_message != null) {
+            source += ctx.log.param_message;
+          }
+          if (stacktrace.size() == 0 && ctx.log.stacktrace != null) {
+            stacktrace.addAll(ctx.log.stacktrace);
+          }
+        }
+        for (frame in stacktrace) {
+          // TODO(axw) exclude_from_grouping
+          if (frame.module != null && frame.module != "") {
+            source += frame.module;
+          } else if (frame.filename != null && frame.filename != "") {
+            source += frame.filename;
+          } else if (frame.classname != null && frame.classname != "") {
+            source += frame.classname;
+          }
+          source += frame.function != null ? frame.function : "";
+        }
+        if (source == "") {
+          for (exception in ctx.error?.exception) {
+            source += exception.message != null ? exception.message : "";
+          }
+          if (source == "" && ctx?.log?.message != null) {
+            source = ctx.log.message;
+          }
+        }
+        ctx.grouping_key_source = source;
+
+  - fingerprint:
+      fields:
+        - grouping_key_source
+      method: MD5 # TODO(axw) murmur3
+      target_field: error.grouping_key
+      ignore_missing: true
+
+  - remove:
+      field:
+        - rum.exclude_from_grouping
+        - grouping_key_source
+      ignore_missing: true
