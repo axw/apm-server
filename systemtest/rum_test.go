@@ -19,6 +19,7 @@ package systemtest_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -31,9 +32,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/elastic/go-elasticsearch/v7/esapi"
+	"github.com/elastic/go-elasticsearch/v7/esutil"
+
 	"github.com/elastic/apm-server/systemtest"
 	"github.com/elastic/apm-server/systemtest/apmservertest"
 	"github.com/elastic/apm-server/systemtest/estest"
+	"github.com/elastic/apm-server/systemtest/internal/sourcemap"
 )
 
 func TestRUMXForwardedFor(t *testing.T) {
@@ -89,6 +94,103 @@ func TestRUMErrorSourcemapping(t *testing.T) {
 		// RUM timestamps are set by the server based on the time the payload is received.
 		"@timestamp", "timestamp.us",
 	)
+}
+
+func TestRUMErrorSourcemapEnrichment(t *testing.T) {
+	const (
+		sourcemapIndex   = "apm-rum-sourcemaps"
+		enrichPolicyName = "apm-rum-sourcemaps"
+		matchField       = "rum.service.name_version"
+	)
+	systemtest.CleanupElasticsearch(t)
+	_, err := systemtest.Elasticsearch.Do(
+		context.Background(),
+		esapi.EnrichDeletePolicyRequest{Name: enrichPolicyName},
+		nil,
+	)
+
+	// Create the raw sourcemap index.
+	var indexDefinition struct {
+		Mappings struct {
+			Properties map[string]interface{} `json:"properties"`
+		} `json:"mappings"`
+	}
+	indexDefinition.Mappings.Properties = map[string]interface{}{
+		matchField: map[string]interface{}{"type": "keyword"},
+	}
+	_, err = systemtest.Elasticsearch.Do(
+		context.Background(),
+		esapi.IndicesCreateRequest{
+			Index: sourcemapIndex,
+			Body:  esutil.NewJSONReader(indexDefinition),
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	// Create the enrich policy which will take documents from
+	// the raw sourcemap index.
+	var enrichPolicy struct {
+		Match struct {
+			Indices      []string `json:"indices"`
+			MatchField   string   `json:"match_field"`
+			EnrichFields []string `json:"enrich_fields"`
+		} `json:"match"`
+	}
+	enrichPolicy.Match.Indices = []string{sourcemapIndex}
+	enrichPolicy.Match.MatchField = matchField
+	enrichPolicy.Match.EnrichFields = []string{"sourcemap"}
+	_, err = systemtest.Elasticsearch.Do(
+		context.Background(),
+		esapi.EnrichPutPolicyRequest{
+			Name: enrichPolicyName,
+			Body: esutil.NewJSONReader(enrichPolicy),
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	// Index a sourcemap document.
+	f, err := os.Open("../testdata/sourcemap/bundle.js.map")
+	require.NoError(t, err)
+	defer f.Close()
+	sourcemap, err := sourcemap.Parse(f)
+	require.NoError(t, err)
+	_, err = systemtest.Elasticsearch.Do(
+		context.Background(),
+		esapi.IndexRequest{
+			Index: sourcemapIndex,
+			Body:  esutil.NewJSONReader(sourcemap),
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	// Execute the enrich policy.
+	_, err = systemtest.Elasticsearch.Do(
+		context.Background(),
+		esapi.EnrichExecutePolicyRequest{Name: enrichPolicyName},
+		nil,
+	)
+	require.NoError(t, err)
+
+	/*
+		srv := apmservertest.NewUnstartedServer(t)
+		srv.Config.RUM = &apmservertest.RUMConfig{Enabled: true}
+		err := srv.Start()
+		require.NoError(t, err)
+	*/
+
+	//systemtest.Elasticsearch.
+
+	/*
+		uploadSourcemap(t, srv, "../testdata/sourcemap/bundle.js.map",
+			"http://localhost:8000/test/e2e/../e2e/general-usecase/bundle.js.map", // bundle filepath
+			"apm-agent-js", // service name
+			"1.0.1",        // service version
+		)
+		systemtest.Elasticsearch.ExpectDocs(t, "apm-*-sourcemap", nil)
+	*/
 }
 
 func sendRUMEventsPayload(t *testing.T, srv *apmservertest.Server, payloadFile string) {
