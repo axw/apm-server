@@ -23,6 +23,12 @@
         "pipeline": {
           "name": "apm_remove_span_metadata"
         }
+      },
+      {
+        "pipeline": {
+          "if": "ctx.agent?.name == 'rum-js'",
+          "name": "apm_enrich_sourcemap"
+        }
       }
     ]
   }
@@ -96,6 +102,53 @@
           "ignore_missing": true,
           "ignore_failure": true
         }
+      }
+    ]
+  }
+},
+{
+  "id": "apm_enrich_sourcemap",
+  "body": {
+    "description": "Adds sourcemaps to the RUM spans and errors",
+    "processors": [
+      {
+        "set": {
+          "field": "rum.service.name_version",
+          "value": "{{service.name}}/{{service.version}}"
+	}
+      },
+      {
+        "enrich": {
+          "policy_name": "apm-rum-sourcemaps",
+	  "field": "rum.service.name_version",
+	  "target_field": "sourcemap"
+	}
+      },
+      {
+        "script": {
+          "id": "apm_apply_sourcemap"
+        }
+      },
+      {
+        "remove": {
+          "field": "sourcemap"
+	}
+      },
+      {
+        "remove": {
+          "field": "rum.service.name_version"
+	}
+      },
+      {
+        "script": {
+          "id": "apm_set_library_frames"
+	}
+      },
+      {
+        "script": {
+          "if": "ctx.error != null",
+          "id": "apm_set_error_culprit"
+	}
       }
     ]
   }

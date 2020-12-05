@@ -1,6 +1,7 @@
 package sourcemap
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,7 +20,7 @@ type Sourcemap struct {
 	// be sorted by generated source location (line, then column).
 	Mappings []Mapping `json:"mappings"`
 
-	SourceContent map[string]string `json:"source_content"`
+	SourceContent map[string][]string `json:"source_content"`
 }
 
 type Mapping struct {
@@ -73,14 +74,22 @@ func Parse(r io.Reader) (*Sourcemap, error) {
 		return nil, err
 	}
 
-	sourceContent := make(map[string]string)
+	sourceContent := make(map[string][]string)
 	for i, source := range sourcemap.Sources {
 		if i >= len(sourcemap.SourcesContent) {
 			break
 		}
 		content := sourcemap.SourcesContent[i]
 		if content != "" {
-			sourceContent[source] = content
+			var lines []string
+			scanner := bufio.NewScanner(strings.NewReader(content))
+			for scanner.Scan() {
+				lines = append(lines, scanner.Text())
+			}
+			if err := scanner.Err(); err != nil {
+				return nil, err
+			}
+			sourceContent[source] = lines
 		}
 	}
 
