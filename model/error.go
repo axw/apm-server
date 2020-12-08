@@ -316,9 +316,10 @@ func (e *Error) calcGroupingKey(chain []Exception) string {
 	}
 
 	for _, fr := range stacktrace {
-		if fr.ExcludeFromGrouping {
-			continue
-		}
+		// TODO(axw) ingest pipeline
+		//if fr.ExcludeFromGrouping {
+		//	continue
+		//}
 		k.addEither(fr.Module, fr.Filename, fr.Classname)
 		k.add(fr.Function)
 	}

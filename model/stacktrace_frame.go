@@ -18,13 +18,11 @@
 package model
 
 import (
-	"context"
-	"fmt"
-	"regexp"
+	"net/url"
+	"path"
 
 	"github.com/elastic/beats/v7/libbeat/common"
 
-	"github.com/elastic/apm-server/sourcemap"
 	"github.com/elastic/apm-server/transform"
 	"github.com/elastic/apm-server/utility"
 )
@@ -48,24 +46,6 @@ type StacktraceFrame struct {
 	Vars         common.MapStr
 	PreContext   []string
 	PostContext  []string
-
-	ExcludeFromGrouping bool
-
-	SourcemapUpdated *bool
-	SourcemapError   *string
-	Original         Original
-}
-
-type Original struct {
-	AbsPath      *string
-	Filename     *string
-	Classname    *string
-	Lineno       *int
-	Colno        *int
-	Function     *string
-	LibraryFrame *bool
-
-	sourcemapCopied bool
 }
 
 func (s *StacktraceFrame) transform(cfg *transform.Config, rum bool) common.MapStr {
@@ -77,14 +57,28 @@ func (s *StacktraceFrame) transform(cfg *transform.Config, rum bool) common.MapS
 	utility.Set(m, "function", s.Function)
 	utility.Set(m, "vars", s.Vars)
 	if rum && cfg.RUM.LibraryPattern != nil {
-		s.setLibraryFrame(cfg.RUM.LibraryPattern)
+		// TODO(axw) inject pattern into event,
+		// apply it in ingest pipeline.
+		//s.setLibraryFrame(cfg.RUM.LibraryPattern)
 	}
 	utility.Set(m, "library_frame", s.LibraryFrame)
 
-	if rum && cfg.RUM.ExcludeFromGrouping != nil {
-		s.setExcludeFromGrouping(cfg.RUM.ExcludeFromGrouping)
+	if rum && s.AbsPath != nil {
+		// Set the path to match against the bundle_filepath recorded in a sourcemap.
+		bundleFilepath := *s.AbsPath
+		u, err := url.Parse(bundleFilepath)
+		if err == nil {
+			bundleFilepath = path.Clean(u.Path)
+		}
+		utility.Set(m, "rum.bundle_filepath", bundleFilepath)
 	}
-	utility.Set(m, "exclude_from_grouping", s.ExcludeFromGrouping)
+
+	if rum && cfg.RUM.ExcludeFromGrouping != nil {
+		// TODO(axw) inject pattern into event,
+		// apply it in ingest pipeline.
+		//s.setExcludeFromGrouping(cfg.RUM.ExcludeFromGrouping)
+	}
+	//utility.Set(m, "exclude_from_grouping", s.ExcludeFromGrouping)
 
 	context := common.MapStr{}
 	utility.Set(context, "pre", s.PreContext)
@@ -97,23 +91,6 @@ func (s *StacktraceFrame) transform(cfg *transform.Config, rum bool) common.MapS
 	utility.Set(line, "context", s.ContextLine)
 	utility.Set(m, "line", line)
 
-	sm := common.MapStr{}
-	utility.Set(sm, "updated", s.SourcemapUpdated)
-	utility.Set(sm, "error", s.SourcemapError)
-	utility.Set(m, "sourcemap", sm)
-
-	orig := common.MapStr{}
-	utility.Set(orig, "library_frame", s.Original.LibraryFrame)
-	if s.SourcemapUpdated != nil && *(s.SourcemapUpdated) {
-		utility.Set(orig, "filename", s.Original.Filename)
-		utility.Set(orig, "classname", s.Original.Classname)
-		utility.Set(orig, "abs_path", s.Original.AbsPath)
-		utility.Set(orig, "function", s.Original.Function)
-		utility.Set(orig, "colno", s.Original.Colno)
-		utility.Set(orig, "lineno", s.Original.Lineno)
-	}
-	utility.Set(m, "original", orig)
-
 	return m
 }
 
@@ -122,70 +99,7 @@ func (s *StacktraceFrame) IsLibraryFrame() bool {
 }
 
 func (s *StacktraceFrame) IsSourcemapApplied() bool {
-	return s.SourcemapUpdated != nil && *s.SourcemapUpdated
-}
-
-func (s *StacktraceFrame) setExcludeFromGrouping(pattern *regexp.Regexp) {
-	s.ExcludeFromGrouping = s.Filename != nil && pattern.MatchString(*s.Filename)
-}
-
-func (s *StacktraceFrame) setLibraryFrame(pattern *regexp.Regexp) {
-	s.Original.LibraryFrame = s.LibraryFrame
-	libraryFrame := (s.Filename != nil && pattern.MatchString(*s.Filename)) ||
-		(s.AbsPath != nil && pattern.MatchString(*s.AbsPath))
-	s.LibraryFrame = &libraryFrame
-}
-
-func (s *StacktraceFrame) applySourcemap(ctx context.Context, store *sourcemap.Store, service *Service, prevFunction string) (function string, errMsg string) {
-	function = prevFunction
-
-	var valid bool
-	if valid, errMsg = s.validForSourcemapping(); !valid {
-		s.updateError(errMsg)
-		return
-	}
-
-	s.setOriginalSourcemapData()
-
-	path := utility.CleanUrlPath(*s.Original.AbsPath)
-	mapper, err := store.Fetch(ctx, service.Name, service.Version, path)
-	if err != nil {
-		errMsg = err.Error()
-		return
-	}
-	if mapper == nil {
-		errMsg = fmt.Sprintf("No Sourcemap available for ServiceName %s, ServiceVersion %s, Path %s.",
-			service.Name, service.Version, path)
-		s.updateError(errMsg)
-		return
-	}
-
-	file, fct, line, col, ctxLine, preCtx, postCtx, ok := sourcemap.Map(mapper, *s.Original.Lineno, *s.Original.Colno)
-	if !ok {
-		errMsg = fmt.Sprintf("No Sourcemap found for Lineno %v, Colno %v", *s.Original.Lineno, *s.Original.Colno)
-		s.updateError(errMsg)
-		return
-	}
-
-	if file != "" {
-		s.Filename = &file
-	}
-
-	s.Colno = &col
-	s.Lineno = &line
-	s.AbsPath = &path
-	s.updateSmap(true)
-	s.Function = &prevFunction
-	s.ContextLine = &ctxLine
-	s.PreContext = preCtx
-	s.PostContext = postCtx
-
-	if fct != "" {
-		function = fct
-		return
-	}
-	function = "<unknown>"
-	return
+	return false
 }
 
 func (s *StacktraceFrame) validForSourcemapping() (bool, string) {
@@ -199,27 +113,4 @@ func (s *StacktraceFrame) validForSourcemapping() (bool, string) {
 		return false, errMsgSourcemapPathMandatory
 	}
 	return true, ""
-}
-
-func (s *StacktraceFrame) setOriginalSourcemapData() {
-	if s.Original.sourcemapCopied {
-		return
-	}
-	s.Original.Colno = s.Colno
-	s.Original.AbsPath = s.AbsPath
-	s.Original.Function = s.Function
-	s.Original.Lineno = s.Lineno
-	s.Original.Filename = s.Filename
-	s.Original.Classname = s.Classname
-
-	s.Original.sourcemapCopied = true
-}
-
-func (s *StacktraceFrame) updateError(errMsg string) {
-	s.SourcemapError = &errMsg
-	s.updateSmap(false)
-}
-
-func (s *StacktraceFrame) updateSmap(updated bool) {
-	s.SourcemapUpdated = &updated
 }

@@ -26,7 +26,7 @@
       },
       {
         "pipeline": {
-          "if": "ctx.agent?.name == 'rum-js'",
+          "if": "ctx.agent?.name == 'rum-js' && ctx.service?.name != null && ctx.service?.version != null",
           "name": "apm_enrich_sourcemap"
         }
       }
@@ -121,7 +121,8 @@
         "enrich": {
           "policy_name": "apm-rum-sourcemaps",
 	  "field": "rum.service.name_version",
-	  "target_field": "sourcemap"
+	  "target_field": "sourcemap",
+	  "max_matches": 10
 	}
       },
       {
@@ -131,12 +132,12 @@
       },
       {
         "remove": {
-          "field": "sourcemap"
-	}
-      },
-      {
-        "remove": {
-          "field": "rum.service.name_version"
+          "field": [
+            "sourcemap",
+            "rum.service.name_version",
+	    "rum.bundle_filepath"
+	  ],
+	  "ignore_missing": true
 	}
       },
       {

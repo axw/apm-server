@@ -117,10 +117,6 @@ func TestRUMErrorSourcemapEnrichment(t *testing.T) {
 	// Create the stored script which will be executed by the
 	// sourcemap pipeline to fuzzy-match mappings to stacktrace
 	// frames.
-	//
-	// TODO(axw) allow multiple matches (max_matches > 1) in enrich
-	//           processor, i.e. multiple sourcemaps per service.
-	// TODO(axw) match frame.abs_path to bundle_filepath in sourcemap.
 	storeIngestScript(t, "apm_apply_sourcemap", `
 boolean pred(Map mapping, Map frame) {
   int cmp = (int)mapping.get("gen_line") - (int)frame.line.number;
@@ -160,24 +156,32 @@ Map getMatch(List mappings, Map frame) {
   return match;
 }
 
-void updateStacktrace(List stacktrace, List mappings, Map source_content) {
+void updateStacktrace(List stacktrace, Map sourcemaps) {
   if (stacktrace == null) {
     return;
   }
   def function = "<anonymous>";
   for (int i = stacktrace.size()-1; i >= 0; i--) {
     def frame = stacktrace[i];
-    def match = getMatch(mappings, frame);
+    Map sourcemap = sourcemaps.get(frame.rum?.bundle_filepath);
+    if (sourcemap == null) {
+      continue;
+    }
+    def match = getMatch(sourcemap.mappings, frame);
     if (match != null) {
-      Map original = frame.get("original");
-      if (original == null) {
-        original = new HashMap();
-	frame.original = original;
-      }
-      original.lineno = frame.line.number;
-      original.colno = frame.line.column;
+      // Record original source information.
+      //
+      // TODO(axw) set fields conditionally
+      frame.original = new HashMap();
+      frame.original.library_frame = frame.library_frame;
+      frame.original.filename = frame.filename;
+      frame.original.classname = frame.classname;
+      frame.original.abs_path = frame.abs_path;
+      frame.original.function = frame.function;
+      frame.original.lineno = frame.line.number;
+      frame.original.colno = frame.line.column;
 
-      frame.line = new HashMap();
+      // Set new source information.
       frame.line.number = match.source_line;
       frame.line.column = match.source_column;
       frame.filename = match.source;
@@ -190,7 +194,7 @@ void updateStacktrace(List stacktrace, List mappings, Map source_content) {
         function = "<unknown>";
       }
 
-      def sourceContent = source_content.get(match.source);
+      def sourceContent = sourcemap.source_content.get(match.source);
       def numLines = sourceContent.size();
       if (match.source_line < numLines) {
           frame.line.context = sourceContent[match.source_line-1];
@@ -206,10 +210,17 @@ void updateStacktrace(List stacktrace, List mappings, Map source_content) {
   }
 }
 
-updateStacktrace(ctx?.span?.stacktrace, ctx.sourcemap.mappings, ctx.sourcemap.source_content);
-updateStacktrace(ctx?.error?.log?.stacktrace, ctx.sourcemap.mappings, ctx.sourcemap.source_content);
+// TODO(axw) sourcemap docs should have a unique key
+// <service.name, service.version, bundle_filepath>
+Map sourcemaps = new HashMap();
+for (sourcemap in ctx.sourcemap) {
+  sourcemaps[sourcemap.bundle_filepath] = sourcemap;
+}
+
+updateStacktrace(ctx?.span?.stacktrace, sourcemaps);
+updateStacktrace(ctx?.error?.log?.stacktrace, sourcemaps);
 for (exception in ctx?.error?.exception) {
-  updateStacktrace(exception.stacktrace, ctx.sourcemap.mappings, ctx.sourcemap.source_content);
+  updateStacktrace(exception.stacktrace, sourcemaps);
 }
 `)
 
@@ -223,6 +234,7 @@ void setLibraryFrames(List stacktrace) {
   }
   for (frame in stacktrace) {
     if (frame.filename != "") {
+      // TODO(axw) pull regex from event.
       frame.library_frame = frame.filename ==~ /.*node_modules|bower_components|~.*/;
     }
   }
