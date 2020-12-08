@@ -318,10 +318,12 @@ if (app_frame != null) {
 	require.NoError(t, err)
 	var sourcemapWithService struct {
 		RUMServiceNameVersion string `json:"rum.service.name_version"`
+		BundleFilepath        string `json:"bundle_filepath"`
 		*sourcemap.Sourcemap
 	}
 	sourcemapWithService.Sourcemap = parsedSourcemap
 	sourcemapWithService.RUMServiceNameVersion = "apm-agent-js/1.0.1"
+	sourcemapWithService.BundleFilepath = "/test/e2e/general-usecase/bundle.js.map"
 	_, err = systemtest.Elasticsearch.Do(
 		context.Background(),
 		esapi.IndexRequest{
