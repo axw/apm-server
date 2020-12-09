@@ -115,15 +115,15 @@
         "set": {
           "field": "rum.service.name_version",
           "value": "{{service.name}}/{{service.version}}"
-	}
+        }
       },
       {
         "enrich": {
           "policy_name": "apm-rum-sourcemaps",
-	  "field": "rum.service.name_version",
-	  "target_field": "sourcemap",
-	  "max_matches": 10
-	}
+          "field": "rum.service.name_version",
+          "target_field": "sourcemap",
+          "max_matches": 10
+        }
       },
       {
         "script": {
@@ -133,19 +133,19 @@
       {
         "script": {
           "id": "apm_set_library_frames"
-	}
+        }
       },
       {
         "remove": {
           "field": ["sourcemap", "rum"],
-	  "ignore_missing": true
-	}
+          "ignore_missing": true
+        }
       },
       {
         "script": {
           "if": "ctx.error != null",
           "id": "apm_set_error_culprit"
-	}
+        }
       }
     ]
   }
