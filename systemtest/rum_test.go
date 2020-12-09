@@ -233,43 +233,81 @@ for (exception in ctx?.error?.exception) {
 	// Create the stored script which will be executed by the
 	// sourcemap pipeline to identify stacktrace library frames
 	// after applying sourcemaps.
+	//
+	// TODO(axw) support case-insensitive matching.
 	storeIngestScript(t, "apm_set_library_frames", `
-boolean match(String s, String[] parts) {
-  return false;
+boolean match(String s, Map matcher) {
+  String[] parts = matcher.parts;
+  boolean wildcard_begin = matcher.wildcard_begin;
+  boolean wildcard_end = matcher.wildcard_end;
+  if (parts.length == 0 && !wildcard_begin && !wildcard_end) {
+    return s == "";
+  }
+  if (parts.length == 1 && !wildcard_begin && !wildcard_end) {
+    return s == parts[0];
+  }
+  int n = parts.length;
+  if (!wildcard_end && parts.length > 0) {
+    String part = parts[--n];
+    if (!s.endsWith(part)) {
+      return false;
+    }
+  }
+  for (int i = 0; i < n; i++) {
+    String part = parts[i];
+    if (i > 0 || wildcard_begin) {
+      int j = s.indexOf(part);
+      if (j == -1) {
+        return false;
+      }
+      s = s.substring(j+part.length());
+    } else {
+      if (!s.startsWith(part)) {
+        return false;
+      }
+      s = s.substring(part.length());
+    }
+  }
+  return true;
 }
 
-boolean matchAny(String s, List any_parts) {
-  for (parts in any_parts) {
-    if (match(s, (String[])parts)) {
+boolean matchAny(String s, List matchers) {
+  for (matcher in matchers) {
+    if (match(s, matcher)) {
       return true;
     }
   }
   return false;
 }
 
-void setLibraryFrames(List stacktrace, List library_patterns_parts) {
+void setLibraryFrames(List stacktrace, List matchers) {
   if (stacktrace == null) {
     return;
   }
   
   for (frame in stacktrace) {
     if (frame.filename != "") {
-      frame.library_frame = matchAny(frame.filename, library_patterns_parts);
+      frame.matchers = matchers;
+      frame.library_frame = matchAny(frame.filename, matchers);
     }
   }
 }
 
 List library_patterns = ctx.rum?.library_patterns;
 if (library_patterns != null) {
-  List library_patterns_parts = new ArrayList();
+  List matchers = new ArrayList();
   for (library_pattern in library_patterns) {
-    library_patterns_parts.add(library_pattern.splitOnToken("*"));
+    Map matcher = new HashMap();
+    matcher.parts = library_pattern.splitOnToken("*");
+    matcher.wildcard_begin = library_pattern.startsWith("*");
+    matcher.wildcard_end = library_pattern.endsWith("*");
+    matchers.add(matcher);
   }
 
-  setLibraryFrames(ctx?.span?.stacktrace, library_patterns_parts);
-  setLibraryFrames(ctx?.error?.log?.stacktrace, library_patterns_parts);
+  setLibraryFrames(ctx?.span?.stacktrace, matchers);
+  setLibraryFrames(ctx?.error?.log?.stacktrace, matchers);
   for (exception in ctx?.error?.exception) {
-    setLibraryFrames(exception.stacktrace, library_patterns_parts);
+    setLibraryFrames(exception.stacktrace, matchers);
   }
 }
 `)
@@ -337,7 +375,7 @@ if (app_frame != null) {
 	}
 	enrichPolicy.Match.Indices = []string{sourcemapIndex}
 	enrichPolicy.Match.MatchField = matchField
-	enrichPolicy.Match.EnrichFields = []string{"mappings", "source_content"}
+	enrichPolicy.Match.EnrichFields = []string{"bundle_filepath", "mappings", "source_content"}
 	_, err = systemtest.Elasticsearch.Do(
 		context.Background(),
 		esapi.EnrichPutPolicyRequest{
