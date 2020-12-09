@@ -50,18 +50,13 @@ type StacktraceFrame struct {
 
 func (s *StacktraceFrame) transform(cfg *transform.Config, rum bool) common.MapStr {
 	m := common.MapStr{}
+	utility.Set(m, "library_frame", s.LibraryFrame)
 	utility.Set(m, "filename", s.Filename)
 	utility.Set(m, "classname", s.Classname)
 	utility.Set(m, "abs_path", s.AbsPath)
 	utility.Set(m, "module", s.Module)
 	utility.Set(m, "function", s.Function)
 	utility.Set(m, "vars", s.Vars)
-	if rum && cfg.RUM.LibraryPattern != nil {
-		// TODO(axw) inject pattern into event,
-		// apply it in ingest pipeline.
-		//s.setLibraryFrame(cfg.RUM.LibraryPattern)
-	}
-	utility.Set(m, "library_frame", s.LibraryFrame)
 
 	if rum && s.AbsPath != nil {
 		// Set the path to match against the bundle_filepath recorded in a sourcemap.
@@ -72,13 +67,6 @@ func (s *StacktraceFrame) transform(cfg *transform.Config, rum bool) common.MapS
 		}
 		utility.Set(m, "rum.bundle_filepath", bundleFilepath)
 	}
-
-	if rum && cfg.RUM.ExcludeFromGrouping != nil {
-		// TODO(axw) inject pattern into event,
-		// apply it in ingest pipeline.
-		//s.setExcludeFromGrouping(cfg.RUM.ExcludeFromGrouping)
-	}
-	//utility.Set(m, "exclude_from_grouping", s.ExcludeFromGrouping)
 
 	context := common.MapStr{}
 	utility.Set(context, "pre", s.PreContext)
@@ -92,14 +80,6 @@ func (s *StacktraceFrame) transform(cfg *transform.Config, rum bool) common.MapS
 	utility.Set(m, "line", line)
 
 	return m
-}
-
-func (s *StacktraceFrame) IsLibraryFrame() bool {
-	return s.LibraryFrame != nil && *s.LibraryFrame
-}
-
-func (s *StacktraceFrame) IsSourcemapApplied() bool {
-	return false
 }
 
 func (s *StacktraceFrame) validForSourcemapping() (bool, string) {

@@ -74,12 +74,12 @@ func (es *Client) Do(
 			return nil, err
 		}
 		defer resp.Body.Close()
-		if resp.IsError() {
-			return nil, &Error{StatusCode: resp.StatusCode, Message: resp.String()}
-		}
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return nil, err
+		}
+		if resp.IsError() {
+			return nil, &Error{StatusCode: resp.StatusCode, Message: resp.String(), Body: body}
 		}
 		if out != nil {
 			if err := json.Unmarshal(body, out); err != nil {
@@ -105,6 +105,7 @@ type RequestOption func(*requestOptions)
 type Error struct {
 	StatusCode int
 	Message    string
+	Body       []byte
 }
 
 func (e *Error) Error() string {

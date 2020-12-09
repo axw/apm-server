@@ -20,6 +20,8 @@ package systemtest_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -163,7 +165,11 @@ void updateStacktrace(List stacktrace, Map sourcemaps) {
   def function = "<anonymous>";
   for (int i = stacktrace.size()-1; i >= 0; i--) {
     def frame = stacktrace[i];
-    Map sourcemap = sourcemaps.get(frame.rum?.bundle_filepath);
+    def bundle_filepath = frame.remove("rum.bundle_filepath");
+    if (bundle_filepath == null) {
+      continue;
+    }
+    Map sourcemap = sourcemaps.get(bundle_filepath);
     if (sourcemap == null) {
       continue;
     }
@@ -228,22 +234,43 @@ for (exception in ctx?.error?.exception) {
 	// sourcemap pipeline to identify stacktrace library frames
 	// after applying sourcemaps.
 	storeIngestScript(t, "apm_set_library_frames", `
-void setLibraryFrames(List stacktrace) {
+boolean match(String s, String[] parts) {
+  return false;
+}
+
+boolean matchAny(String s, List any_parts) {
+  for (parts in any_parts) {
+    if (match(s, (String[])parts)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void setLibraryFrames(List stacktrace, List library_patterns_parts) {
   if (stacktrace == null) {
     return;
   }
+  
   for (frame in stacktrace) {
     if (frame.filename != "") {
-      // TODO(axw) pull regex from event.
-      frame.library_frame = frame.filename ==~ /.*node_modules|bower_components|~.*/;
+      frame.library_frame = matchAny(frame.filename, library_patterns_parts);
     }
   }
 }
 
-setLibraryFrames(ctx?.span?.stacktrace);
-setLibraryFrames(ctx?.error?.log?.stacktrace);
-for (exception in ctx?.error?.exception) {
-  setLibraryFrames(exception.stacktrace);
+List library_patterns = ctx.rum?.library_patterns;
+if (library_patterns != null) {
+  List library_patterns_parts = new ArrayList();
+  for (library_pattern in library_patterns) {
+    library_patterns_parts.add(library_pattern.splitOnToken("*"));
+  }
+
+  setLibraryFrames(ctx?.span?.stacktrace, library_patterns_parts);
+  setLibraryFrames(ctx?.error?.log?.stacktrace, library_patterns_parts);
+  for (exception in ctx?.error?.exception) {
+    setLibraryFrames(exception.stacktrace, library_patterns_parts);
+  }
 }
 `)
 
@@ -403,6 +430,11 @@ func storeIngestScript(t *testing.T, id, scriptSource string) {
 		},
 		nil,
 	)
+	if estestError, ok := err.(*estest.Error); ok {
+		var m map[string]interface{}
+		fmt.Println(json.Unmarshal(estestError.Body, &m))
+		t.Logf("%v", m)
+	}
 	require.NoError(t, err)
 }
 

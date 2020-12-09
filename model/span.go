@@ -220,6 +220,10 @@ func (e *Span) Transform(ctx context.Context, cfg *transform.Config) []beat.Even
 	utility.Set(fields, "timestamp", utility.TimeAsMicros(e.Timestamp))
 	utility.DeepUpdate(fields, "event.outcome", e.Outcome)
 
+	if e.RUM {
+		setRUMConfig(fields, &cfg.RUM)
+	}
+
 	return []beat.Event{
 		{
 			Fields:    fields,

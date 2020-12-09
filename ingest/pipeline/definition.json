@@ -131,18 +131,14 @@
         }
       },
       {
-        "remove": {
-          "field": [
-            "sourcemap",
-            "rum.service.name_version",
-	    "rum.bundle_filepath"
-	  ],
-	  "ignore_missing": true
+        "script": {
+          "id": "apm_set_library_frames"
 	}
       },
       {
-        "script": {
-          "id": "apm_set_library_frames"
+        "remove": {
+          "field": ["sourcemap", "rum"],
+	  "ignore_missing": true
 	}
       },
       {

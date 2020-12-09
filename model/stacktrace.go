@@ -66,4 +66,15 @@ func (st *Stacktrace) transformFrames(cfg *transform.Config, rum bool, apply fun
 	return frames
 }
 
+func setRUMConfig(m common.MapStr, rumConfig *transform.RUMConfig) {
+	if rumConfig.LibraryPattern != nil {
+		// TODO(axw) pass original pattern in (currently it's parsed)
+		m.Put("rum.library_patterns", []string{"*node_modules*", "*bower_components*", "*~*"})
+	}
+	if rumConfig.ExcludeFromGrouping != nil {
+		// TODO(axw) pass original pattern in (currently it's parsed)
+		m.Put("rum.exclude_from_grouping", []string{"/webpack*"})
+	}
+}
+
 func noSourcemapping(_ *StacktraceFrame) {}
