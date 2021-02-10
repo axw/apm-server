@@ -175,7 +175,7 @@ func Package() {
 		mg.Deps(Update, prepareIngestPackaging)
 		mg.Deps(CrossBuild, CrossBuildXPack, CrossBuildGoDaemon)
 	}
-	mg.SerialDeps(mage.Package, TestPackages)
+	mg.Deps(mage.Package)
 }
 
 // TestPackages tests the generated packages (i.e. file modes, owners, groups).
