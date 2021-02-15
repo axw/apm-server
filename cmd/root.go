@@ -32,6 +32,8 @@ import (
 
 	"github.com/elastic/apm-server/idxmgmt"
 	_ "github.com/elastic/apm-server/include" // include assets
+	_ "github.com/elastic/apm-server/internal/esoutput"
+	_ "github.com/elastic/apm-server/internal/syncqueue"
 )
 
 const (

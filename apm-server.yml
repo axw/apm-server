@@ -457,9 +457,9 @@ apm-server:
 # The memory queue will present all available events (up to the outputs
 # bulk_max_size) to the output, the moment the output is ready to serve
 # another batch of events.
-#queue:
+queue:
   # Queue type by name (default 'mem').
-  #mem:
+  mem:
     # Max number of events the queue can buffer.
     #events: 4096
 
@@ -468,7 +468,7 @@ apm-server:
     # The default value is set to 2048.
     # A value of 0 ensures events are immediately available
     # to be sent to the outputs.
-    #flush.min_events: 2048
+    flush.min_events: 2048
 
     # Maximum duration after which events are available to the outputs,
     # if the number of events stored in the queue is < `flush.min_events`.
