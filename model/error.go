@@ -34,7 +34,6 @@ import (
 
 	"github.com/elastic/apm-server/datastreams"
 	"github.com/elastic/apm-server/transform"
-	"github.com/elastic/apm-server/utility"
 )
 
 var (
@@ -150,7 +149,9 @@ func (e *Error) appendBeatEvents(ctx context.Context, cfg *transform.Config, eve
 	trace.maybeSetString("id", e.TraceID)
 	fields.maybeSetMapStr("parent", common.MapStr(parent))
 	fields.maybeSetMapStr("trace", common.MapStr(trace))
-	fields.maybeSetMapStr("timestamp", utility.TimeAsMicros(e.Timestamp))
+	if folder := timeAsMicros(e.Timestamp); folder != nil {
+		fields.set("timestamp", folder)
+	}
 
 	return append(events, beat.Event{
 		Fields:    common.MapStr(fields),

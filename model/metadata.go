@@ -33,15 +33,29 @@ type Metadata struct {
 }
 
 func (m *Metadata) set(fields *mapStr, eventLabels common.MapStr) {
-	fields.maybeSetMapStr("service", m.Service.Fields())
-	fields.maybeSetMapStr("agent", m.Service.Agent.fields())
-	fields.maybeSetMapStr("host", m.System.fields())
-	fields.maybeSetMapStr("process", m.Process.fields())
+	if m.Service != (Service{}) {
+		fields.set("service", &m.Service)
+	}
+	// TODO(axw) check if system is non-empty.
+	fields.set("system", &m.System)
+
+	// TODO(axw) check if process is non-empty.
+	fields.set("process", &m.Process)
+
+	if m.Service.Agent != (Agent{}) {
+		fields.set("agent", &m.Service.Agent)
+	}
+	if m.System.Container != (Container{}) {
+		fields.set("container", &m.System.Container)
+	}
+	if m.System.Kubernetes != (Kubernetes{}) {
+		// TODO(axw) make kubernetes a Folder
+		fields.set("kubernetes", m.System.Kubernetes.fields())
+	}
+
 	fields.maybeSetMapStr("user", m.User.fields())
 	fields.maybeSetMapStr("client", m.Client.fields())
 	fields.maybeSetMapStr("user_agent", m.UserAgent.fields())
-	fields.maybeSetMapStr("container", m.System.Container.fields())
-	fields.maybeSetMapStr("kubernetes", m.System.Kubernetes.fields())
 	fields.maybeSetMapStr("cloud", m.Cloud.fields())
 	maybeSetLabels(fields, m.Labels, eventLabels)
 }

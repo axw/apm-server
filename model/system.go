@@ -20,7 +20,7 @@ package model
 import (
 	"net"
 
-	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/go-structform"
 )
 
 type System struct {
@@ -46,19 +46,21 @@ type System struct {
 	Kubernetes Kubernetes
 }
 
-func (s *System) fields() common.MapStr {
-	if s == nil {
-		return nil
-	}
-	var system mapStr
-	system.maybeSetString("hostname", s.DetectedHostname)
-	system.maybeSetString("name", s.ConfiguredHostname)
-	system.maybeSetString("architecture", s.Architecture)
+func (s *System) Fold(v structform.ExtVisitor) error {
+	v.OnObjectStart(-1, structform.AnyType)
+	maybeFoldString(v, "hostname", s.DetectedHostname)
+	maybeFoldString(v, "name", s.ConfiguredHostname)
+	maybeFoldString(v, "architecture", s.Architecture)
 	if s.Platform != "" {
-		system.set("os", common.MapStr{"platform": s.Platform})
+		v.OnKey("os")
+		v.OnObjectStart(1, structform.StringType)
+		v.OnKey("platform")
+		v.OnString(s.Platform)
+		v.OnObjectFinished()
 	}
 	if s.IP != nil {
-		system.set("ip", s.IP.String())
+		v.OnKey("ip")
+		v.OnString(s.IP.String())
 	}
-	return common.MapStr(system)
+	return v.OnObjectFinished()
 }

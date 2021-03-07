@@ -24,10 +24,10 @@ import (
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/beats/v7/libbeat/monitoring"
+	"github.com/elastic/go-structform"
 
 	"github.com/elastic/apm-server/datastreams"
 	"github.com/elastic/apm-server/transform"
-	"github.com/elastic/apm-server/utility"
 )
 
 const (
@@ -81,33 +81,54 @@ type SpanCount struct {
 	Started *int
 }
 
-// fields creates the fields to populate in the top-level "transaction" object field.
-func (e *Transaction) fields() common.MapStr {
-	var fields mapStr
-	fields.set("id", e.ID)
-	fields.set("type", e.Type)
-	fields.set("duration", utility.MillisAsMicros(e.Duration))
-	fields.maybeSetString("name", e.Name)
-	fields.maybeSetString("result", e.Result)
-	fields.maybeSetMapStr("marks", e.Marks.fields())
-	fields.maybeSetMapStr("page", e.Page.Fields())
-	fields.maybeSetMapStr("custom", customFields(e.Custom))
-	fields.maybeSetMapStr("message", e.Message.Fields())
-	fields.maybeSetMapStr("experience", e.UserExperience.Fields())
+func (e *Transaction) Fold(v structform.ExtVisitor) error {
+	v.OnObjectStart(-1, structform.AnyType)
+
+	v.OnKey("id")
+	v.OnString(e.ID)
+
+	v.OnKey("type")
+	v.OnString(e.Type)
+
+	v.OnKey("duration")
+	millisAsMicros(e.Duration).Fold(v)
+
+	maybeFoldString(v, "name", e.Name)
+	maybeFoldString(v, "result", e.Result)
+
+	//maybeMapStr("marks", e.Marks.fields())
+	//fields.maybeSetMapStr("page", e.Page.Fields())
+	//fields.maybeSetMapStr("custom", customFields(e.Custom))
+	//fields.maybeSetMapStr("message", e.Message.Fields())
+	//fields.maybeSetMapStr("experience", e.UserExperience.Fields())
+
 	if e.SpanCount.Dropped != nil || e.SpanCount.Started != nil {
-		spanCount := common.MapStr{}
+		v.OnKey("span_count")
+		v.OnObjectStart(-1, structform.IntType)
 		if e.SpanCount.Dropped != nil {
-			spanCount["dropped"] = *e.SpanCount.Dropped
+			v.OnKey("dropped")
+			v.OnInt(*e.SpanCount.Dropped)
 		}
 		if e.SpanCount.Started != nil {
-			spanCount["started"] = *e.SpanCount.Started
+			v.OnKey("started")
+			v.OnInt(*e.SpanCount.Started)
 		}
-		fields.set("span_count", spanCount)
+		v.OnObjectFinished()
 	}
+
 	// TODO(axw) change Sampled to be non-pointer, and set its final value when
 	// instantiating the model type.
-	fields.set("sampled", e.Sampled == nil || *e.Sampled)
-	return common.MapStr(fields)
+	v.OnKey("sampled")
+	v.OnBool(e.Sampled == nil || *e.Sampled)
+
+	return v.OnObjectFinished()
+}
+
+func maybeFoldString(visitor structform.ExtVisitor, k, v string) {
+	if v != "" {
+		visitor.OnKey(k)
+		visitor.OnString(v)
+	}
 }
 
 func (e *Transaction) appendBeatEvents(cfg *transform.Config, events []beat.Event) []beat.Event {
@@ -115,7 +136,7 @@ func (e *Transaction) appendBeatEvents(cfg *transform.Config, events []beat.Even
 
 	fields := mapStr{
 		"processor":        transactionProcessorEntry,
-		transactionDocType: e.fields(),
+		transactionDocType: e,
 	}
 
 	if cfg.DataStreams {
@@ -132,17 +153,23 @@ func (e *Transaction) appendBeatEvents(cfg *transform.Config, events []beat.Even
 	}
 
 	// then merge event specific information
-	var parent, trace mapStr
-	parent.maybeSetString("id", e.ParentID)
-	trace.maybeSetString("id", e.TraceID)
-	fields.maybeSetMapStr("parent", common.MapStr(parent))
-	fields.maybeSetMapStr("trace", common.MapStr(trace))
-	fields.maybeSetMapStr("timestamp", utility.TimeAsMicros(e.Timestamp))
+	if e.ParentID != "" {
+		fields.set("parent", idFolder(e.ParentID))
+	}
+	if e.TraceID != "" {
+		fields.set("trace", idFolder(e.TraceID))
+	}
+	if folder := timeAsMicros(e.Timestamp); folder != nil {
+		fields.set("timestamp", folder)
+	}
+
 	fields.maybeSetMapStr("http", e.HTTP.Fields())
 	fields.maybeSetMapStr("url", e.URL.Fields())
+
 	if e.Experimental != nil {
 		fields.set("experimental", e.Experimental)
 	}
+
 	common.MapStr(fields).Put("event.outcome", e.Outcome)
 
 	return append(events, beat.Event{
@@ -175,4 +202,13 @@ func (m TransactionMark) fields() common.MapStr {
 		out[sanitizeLabelKey(k)] = common.Float(v)
 	}
 	return out
+}
+
+type idFolder string
+
+func (f idFolder) Fold(v structform.ExtVisitor) error {
+	v.OnObjectStart(1, structform.StringType)
+	v.OnKey("id")
+	v.OnString(string(f))
+	return v.OnObjectFinished()
 }

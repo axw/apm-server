@@ -18,7 +18,7 @@
 package model
 
 import (
-	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/go-structform"
 )
 
 //Service bundles together information related to the monitored service and the agent used for monitoring
@@ -62,55 +62,45 @@ type ServiceNode struct {
 	Name string
 }
 
-//Fields transforms a service instance into a common.MapStr
-func (s *Service) Fields() common.MapStr {
-	if s == nil {
-		return nil
+func (s *Service) Fold(v structform.ExtVisitor) error {
+	v.OnObjectStart(-1, structform.AnyType)
+	maybeFoldString(v, "name", s.Name)
+	maybeFoldString(v, "version", s.Version)
+	maybeFoldString(v, "environment", s.Environment)
+	if s.Node != (ServiceNode{}) {
+		v.OnKey("node")
+		v.OnObjectStart(1, structform.StringType)
+		maybeFoldString(v, "name", s.Node.Name)
+		v.OnObjectFinished()
 	}
-
-	var svc mapStr
-	svc.maybeSetString("name", s.Name)
-	svc.maybeSetString("version", s.Version)
-	svc.maybeSetString("environment", s.Environment)
-	if node := s.Node.fields(); node != nil {
-		svc.set("node", node)
+	if s.Language != (Language{}) {
+		v.OnKey("language")
+		v.OnObjectStart(2, structform.StringType)
+		maybeFoldString(v, "name", s.Language.Name)
+		maybeFoldString(v, "version", s.Language.Version)
+		v.OnObjectFinished()
 	}
-
-	var lang mapStr
-	lang.maybeSetString("name", s.Language.Name)
-	lang.maybeSetString("version", s.Language.Version)
-	if lang != nil {
-		svc.set("language", common.MapStr(lang))
+	if s.Runtime != (Runtime{}) {
+		v.OnKey("runtime")
+		v.OnObjectStart(2, structform.StringType)
+		maybeFoldString(v, "name", s.Runtime.Name)
+		maybeFoldString(v, "version", s.Runtime.Version)
+		v.OnObjectFinished()
 	}
-
-	var runtime mapStr
-	runtime.maybeSetString("name", s.Runtime.Name)
-	runtime.maybeSetString("version", s.Runtime.Version)
-	if runtime != nil {
-		svc.set("runtime", common.MapStr(runtime))
+	if s.Framework != (Framework{}) {
+		v.OnKey("framework")
+		v.OnObjectStart(2, structform.StringType)
+		maybeFoldString(v, "name", s.Framework.Name)
+		maybeFoldString(v, "version", s.Framework.Version)
+		v.OnObjectFinished()
 	}
-
-	var framework mapStr
-	framework.maybeSetString("name", s.Framework.Name)
-	framework.maybeSetString("version", s.Framework.Version)
-	if framework != nil {
-		svc.set("framework", common.MapStr(framework))
-	}
-
-	return common.MapStr(svc)
+	return v.OnObjectFinished()
 }
 
-func (n *ServiceNode) fields() common.MapStr {
-	if n.Name != "" {
-		return common.MapStr{"name": n.Name}
-	}
-	return nil
-}
-
-func (a *Agent) fields() common.MapStr {
-	var agent mapStr
-	agent.maybeSetString("name", a.Name)
-	agent.maybeSetString("version", a.Version)
-	agent.maybeSetString("ephemeral_id", a.EphemeralID)
-	return common.MapStr(agent)
+func (a *Agent) Fold(v structform.ExtVisitor) error {
+	v.OnObjectStart(-1, structform.StringType)
+	maybeFoldString(v, "name", a.Name)
+	maybeFoldString(v, "version", a.Version)
+	maybeFoldString(v, "ephemeral_id", a.EphemeralID)
+	return v.OnObjectFinished()
 }

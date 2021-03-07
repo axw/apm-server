@@ -18,15 +18,15 @@
 package model
 
 import (
-	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/go-structform"
 )
 
 type Container struct {
 	ID string
 }
 
-func (c *Container) fields() common.MapStr {
-	var container mapStr
-	container.maybeSetString("id", c.ID)
-	return common.MapStr(container)
+func (c *Container) Fold(v structform.ExtVisitor) error {
+	v.OnObjectStart(-1, structform.AnyType)
+	maybeFoldString(v, "id", c.ID)
+	return v.OnObjectFinished()
 }

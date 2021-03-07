@@ -20,6 +20,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.0.0-20201007143536-4b4020669208
 	github.com/elastic/go-hdrhistogram v0.1.0
 	github.com/elastic/go-licenser v0.3.1
+	github.com/elastic/go-structform v0.0.7
 	github.com/elastic/go-sysinfo v1.6.0 // indirect
 	github.com/elastic/go-ucfg v0.8.4-0.20200415140258-1232bd4774a6
 	github.com/fatih/color v1.10.0 // indirect

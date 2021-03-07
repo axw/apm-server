@@ -15,26 +15,31 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package utility
+package model
 
 import (
 	"time"
 
-	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/go-structform"
+	"github.com/elastic/go-structform/gotype"
 )
 
-func MillisAsMicros(ms float64) common.MapStr {
-	m := common.MapStr{}
-	m["us"] = int(ms * 1000)
-	return m
+func millisAsMicros(ms float64) gotype.Folder {
+	return microsFolder(int64(ms * 1000))
 }
 
-func TimeAsMicros(t time.Time) common.MapStr {
+func timeAsMicros(t time.Time) gotype.Folder {
 	if t.IsZero() {
 		return nil
 	}
+	return microsFolder(t.UnixNano() / 1000)
+}
 
-	m := common.MapStr{}
-	m["us"] = t.UnixNano() / 1000
-	return m
+type microsFolder int64
+
+func (f microsFolder) Fold(v structform.ExtVisitor) error {
+	v.OnObjectStart(1, structform.Int64Type)
+	v.OnKey("us")
+	v.OnInt64(int64(f))
+	return v.OnObjectFinished()
 }

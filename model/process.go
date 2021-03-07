@@ -17,9 +17,7 @@
 
 package model
 
-import (
-	"github.com/elastic/beats/v7/libbeat/common"
-)
+import "github.com/elastic/go-structform"
 
 type Process struct {
 	Pid   int
@@ -28,17 +26,19 @@ type Process struct {
 	Argv  []string
 }
 
-func (p *Process) fields() common.MapStr {
-	var proc mapStr
+func (p *Process) Fold(v structform.ExtVisitor) error {
+	v.OnObjectStart(-1, structform.AnyType)
 	if p.Pid != 0 {
-		proc.set("pid", p.Pid)
+		v.OnKey("pid")
+		v.OnInt(p.Pid)
 	}
 	if p.Ppid != nil {
-		proc.set("ppid", *p.Ppid)
+		v.OnKey("ppid")
+		v.OnInt(*p.Ppid)
 	}
 	if len(p.Argv) > 0 {
-		proc.set("args", p.Argv)
+		v.OnKey("args")
+		v.OnStringArray(p.Argv)
 	}
-	proc.maybeSetString("title", p.Title)
-	return common.MapStr(proc)
+	return v.OnObjectFinished()
 }

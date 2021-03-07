@@ -29,7 +29,6 @@ import (
 
 	"github.com/elastic/apm-server/datastreams"
 	"github.com/elastic/apm-server/transform"
-	"github.com/elastic/apm-server/utility"
 )
 
 const (
@@ -222,12 +221,13 @@ func (e *Span) appendBeatEvents(ctx context.Context, cfg *transform.Config, even
 		child.set("id", e.ChildIDs)
 		fields.set("child", common.MapStr(child))
 	}
-	fields.maybeSetMapStr("timestamp", utility.TimeAsMicros(e.Timestamp))
+	if folder := timeAsMicros(e.Timestamp); folder != nil {
+		fields.set("timestamp", folder)
+	}
 	if e.Experimental != nil {
 		fields.set("experimental", e.Experimental)
 	}
 	fields.maybeSetMapStr("destination", e.Destination.fields())
-
 	common.MapStr(fields).Put("event.outcome", e.Outcome)
 
 	return append(events, beat.Event{
@@ -248,9 +248,9 @@ func (e *Span) fields(ctx context.Context, cfg *transform.Config) common.MapStr 
 	fields.maybeSetString("action", e.Action)
 	fields.maybeSetBool("sync", e.Sync)
 	if e.Start != nil {
-		fields.set("start", utility.MillisAsMicros(*e.Start))
+		fields.set("start", millisAsMicros(*e.Start))
 	}
-	fields.set("duration", utility.MillisAsMicros(e.Duration))
+	fields.set("duration", millisAsMicros(e.Duration))
 
 	fields.maybeSetMapStr("db", e.DB.fields())
 	fields.maybeSetMapStr("http", e.HTTP.fields())
