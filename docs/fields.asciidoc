@@ -5116,6 +5116,13 @@ type: object
 
 --
 
+*`_metric_histogram`*::
++
+--
+type: object
+
+--
+
 
 *`metricset.name`*::
 +

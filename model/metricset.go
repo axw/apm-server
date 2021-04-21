@@ -108,12 +108,10 @@ type Sample struct {
 
 	// Counts holds the bucket counts for histogram metrics.
 	//
-	// These numbers must be positive or zero.
-	//
 	// If Counts is specified, then Values is expected to be
 	// specified with the same number of elements, and with the
 	// same order.
-	Counts []int64
+	Counts []uint64
 }
 
 // MetricsetEventCategorization holds ECS Event Categorization fields
@@ -171,7 +169,7 @@ func (me *Metricset) appendBeatEvents(cfg *transform.Config, events []beat.Event
 	if len(me.Samples) == 1 && len(me.Samples[0].Counts) > 0 {
 		// We have a single histogram metric; add a _doc_count field which holds the sum of counts.
 		// See https://www.elastic.co/guide/en/elasticsearch/reference/master/mapping-doc-count-field.html
-		var total int64
+		var total uint64
 		for _, count := range me.Samples[0].Counts {
 			total += count
 		}
@@ -201,6 +199,18 @@ func (me *Metricset) appendBeatEvents(cfg *transform.Config, events []beat.Event
 	if me.Name != "" {
 		fields["metricset.name"] = me.Name
 	}
+
+	// Set a _metric_descriptions field, which holds optional metric types.
+	// Later this may also hold other properties, such as units.
+	var metricDescriptions mapStr
+	for _, sample := range me.Samples {
+		if len(sample.Counts) > 0 {
+			var m mapStr
+			m.set("type", "histogram")
+			metricDescriptions.set(sample.Name, common.MapStr(m))
+		}
+	}
+	fields.maybeSetMapStr("_metric_descriptions", common.MapStr(metricDescriptions))
 
 	fields["processor"] = metricsetProcessorEntry
 

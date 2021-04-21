@@ -32,6 +32,22 @@
         "name": "logs-apm.error-0.2.0-apm_opentelemetry_metrics",
         "if": "ctx.processor?.event == 'metric'"
       }
+    },
+    {
+      "pipeline": {
+        "name": "logs-apm.error-0.2.0-apm_metrics_dynamic_template",
+        "if": "ctx.processor?.event == 'metric'",
+        "ignore_failure": true,
+        "on_failure": [
+          {
+            "set": {
+              "field": "error.message",
+              "value": "{{ _ingest.on_failure_message }}",
+              "override": false
+            }
+          }
+        ]
+      }
     }
   ]
 }

@@ -1,3 +1,7 @@
+- name: _metric_histogram
+  type: object
+  object_type_params:
+    - object_type: histogram
 - name: cloud.service.name
   level: extended
   type: keyword

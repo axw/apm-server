@@ -37,6 +37,11 @@
       description: >
         A flat mapping of user-defined labels with string, boolean or number values.
 
+    - name: _metric_histogram
+      type: object
+      object_type_params:
+        - object_type: histogram
+
     - name: metricset
       type: group
       fields:

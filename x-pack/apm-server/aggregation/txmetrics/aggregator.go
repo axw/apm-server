@@ -272,7 +272,7 @@ This is typically caused by ineffective transaction grouping, e.g. by creating m
 unique transaction names.`[1:],
 	)
 	atomic.AddInt64(&a.metrics.overflowed, 1)
-	counts := []int64{int64(math.Round(count))}
+	counts := []uint64{uint64(math.Round(count))}
 	values := []float64{float64(durationMicros(duration))}
 	metricset := makeMetricset(key, hash, time.Now(), counts, values)
 	return &metricset
@@ -355,7 +355,7 @@ func (a *Aggregator) makeTransactionAggregationKey(tx *model.Transaction) transa
 }
 
 // makeMetricset makes a Metricset from key, counts, and values, with timestamp ts.
-func makeMetricset(key transactionAggregationKey, hash uint64, ts time.Time, counts []int64, values []float64) model.Metricset {
+func makeMetricset(key transactionAggregationKey, hash uint64, ts time.Time, counts []uint64, values []float64) model.Metricset {
 	out := model.Metricset{
 		Timestamp: ts,
 		Name:      metricsetName,
@@ -462,21 +462,21 @@ func (m *transactionMetrics) recordDuration(d time.Duration, n float64) {
 	m.histogram.RecordValuesAtomic(durationMicros(d), count)
 }
 
-func (m *transactionMetrics) histogramBuckets() (counts []int64, values []float64) {
+func (m *transactionMetrics) histogramBuckets() (counts []uint64, values []float64) {
 	// From https://www.elastic.co/guide/en/elasticsearch/reference/current/histogram.html:
 	//
 	// "For the High Dynamic Range (HDR) histogram mode, the values array represents
 	// fixed upper limits of each bucket interval, and the counts array represents
 	// the number of values that are attributed to each interval."
 	distribution := m.histogram.Distribution()
-	counts = make([]int64, 0, len(distribution))
+	counts = make([]uint64, 0, len(distribution))
 	values = make([]float64, 0, len(distribution))
 	for _, b := range distribution {
 		if b.Count <= 0 {
 			continue
 		}
 		count := math.Round(float64(b.Count) / histogramCountScale)
-		counts = append(counts, int64(count))
+		counts = append(counts, uint64(count))
 		values = append(values, float64(b.To))
 	}
 	return counts, values
