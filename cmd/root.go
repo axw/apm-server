@@ -75,6 +75,7 @@ func DefaultSettings() instance.Settings {
 func NewRootCommand(newBeat beat.Creator, settings instance.Settings) *cmd.BeatsRootCmd {
 	rootCmd := cmd.GenRootCmdWithSettings(newBeat, settings)
 	rootCmd.AddCommand(genApikeyCmd(settings))
+	rootCmd.AddCommand(traceCmd(settings))
 	modifyBuiltinCommands(rootCmd, settings)
 	return rootCmd
 }

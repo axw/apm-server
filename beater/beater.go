@@ -189,16 +189,18 @@ func (bt *beater) start(ctx context.Context, cancelContext context.CancelFunc, b
 		// Management enabled, register reloadable inputs.
 		creator := &serverCreator{context: ctx, args: sharedArgs}
 		inputs := cfgfile.NewRunnerList(management.DebugK, creator, b.Publisher)
+		actionHandler := &apmActionHandler{logger: bt.logger, pipeline: b.Publisher}
+		b.Manager.RegisterAction(actionHandler)
 		bt.stopServer = func() {
 			defer close(done)
 			defer closeTracer()
+			defer b.Manager.UnregisterAction(actionHandler)
 			if bt.config.ShutdownTimeout > 0 {
 				time.AfterFunc(bt.config.ShutdownTimeout, cancelContext)
 			}
 			inputs.Stop()
 		}
 		reload.Register.MustRegisterList("inputs", inputs)
-
 	} else {
 		// Management disabled, use statically defined config.
 		s, err := newServerRunner(ctx, serverRunnerParams{
