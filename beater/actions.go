@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -20,6 +22,11 @@ import (
 const (
 	actionKeyBPFTraceProgram  = "bpftrace_program"
 	actionKeyBPFTraceDuration = "bpftrace_duration"
+)
+
+var (
+	// From https://github.com/iovisor/bpftrace/blob/master/src/lexer.l
+	bpftraceIdentRegexp = regexp.MustCompile("[_a-zA-Z][_a-zA-Z0-9]*")
 )
 
 type apmActionHandler struct {
@@ -48,6 +55,52 @@ func (h *apmActionHandler) Execute(ctx context.Context, args map[string]interfac
 	duration, err := time.ParseDuration(durationString)
 	if err != nil {
 		return nil, err
+	}
+
+	// TODO(axw) ideally we would be able to pick out well known variables
+	// from print(f) statements as well. We could do this by preprocessing
+	// the bpftrace program and transforming printfs into something we will
+	// understand, or by creating an entirely new language.
+	program, mapKeys, err := preprocessBPFTraceProgram(program)
+	if err != nil {
+		return nil, err
+	}
+	foreachMapKey := func(mapName string, data interface{}, f func(data interface{}, fields common.MapStr)) {
+		mapKeyNames, ok := mapKeys[mapName]
+		if !ok {
+			f(data, nil)
+			return
+		}
+		mapData := data.(map[string]interface{})
+		for k, data := range mapData {
+			fields := make(common.MapStr)
+			mapKeyValues := strings.Split(k, ",")
+			for i, mapKeyName := range mapKeyNames {
+				mapKeyValue := mapKeyValues[i]
+				switch mapKeyName {
+				case "pid":
+					fields["process.pid"], _ = strconv.Atoi(mapKeyValue)
+				case "tid":
+					fields["process.thread.id"], _ = strconv.Atoi(mapKeyValue)
+				case "uid":
+					fields["user.id"] = mapKeyValue
+				case "gid":
+					fields["group.id"] = mapKeyValue
+				case "comm":
+					fields["process.name"] = mapKeyValue
+
+				// builtins with no ECS mapping
+				case "cgroup":
+					fields["process.cgroup.id"] = mapKeyValue
+				case "func":
+					fields["function.name"] = mapKeyValue
+				case "kstack", "ustack":
+					frames := strings.Fields(mapKeyValue)
+					fields[mapKeyName] = frames
+				}
+			}
+			f(data, fields)
+		}
 	}
 
 	// Run the program, sending SIGTERM after the specified duration elapses.
@@ -91,12 +144,6 @@ func (h *apmActionHandler) Execute(ctx context.Context, args map[string]interfac
 			return nil, err
 		}
 
-		// TODO(axw) ideally we would be able to pick out well known variables
-		// from print(f) statements and associative arrays and add them as ECS
-		// fields. We could do this by preprocessing the bpftrace program and
-		// transforming printfs and associative array keys to something we will
-		// understand, or by creating an entirely new language.
-
 		switch t := line["type"]; t {
 		case "attached_probes":
 		case "printf":
@@ -113,65 +160,68 @@ func (h *apmActionHandler) Execute(ctx context.Context, args map[string]interfac
 
 		// count(), sum(...), @foo[bar] = ...
 		case "map":
-			for key, mapData := range line["data"].(map[string]interface{}) {
-				key := strings.TrimPrefix(key, "@")
-				client.Publish(beat.Event{
-					Timestamp: time.Now(),
-					Fields: common.MapStr{
+			for name, mapData := range line["data"].(map[string]interface{}) {
+				mapName := strings.TrimPrefix(name, "@")
+				foreachMapKey(mapName, mapData, func(mapData interface{}, ecs common.MapStr) {
+					fields := common.MapStr{
 						datastreams.TypeField:      "metrics",
 						datastreams.DatasetField:   "bpftrace",
 						datastreams.NamespaceField: "default",
 						"action_id":                actionID,
-						"map." + key:               mapData,
-					},
+						"map":                      common.MapStr{name: mapData},
+					}
+					fields.DeepUpdate(ecs)
+					client.Publish(beat.Event{Timestamp: time.Now(), Fields: fields})
 				})
 			}
 
 		// hist(...) and lhist(...)
 		case "hist":
-			for key, histData := range line["data"].(map[string]interface{}) {
-				key := strings.TrimPrefix(key, "@")
-				var counts []int64
-				var values []float64
-				for _, histBucketData := range histData.([]interface{}) {
-					count := histBucketData.(map[string]interface{})["count"].(float64)
-					value := histBucketData.(map[string]interface{})["min"].(float64)
-					counts = append(counts, int64(count))
-					values = append(values, float64(value))
-				}
-				client.Publish(beat.Event{
-					Timestamp: time.Now(),
-					Fields: common.MapStr{
+			for name, histData := range line["data"].(map[string]interface{}) {
+				name := strings.TrimPrefix(name, "@")
+				foreachMapKey(name, histData, func(histData interface{}, ecs common.MapStr) {
+					var counts []int64
+					var values []float64
+					for _, histBucketData := range histData.([]interface{}) {
+						count := histBucketData.(map[string]interface{})["count"].(float64)
+						value := histBucketData.(map[string]interface{})["min"].(float64)
+						counts = append(counts, int64(count))
+						values = append(values, float64(value))
+					}
+					fields := common.MapStr{
 						datastreams.TypeField:      "metrics",
 						datastreams.DatasetField:   "bpftrace",
 						datastreams.NamespaceField: "default",
 						"action_id":                actionID,
-						"hist." + key: common.MapStr{
+						"hist." + name: common.MapStr{
 							"values": values,
 							"counts": counts,
 						},
-					},
+					}
+					fields.DeepUpdate(ecs)
+					client.Publish(beat.Event{Timestamp: time.Now(), Fields: fields})
 				})
 			}
 
 		// stats(...)
 		case "stats":
-			for key, statsData := range line["data"].(map[string]interface{}) {
-				key := strings.TrimPrefix(key, "@")
-				count := statsData.(map[string]interface{})["count"].(float64)
-				total := statsData.(map[string]interface{})["total"].(float64)
-				client.Publish(beat.Event{
-					Timestamp: time.Now(),
-					Fields: common.MapStr{
+			for name, statsData := range line["data"].(map[string]interface{}) {
+				name := strings.TrimPrefix(name, "@")
+				foreachMapKey(name, statsData, func(histData interface{}, ecs common.MapStr) {
+					count := statsData.(map[string]interface{})["count"].(float64)
+					total := statsData.(map[string]interface{})["total"].(float64)
+					fields := common.MapStr{
 						datastreams.TypeField:      "metrics",
 						datastreams.DatasetField:   "bpftrace",
 						datastreams.NamespaceField: "default",
 						"action_id":                actionID,
-						"stats." + key: common.MapStr{
+						"stats." + name: common.MapStr{
 							"value_count": count,
 							"sum":         total,
 						},
-					},
+					}
+					fields.DeepUpdate(ecs)
+					client.Publish(beat.Event{Timestamp: time.Now(), Fields: fields})
 				})
 			}
 		default:
@@ -190,4 +240,38 @@ func (h *apmActionHandler) Execute(ctx context.Context, args map[string]interfac
 		return nil, err
 	}
 	return make(map[string]interface{}), nil
+}
+
+func preprocessBPFTraceProgram(program string) (string, map[string][]string, error) {
+	// TODO(axw) parse the program producing an AST, identify associative arrays
+	// and keys correctly. This is just demoware.
+	var mapKeys map[string][]string
+	remaining := program
+	for remaining != "" {
+		i := strings.IndexRune(remaining, '@')
+		if i == -1 {
+			break
+		}
+		remaining = remaining[i+1:]
+		lbracket := strings.IndexRune(remaining, '[')
+		if lbracket == -1 {
+			break
+		}
+		name := remaining[:lbracket]
+		remaining = remaining[lbracket+1:]
+		rbracket := strings.IndexRune(remaining, ']')
+		if rbracket == -1 {
+			break
+		}
+		if name != "" && !bpftraceIdentRegexp.MatchString(name) {
+			continue
+		}
+		keys := remaining[:rbracket]
+		remaining = remaining[rbracket+1:]
+		if mapKeys == nil {
+			mapKeys = make(map[string][]string)
+		}
+		mapKeys[name] = strings.Split(keys, ",")
+	}
+	return program, mapKeys, nil
 }

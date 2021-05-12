@@ -59,15 +59,22 @@ func traceRunCmd(settings instance.Settings) *cobra.Command {
 				cmd.PrintErrln(err)
 				os.Exit(1)
 			}
+			actionID := uuid.Must(uuid.NewV4())
+			actionIDString := actionID.String()
+			actionData := makeBPFTraceActionData(program, duration)
+
 			ctx, cancel := context.WithTimeout(context.Background(), duration+timeout)
 			defer cancel()
-			actionID, err := runBPFTrace(ctx, esClient, program, duration, agents)
-			if err != nil {
+
+			const user = "nobody"
+			if err := createAction(ctx, esClient, "apm", agents, user, time.Hour, actionIDString, actionData); err != nil {
 				cmd.PrintErrln(err)
 				os.Exit(1)
 			}
-			cmd.Printf("created action %q\n", actionID)
-			result, err := getActionResult(ctx, esClient, actionID)
+			cmd.Printf("created action %q, sleeping for %s...\n", actionIDString, duration)
+			time.Sleep(duration)
+
+			result, err := getActionResult(ctx, esClient, actionIDString)
 			if err != nil {
 				cmd.PrintErrln(err)
 				os.Exit(1)
@@ -113,17 +120,11 @@ func traceResultCmd(settings instance.Settings) *cobra.Command {
 	return cmd
 }
 
-func runBPFTrace(
-	ctx context.Context,
-	esClient elasticsearch.Client,
-	program string,
-	duration time.Duration,
-	agents []string,
-) (string, error) {
-	return createAction(ctx, esClient, "apm", agents, "nobody", time.Hour, map[string]interface{}{
+func makeBPFTraceActionData(program string, duration time.Duration) map[string]interface{} {
+	return map[string]interface{}{
 		"bpftrace_program":  program,
 		"bpftrace_duration": duration.String(),
-	})
+	}
 }
 
 func createAction(
@@ -132,29 +133,25 @@ func createAction(
 	agents []string,
 	userID string,
 	ttl time.Duration,
+	actionID string,
 	data map[string]interface{},
-) (string, error) {
+) error {
 	if ttl <= 0 {
-		return "", fmt.Errorf("invalid TTL %s, must be >= 0", ttl)
+		return fmt.Errorf("invalid TTL %s, must be >= 0", ttl)
 	}
 	if len(agents) == 0 {
-		return "", fmt.Errorf("no agents specified")
+		return fmt.Errorf("no agents specified")
 	}
 
 	timestamp := time.Now().UTC()
 	expiration := timestamp.Add(ttl)
-	actionID, err := uuid.NewV4()
-	if err != nil {
-		return "", err
-	}
-	actionIDString := actionID.String()
 	fields := map[string]interface{}{
 		"@timestamp": timestamp,
 		"expiration": expiration,
 		"type":       "INPUT_ACTION",
 		"input_type": inputType,
 
-		"action_id": actionIDString,
+		"action_id": actionID,
 		"agents":    agents,
 		"data":      data,
 		"user_id":   userID,
@@ -165,15 +162,15 @@ func createAction(
 		Body:  esutil.NewJSONReader(fields),
 	}.Do(ctx, esClient)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
 		body, _ := ioutil.ReadAll(resp.Body)
-		return "", fmt.Errorf("request failed: %s", body)
+		return fmt.Errorf("request failed: %s", body)
 	}
 
-	return actionIDString, nil
+	return nil
 }
 
 func getActionResult(ctx context.Context, esClient elasticsearch.Client, actionID string) (*actionResult, error) {
@@ -220,7 +217,8 @@ func getActionResult(ctx context.Context, esClient elasticsearch.Client, actionI
 		return result.Hits.Hits, nil
 	}
 
-	for {
+	var actionResult actionResult
+	for actionResult.fleetActionResult == nil {
 		hits, err := search(".fleet-actions-results")
 		if err != nil {
 			return nil, err
@@ -229,34 +227,34 @@ func getActionResult(ctx context.Context, esClient elasticsearch.Client, actionI
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		actionResult := actionResult{fleetActionResult: hits[0].Source}
-
-		// Fleet action result should only be visible after the related
-		// logs and metrics have been indexed. Refresh indices to make
-		// sure they're visible in searches.
-		indices := []string{"logs-bpftrace-*", "metrics-bpftrace-*"}
-		req := esapi.IndicesRefreshRequest{Index: indices}
-		resp, err := req.Do(ctx, esClient)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-
-		hits, err = search(indices...)
-		if err != nil {
-			return nil, err
-		}
-		for _, hit := range hits {
-			hit.Index = strings.TrimPrefix(hit.Index, ".ds-")
-			switch {
-			case strings.HasPrefix(hit.Index, "logs-"):
-				actionResult.logs = append(actionResult.logs, hit.Source)
-			case strings.HasPrefix(hit.Index, "metrics-"):
-				actionResult.metrics = append(actionResult.metrics, hit.Source)
-			}
-		}
-		return &actionResult, nil
+		actionResult.fleetActionResult = hits[0].Source
 	}
+
+	// Fleet action result should only be visible after the related
+	// logs and metrics have been indexed. Refresh indices to make
+	// sure they're visible in searches.
+	indices := []string{"logs-bpftrace-*", "metrics-bpftrace-*"}
+	req := esapi.IndicesRefreshRequest{Index: indices}
+	resp, err := req.Do(ctx, esClient)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	hits, err := search(indices...)
+	if err != nil {
+		return nil, err
+	}
+	for _, hit := range hits {
+		hit.Index = strings.TrimPrefix(hit.Index, ".ds-")
+		switch {
+		case strings.HasPrefix(hit.Index, "logs-"):
+			actionResult.logs = append(actionResult.logs, hit.Source)
+		case strings.HasPrefix(hit.Index, "metrics-"):
+			actionResult.metrics = append(actionResult.metrics, hit.Source)
+		}
+	}
+	return &actionResult, nil
 }
 
 type actionResult struct {
