@@ -53,7 +53,17 @@ func traceRunCmd(settings instance.Settings) *cobra.Command {
 		Use:   "run",
 		Short: short,
 		Long:  short,
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				data, err := ioutil.ReadFile(args[0])
+				if err != nil {
+					cmd.PrintErrln(err)
+					os.Exit(1)
+				}
+				program = string(data)
+			}
+
 			esClient, _, err := bootstrap(settings)
 			if err != nil {
 				cmd.PrintErrln(err)
