@@ -7,6 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -39,6 +40,12 @@ func (*apmActionHandler) Name() string {
 }
 
 func (h *apmActionHandler) Execute(ctx context.Context, args map[string]interface{}) (map[string]interface{}, error) {
+	defer func() {
+		if v := recover(); v != nil {
+			h.logger.Errorf("recovered panic: %s: %s", v, debug.Stack())
+		}
+	}()
+
 	// TODO(axw) add tracing to Fleet Actions?
 	h.logger.Infof("Execute: %+v", args)
 
@@ -182,9 +189,29 @@ func (h *apmActionHandler) Execute(ctx context.Context, args map[string]interfac
 				foreachMapKey(name, histData, func(histData interface{}, ecs common.MapStr) {
 					var counts []int64
 					var values []float64
+					var lastMin, lastMax float64
 					for _, histBucketData := range histData.([]interface{}) {
 						count := histBucketData.(map[string]interface{})["count"].(float64)
-						value := histBucketData.(map[string]interface{})["min"].(float64)
+						min, haveMin := histBucketData.(map[string]interface{})["min"].(float64)
+						max, haveMax := histBucketData.(map[string]interface{})["max"].(float64)
+						var value float64
+						if haveMin {
+							if haveMax {
+								lastMax = max
+							} else {
+								// NOTE(axw) when using lhist, if there are values that
+								// extend beyond the final bucket, the the final bucket
+								// will have no "max". We report these as being within
+								// the final bucket. Clearly wrong, not sure what else
+								// we can do yet.
+								max = min + (lastMax - lastMin)
+							}
+							value = (max - min) / 2
+							lastMin = min
+						} else {
+							// For negative values, there may be no min.
+							value = max
+						}
 						counts = append(counts, int64(count))
 						values = append(values, float64(value))
 					}
@@ -207,7 +234,7 @@ func (h *apmActionHandler) Execute(ctx context.Context, args map[string]interfac
 		case "stats":
 			for name, statsData := range line["data"].(map[string]interface{}) {
 				name := strings.TrimPrefix(name, "@")
-				foreachMapKey(name, statsData, func(histData interface{}, ecs common.MapStr) {
+				foreachMapKey(name, statsData, func(statsData interface{}, ecs common.MapStr) {
 					count := statsData.(map[string]interface{})["count"].(float64)
 					total := statsData.(map[string]interface{})["total"].(float64)
 					fields := common.MapStr{
