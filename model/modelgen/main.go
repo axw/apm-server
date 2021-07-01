@@ -32,9 +32,15 @@ import (
 )
 
 const (
-	//modelPackage   = "github.com/elastic/apm-server/model"
 	modelpbPackage = "github.com/elastic/apm-server/model/modelpb"
 )
+
+var manualTypes = map[string]string{
+	"github.com/elastic/apm-server/model/modelpb.AnyValue":     "anyValue",
+	"github.com/elastic/apm-server/model/modelpb.ArrayValue":   "arrayValue",
+	"github.com/elastic/apm-server/model/modelpb.KeyValueList": "keyValueList",
+	"github.com/elastic/apm-server/model/modelpb.KeyValue":     "keyValue",
+}
 
 func main() {
 	if err := Main(); err != nil {
@@ -68,6 +74,7 @@ import (
 
 	pkg := pkgs[0]
 	generator := generator{pb: pkg}
+
 	for _, f := range pkg.Syntax {
 		//comments := ast.NewCommentMap(pkg.Fset, f, f.Comments)
 		for _, decl := range f.Decls {
@@ -86,11 +93,14 @@ import (
 				}
 				typeName := obj.(*types.TypeName)
 				named := typeName.Type().(*types.Named)
+				if _, ok := manualTypes[named.String()]; ok {
+					continue
+				}
 				switch {
-				case hasMethod(named, "ProtoMessage"):
-					generator.generateWrapperStruct(&buf, named, genDecl.Doc)
 				case hasMethod(named, "EnumDescriptor"):
 					generator.generateWrapperEnum(&buf, named, genDecl.Doc)
+				case hasMethod(named, "ProtoMessage"):
+					generator.generateWrapperStruct(&buf, named, genDecl.Doc)
 				}
 			}
 		}
@@ -124,13 +134,11 @@ type generator struct {
 }
 
 func (g *generator) generateWrapperEnum(buf *bytes.Buffer, named *types.Named, doc *ast.CommentGroup) {
-	//basicType := named.Underlying().(*types.Basic)
 	if doc != nil {
 		for _, line := range doc.List {
 			fmt.Fprintln(buf, line.Text)
 		}
 	}
-
 	name := named.Obj().Name()
 	pbName := types.TypeString(named, (*types.Package).Name)
 	fmt.Fprintf(buf, "type %s %s\n\n", name, pbName)
@@ -145,17 +153,16 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 	// Define the wrapper struct type, with a "set" field which indicates
 	// that the struct value is non-zero, and fields for holding values
 	// for pointer fields in modelpb structs.
-	wrapper := wrapperTypeName(named)
+	wrapper, _ := wrapperTypeName(named)
 	if doc != nil {
 		for _, line := range doc.List {
 			fmt.Fprintln(buf, line.Text)
 		}
 	}
 	fmt.Fprintf(buf, "type %s struct {\n", wrapper)
+	fmt.Fprintf(buf, "  mixin%s\n", wrapper)
 	fmt.Fprintf(buf, "  pb modelpb.%s\n", named.Obj().Name())
 	fmt.Fprintf(buf, "  set bool\n")
-
-	// TODO(axw) handle "oneof" below, by exploding into multiple fields and methods.
 
 	numFields := structType.NumFields()
 	hasWrapperField := make([]bool, numFields)
@@ -167,7 +174,8 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 		switch fieldType := field.Type().(type) {
 		case *types.Pointer, *types.Slice:
 			hasWrapperField[i] = true
-			fmt.Fprintf(buf, "  field%s %s\n", field.Name(), wrapperTypeName(fieldType))
+			name, _ := wrapperTypeName(fieldType)
+			fmt.Fprintf(buf, "  field%s %s\n", field.Name(), name)
 		}
 	}
 	fmt.Fprintf(buf, "}\n\n")
@@ -178,10 +186,14 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 		if !field.Exported() {
 			continue
 		}
-		fmt.Fprintf(buf, "func (w *%s) Set%s(v %s) {\n",
-			named.Obj().Name(), field.Name(),
-			wrapperTypeName(field.Type()),
-		)
+		wrappedArg, manual := wrapperTypeName(field.Type())
+		if manual {
+			// TODO(axw) record that this type has a manual field,
+			// inform at the end of the script. Require a mixin only
+			// for these.
+			continue
+		}
+		fmt.Fprintf(buf, "func (w *%s) Set%s(v %s) {\n", wrapper, field.Name(), wrappedArg)
 		fmt.Fprintf(buf, "  w.set = true\n")
 		if !hasWrapperField[i] {
 			fmt.Fprintf(buf, "  w.pb.%s = (%s)(v)\n", field.Name(), types.TypeString(field.Type(), (*types.Package).Name))
@@ -197,13 +209,6 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 
 func generateCopyToProto(buf *bytes.Buffer, typ types.Type, wrapperField, pbField string) {
 	switch typ := typ.(type) {
-	case *types.Named:
-		//switch pkgpath := typ.Obj().Pkg().Path(); pkgpath {
-		//case modelpbPackage:
-		//case "time":
-		//default:
-		//	panic(fmt.Errorf("unhandled package path %q", pkgpath))
-		//}
 	case *types.Pointer:
 		elem := typ.Elem().(*types.Named)
 		switch pkgpath := elem.Obj().Pkg().Path(); pkgpath {
@@ -221,31 +226,37 @@ func generateCopyToProto(buf *bytes.Buffer, typ types.Type, wrapperField, pbFiel
 		generateCopyToProto(buf, typ.Elem(), "slicev", "elem")
 		fmt.Fprintf(buf, "%s = append(%s, elem)\n", pbField, pbField)
 		fmt.Fprintf(buf, "}\n")
-		//fmt.Fprintf(buf, "%s = &%s.pb\n", pbField, wrapperField)
 	case *types.Basic:
-		fmt.Fprintf(buf, "%s = %s\n", wrapperField, pbField)
+		fmt.Fprintf(buf, "%s = %s\n", pbField, wrapperField)
 	default:
 		panic("unhandled type: " + typ.String())
 	}
 }
 
-func wrapperTypeName(typ types.Type) string {
+// wrapperTypeName returns the name of the wrapper for typ, if it is wrapped,
+// or the original name otherwise; and a boolean indicating whether or not
+// the type is manually wrapped.
+func wrapperTypeName(typ types.Type) (string, bool) {
 	switch typ := typ.(type) {
 	case *types.Named:
 		switch pkgpath := typ.Obj().Pkg().Path(); pkgpath {
 		case modelpbPackage:
-			return typ.Obj().Name()
+			if name, ok := manualTypes[typ.String()]; ok {
+				return name, true
+			}
+			return typ.Obj().Name(), false
 		case "time":
-			return types.TypeString(typ, (*types.Package).Name)
+			return types.TypeString(typ, (*types.Package).Name), false
 		default:
 			panic(fmt.Errorf("unhandled package path %q", pkgpath))
 		}
 	case *types.Pointer:
 		return wrapperTypeName(typ.Elem())
 	case *types.Slice:
-		return "[]" + wrapperTypeName(typ.Elem())
+		name, manual := wrapperTypeName(typ.Elem())
+		return "[]" + name, manual
 	case *types.Basic:
-		return typ.String()
+		return typ.String(), false
 	}
 	panic("unhandled type: " + typ.String())
 }

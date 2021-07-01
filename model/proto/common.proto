@@ -1,14 +1,39 @@
+// Licensed to Elasticsearch B.V. under one or more contributor 
+// license agreements. See the NOTICE file distributed with     
+// this work for additional information regarding copyright     
+// ownership. Elasticsearch B.V. licenses this file to you under
+// the Apache License, Version 2.0 (the "License"); you may     
+// not use this file except in compliance with the License.     
+// You may obtain a copy of the License at                      
+//                                                              
+//     http://www.apache.org/licenses/LICENSE-2.0               
+//                                                              
+// Unless required by applicable law or agreed to in writing,   
+// software distributed under the License is distributed on an  
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY       
+// KIND, either express or implied.  See the License for the    
+// specific language governing permissions and limitations      
+// under the License.                                           
+
+// Portions below copyright 2019, OpenTelemetry Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 syntax = "proto3";
 
 package elastic.apm.model;
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
-
-enum Outcome {
-  UNKNOWN = 0;
-  SUCCESS = 1;
-  FAILURE = 2;
-}
 
 // AnyValue is used to represent any type of attribute value. AnyValue may contain a
 // primitive value such as a string or integer or it may contain an arbitrary nested
@@ -29,7 +54,6 @@ message AnyValue {
 // ArrayValue is a list of AnyValue messages. We need ArrayValue as a message
 // since oneof in AnyValue does not allow repeated fields.
 message ArrayValue {
-  // Array of values. The array may be empty (contain 0 elements).
   repeated AnyValue values = 1;
 }
 
@@ -49,11 +73,4 @@ message KeyValueList {
 message KeyValue {
   string key = 1;
   AnyValue value = 2;
-}
-
-// StringKeyValue is a pair of key/value strings. This is the simpler (and faster) version
-// of KeyValue that only supports string values.
-message StringKeyValue {
-  string key = 1;
-  string value = 2;
 }

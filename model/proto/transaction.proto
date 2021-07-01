@@ -10,34 +10,40 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
+// Transaction foo bar
 message Transaction {
   // Categorisation fields.
+
   Metadata metadata = 1;
   string type = 2;
   string name = 3;
   string result = 4;
-  Outcome outcome = 5;
+  string outcome = 5;
 
   // Unique instance identifier fields.
+
   string id = 6 [(gogoproto.customname)="ID"];
   string trace_id = 7 [(gogoproto.customname)="TraceID"];
   string parent_id = 8 [(gogoproto.customname)="ParentID"];
 
   // Time-related fields.
+
   google.protobuf.Timestamp timestamp = 9 [(gogoproto.stdtime)=true];
   google.protobuf.Duration duration = 10 [(gogoproto.stdtime)=true];
 
   // Sampling-related fields.
+
   bool sampled = 11;
-  double representative_count = 12; // TODO(axw) ideally not part of proto, not written to ES...
+  double representative_count = 12;
 
   // Instance-specific context fields.
+
   TransactionContext context = 13;
 }
 
 message TransactionContext {
-  repeated KeyValue Custom = 1;
-  AnyValue Experimental = 2;
+  repeated KeyValue custom = 1;
+  AnyValue experimental = 2;
 
   //UserExperience user_experience = 2;
 }

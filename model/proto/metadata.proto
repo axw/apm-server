@@ -3,6 +3,7 @@ syntax = "proto3";
 package elastic.apm.model;
 
 import "apm-server/model/proto/common.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
@@ -61,10 +62,10 @@ message Process {
 }
 
 message System {
-  string detected_hostname = 1; // TODO(axw) do we need both detected/configured in the model?
+  string detected_hostname = 1;
   string configured_hostname = 2;
   string architecture = 3;
-  string ip = 4; // TODO how to make this net.IP
+  string ip = 4 [(gogoproto.customname)="IP"]; // TODO how to make this net.IP
   Container container = 5;
   Kubernetes kubernetes = 6;
 }
@@ -92,6 +93,7 @@ message User {
   string id = 1;
   string email = 2;
   string name = 3;
+  string domain = 4;
 }
 
 message UserAgent {
@@ -100,7 +102,7 @@ message UserAgent {
 }
 
 message Client {
-  string ip = 1;
+  string ip = 1 [(gogoproto.customname)="IP"];
 }
 
 message Cloud {
