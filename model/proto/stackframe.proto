@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Stackframe {
+  string abs_path = 1;
+  string filename = 2;
+  string classname = 3;
+  string module = 4;
+  string function = 5;
+  int32 line = 6;
+  int32 column = 7;
+  google.protobuf.Struct vars = 8;
+}

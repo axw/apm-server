@@ -20,12 +20,6 @@ message MessageQueue {
 message Page {
 }
 
-message Request {
-}
-
-message Response {
-}
-
 message Header {
   string key = 1;
   repeated string value = 2;

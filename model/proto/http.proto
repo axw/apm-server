@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message HTTP {
+  string version = 1;
+  HTTPRequest request = 2;
+  HTTPResponse response = 3;
+}
+
+message HTTPRequest {
+  string method = 1;
+  string referrer = 2;
+  HTTPRequestBody body = 3;
+}
+
+message HTTPRequestBody {
+  string content = 1;
+}
+
+message HTTPResponse {
+  int32 status_code = 1;
+  HTTPResponseBody body = 2;
+}
+
+message HTTPResponseBody {
+  string content = 1;
+}

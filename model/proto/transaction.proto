@@ -3,8 +3,9 @@ syntax = "proto3";
 package elastic.apm.model;
 
 import "apm-server/model/proto/common.proto";
-import "apm-server/model/proto/metadata.proto";
 import "apm-server/model/proto/context.proto";
+import "apm-server/model/proto/metadata.proto";
+import "apm-server/model/proto/http.proto";
 import "apm-server/model/proto/url.proto";
 
 import "google/protobuf/timestamp.proto";
@@ -17,7 +18,7 @@ option go_package = "github.com/elastic/apm-server/model/modelpb";
 message Transaction {
   // Categorisation fields.
 
-  Metadata metadata = 1 [(gogoproto.embed)=true];
+  Metadata metadata = 1 [(gogoproto.embed)=true,(gogoproto.nullable)=false];
   string type = 2;
   string name = 3;
   string result = 4;
@@ -31,8 +32,8 @@ message Transaction {
 
   // Time-related fields.
 
-  google.protobuf.Timestamp timestamp = 9 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false];
-  google.protobuf.Duration duration = 10 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false];
+  google.protobuf.Timestamp timestamp = 9 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false,(gogoproto.jsontag)="@timestamp"];
+  google.protobuf.Duration duration = 10 [(gogoproto.stdduration)=true,(gogoproto.nullable)=false];
 
   // Sampling-related fields.
 
@@ -47,7 +48,6 @@ message Transaction {
   TransactionUserExperience user_experience = 16;
   TransactionSession session = 17;
   map<string, TransactionMarks> marks = 18;
-  URL url = 19 [(gogoproto.customname)="URL"];
 }
 
 message TransactionMarks {
@@ -60,13 +60,12 @@ message TransactionMark {
 }
 
 message TransactionContext {
-  google.protobuf.Struct custom = 1;
-  google.protobuf.Value experimental = 2;
-  Message message = 3;
-  Page page = 4;
-  Request request = 5;
-  Response response = 6;
-  map<string, LabelValue> labels = 7;
+  map<string, LabelValue> labels = 1;
+  google.protobuf.Struct custom = 2;
+  google.protobuf.Value experimental = 3;
+  Message message = 4;
+  HTTP http = 5 [(gogoproto.customname)="HTTP"];
+  URL url = 6 [(gogoproto.customname)="URL"];
 }
 
 message TransactionUserExperience {
