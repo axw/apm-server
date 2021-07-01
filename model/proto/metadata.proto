@@ -15,7 +15,7 @@ message Metadata {
   UserAgent user_agent = 5;
   Client client = 6;
   Cloud cloud = 7;
-  repeated KeyValue labels = 8;
+  repeated Label labels = 8;
 }
 
 message Service {

@@ -10,7 +10,6 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
-// Transaction foo bar
 message Transaction {
   // Categorisation fields.
 

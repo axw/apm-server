@@ -28,7 +28,6 @@ var _ = time.Kitchen
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// Transaction foo bar
 type Transaction struct {
 	Metadata            *Metadata           `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Type                string              `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`

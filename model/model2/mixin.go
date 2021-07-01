@@ -6,7 +6,6 @@ type mixinMetadata struct {
 
 // SetLabels sets the labels on the metadata object.
 func (m *Metadata) SetLabels(labels ...Label) {
-	m.set = true
 	m.pb.Labels = m.pb.Labels[:0]
 	m.fieldLabels = append(m.fieldLabels[:0], labels...)
 	for i := range m.fieldLabels {
@@ -26,14 +25,12 @@ type mixinTransactionContext struct {
 
 // SetCustom sets custom transaction context.
 func (t *TransactionContext) SetCustom(kv ...KeyValue) {
-	t.set = true
 	t.fieldCustom.set(kv...)
 	t.pb.Custom = t.fieldCustom.pb.Values
 }
 
 // SetExperimental sets experimental transaction context.
 func (t *TransactionContext) SetExperimental(v Any) {
-	t.set = true
 	t.fieldExperimental = v
 	t.pb.Experimental = &t.fieldExperimental.pb
 }

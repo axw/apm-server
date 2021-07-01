@@ -9,482 +9,105 @@ import (
 
 type Metadata struct {
 	mixinMetadata
-	pb             modelpb.Metadata
-	set            bool
-	fieldService   Service
-	fieldProcess   Process
-	fieldSystem    System
-	fieldUser      User
-	fieldUserAgent UserAgent
-	fieldClient    Client
-	fieldCloud     Cloud
-}
-
-func (w *Metadata) SetService(v Service) {
-	w.set = true
-	w.fieldService = v
-	w.pb.Service = &w.fieldService.pb
-}
-
-func (w *Metadata) SetProcess(v Process) {
-	w.set = true
-	w.fieldProcess = v
-	w.pb.Process = &w.fieldProcess.pb
-}
-
-func (w *Metadata) SetSystem(v System) {
-	w.set = true
-	w.fieldSystem = v
-	w.pb.System = &w.fieldSystem.pb
-}
-
-func (w *Metadata) SetUser(v User) {
-	w.set = true
-	w.fieldUser = v
-	w.pb.User = &w.fieldUser.pb
-}
-
-func (w *Metadata) SetUserAgent(v UserAgent) {
-	w.set = true
-	w.fieldUserAgent = v
-	w.pb.UserAgent = &w.fieldUserAgent.pb
-}
-
-func (w *Metadata) SetClient(v Client) {
-	w.set = true
-	w.fieldClient = v
-	w.pb.Client = &w.fieldClient.pb
-}
-
-func (w *Metadata) SetCloud(v Cloud) {
-	w.set = true
-	w.fieldCloud = v
-	w.pb.Cloud = &w.fieldCloud.pb
+	pb        modelpb.Metadata
+	Service   Service
+	Process   Process
+	System    System
+	User      User
+	UserAgent UserAgent
+	Client    Client
+	Cloud     Cloud
 }
 
 type Service struct {
-	pb             modelpb.Service
-	set            bool
-	fieldLanguage  Language
-	fieldRuntime   Runtime
-	fieldFramework Framework
-	fieldAgent     Agent
-	fieldNode      ServiceNode
-}
-
-func (w *Service) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
-}
-
-func (w *Service) SetVersion(v string) {
-	w.set = true
-	w.pb.Version = (string)(v)
-}
-
-func (w *Service) SetEnvironment(v string) {
-	w.set = true
-	w.pb.Environment = (string)(v)
-}
-
-func (w *Service) SetLanguage(v Language) {
-	w.set = true
-	w.fieldLanguage = v
-	w.pb.Language = &w.fieldLanguage.pb
-}
-
-func (w *Service) SetRuntime(v Runtime) {
-	w.set = true
-	w.fieldRuntime = v
-	w.pb.Runtime = &w.fieldRuntime.pb
-}
-
-func (w *Service) SetFramework(v Framework) {
-	w.set = true
-	w.fieldFramework = v
-	w.pb.Framework = &w.fieldFramework.pb
-}
-
-func (w *Service) SetAgent(v Agent) {
-	w.set = true
-	w.fieldAgent = v
-	w.pb.Agent = &w.fieldAgent.pb
-}
-
-func (w *Service) SetNode(v ServiceNode) {
-	w.set = true
-	w.fieldNode = v
-	w.pb.Node = &w.fieldNode.pb
+	pb        modelpb.Service
+	Language  Language
+	Runtime   Runtime
+	Framework Framework
+	Agent     Agent
+	Node      ServiceNode
 }
 
 type Language struct {
-	pb  modelpb.Language
-	set bool
-}
-
-func (w *Language) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
-}
-
-func (w *Language) SetVersion(v string) {
-	w.set = true
-	w.pb.Version = (string)(v)
+	pb modelpb.Language
 }
 
 type Runtime struct {
-	pb  modelpb.Runtime
-	set bool
-}
-
-func (w *Runtime) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
-}
-
-func (w *Runtime) SetVersion(v string) {
-	w.set = true
-	w.pb.Version = (string)(v)
+	pb modelpb.Runtime
 }
 
 type Framework struct {
-	pb  modelpb.Framework
-	set bool
-}
-
-func (w *Framework) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
-}
-
-func (w *Framework) SetVersion(v string) {
-	w.set = true
-	w.pb.Version = (string)(v)
+	pb modelpb.Framework
 }
 
 type Agent struct {
-	pb  modelpb.Agent
-	set bool
-}
-
-func (w *Agent) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
-}
-
-func (w *Agent) SetVersion(v string) {
-	w.set = true
-	w.pb.Version = (string)(v)
-}
-
-func (w *Agent) SetEphemeralId(v string) {
-	w.set = true
-	w.pb.EphemeralId = (string)(v)
+	pb modelpb.Agent
 }
 
 type ServiceNode struct {
-	pb  modelpb.ServiceNode
-	set bool
-}
-
-func (w *ServiceNode) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
+	pb modelpb.ServiceNode
 }
 
 type Process struct {
-	pb        modelpb.Process
-	set       bool
-	fieldArgv []string
-}
-
-func (w *Process) SetPid(v int64) {
-	w.set = true
-	w.pb.Pid = (int64)(v)
-}
-
-func (w *Process) SetPpid(v int64) {
-	w.set = true
-	w.pb.Ppid = (int64)(v)
-}
-
-func (w *Process) SetTitle(v string) {
-	w.set = true
-	w.pb.Title = (string)(v)
-}
-
-func (w *Process) SetArgv(v []string) {
-	w.set = true
-	w.fieldArgv = v
-	w.pb.Argv = w.pb.Argv[:0]
-	for _, slicev := range w.fieldArgv {
-		var elem string
-		elem = slicev
-		w.pb.Argv = append(w.pb.Argv, elem)
-	}
+	pb   modelpb.Process
+	Argv []string
 }
 
 type System struct {
-	pb              modelpb.System
-	set             bool
-	fieldContainer  Container
-	fieldKubernetes Kubernetes
-}
-
-func (w *System) SetDetectedHostname(v string) {
-	w.set = true
-	w.pb.DetectedHostname = (string)(v)
-}
-
-func (w *System) SetConfiguredHostname(v string) {
-	w.set = true
-	w.pb.ConfiguredHostname = (string)(v)
-}
-
-func (w *System) SetArchitecture(v string) {
-	w.set = true
-	w.pb.Architecture = (string)(v)
-}
-
-func (w *System) SetIP(v string) {
-	w.set = true
-	w.pb.IP = (string)(v)
-}
-
-func (w *System) SetContainer(v Container) {
-	w.set = true
-	w.fieldContainer = v
-	w.pb.Container = &w.fieldContainer.pb
-}
-
-func (w *System) SetKubernetes(v Kubernetes) {
-	w.set = true
-	w.fieldKubernetes = v
-	w.pb.Kubernetes = &w.fieldKubernetes.pb
+	pb         modelpb.System
+	Container  Container
+	Kubernetes Kubernetes
 }
 
 type Container struct {
-	pb  modelpb.Container
-	set bool
-}
-
-func (w *Container) SetId(v string) {
-	w.set = true
-	w.pb.Id = (string)(v)
+	pb modelpb.Container
 }
 
 type Kubernetes struct {
-	pb        modelpb.Kubernetes
-	set       bool
-	fieldNode KubernetesNode
-	fieldPod  KubernetesPod
-}
-
-func (w *Kubernetes) SetNamespace(v string) {
-	w.set = true
-	w.pb.Namespace = (string)(v)
-}
-
-func (w *Kubernetes) SetNode(v KubernetesNode) {
-	w.set = true
-	w.fieldNode = v
-	w.pb.Node = &w.fieldNode.pb
-}
-
-func (w *Kubernetes) SetPod(v KubernetesPod) {
-	w.set = true
-	w.fieldPod = v
-	w.pb.Pod = &w.fieldPod.pb
+	pb   modelpb.Kubernetes
+	Node KubernetesNode
+	Pod  KubernetesPod
 }
 
 type KubernetesNode struct {
-	pb  modelpb.KubernetesNode
-	set bool
-}
-
-func (w *KubernetesNode) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
+	pb modelpb.KubernetesNode
 }
 
 type KubernetesPod struct {
-	pb  modelpb.KubernetesPod
-	set bool
-}
-
-func (w *KubernetesPod) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
-}
-
-func (w *KubernetesPod) SetUid(v string) {
-	w.set = true
-	w.pb.Uid = (string)(v)
+	pb modelpb.KubernetesPod
 }
 
 type User struct {
-	pb  modelpb.User
-	set bool
-}
-
-func (w *User) SetId(v string) {
-	w.set = true
-	w.pb.Id = (string)(v)
-}
-
-func (w *User) SetEmail(v string) {
-	w.set = true
-	w.pb.Email = (string)(v)
-}
-
-func (w *User) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
-}
-
-func (w *User) SetDomain(v string) {
-	w.set = true
-	w.pb.Domain = (string)(v)
+	pb modelpb.User
 }
 
 type UserAgent struct {
-	pb  modelpb.UserAgent
-	set bool
-}
-
-func (w *UserAgent) SetOriginal(v string) {
-	w.set = true
-	w.pb.Original = (string)(v)
-}
-
-func (w *UserAgent) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
+	pb modelpb.UserAgent
 }
 
 type Client struct {
-	pb  modelpb.Client
-	set bool
-}
-
-func (w *Client) SetIP(v string) {
-	w.set = true
-	w.pb.IP = (string)(v)
+	pb modelpb.Client
 }
 
 type Cloud struct {
-	pb           modelpb.Cloud
-	set          bool
-	fieldAccount CloudAccount
-}
-
-func (w *Cloud) SetAccount(v CloudAccount) {
-	w.set = true
-	w.fieldAccount = v
-	w.pb.Account = &w.fieldAccount.pb
-}
-
-func (w *Cloud) SetAvailabilityZone(v string) {
-	w.set = true
-	w.pb.AvailabilityZone = (string)(v)
+	pb      modelpb.Cloud
+	Account CloudAccount
 }
 
 type CloudAccount struct {
-	pb  modelpb.CloudAccount
-	set bool
-}
-
-func (w *CloudAccount) SetId(v string) {
-	w.set = true
-	w.pb.Id = (string)(v)
-}
-
-func (w *CloudAccount) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
+	pb modelpb.CloudAccount
 }
 
 // Transaction foo bar
 type Transaction struct {
-	pb             modelpb.Transaction
-	set            bool
-	fieldMetadata  Metadata
-	fieldTimestamp time.Time
-	fieldDuration  time.Time
-	fieldContext   TransactionContext
-}
-
-func (w *Transaction) SetMetadata(v Metadata) {
-	w.set = true
-	w.fieldMetadata = v
-	w.pb.Metadata = &w.fieldMetadata.pb
-}
-
-func (w *Transaction) SetType(v string) {
-	w.set = true
-	w.pb.Type = (string)(v)
-}
-
-func (w *Transaction) SetName(v string) {
-	w.set = true
-	w.pb.Name = (string)(v)
-}
-
-func (w *Transaction) SetResult(v string) {
-	w.set = true
-	w.pb.Result = (string)(v)
-}
-
-func (w *Transaction) SetOutcome(v string) {
-	w.set = true
-	w.pb.Outcome = (string)(v)
-}
-
-func (w *Transaction) SetID(v string) {
-	w.set = true
-	w.pb.ID = (string)(v)
-}
-
-func (w *Transaction) SetTraceID(v string) {
-	w.set = true
-	w.pb.TraceID = (string)(v)
-}
-
-func (w *Transaction) SetParentID(v string) {
-	w.set = true
-	w.pb.ParentID = (string)(v)
-}
-
-func (w *Transaction) SetTimestamp(v time.Time) {
-	w.set = true
-	w.fieldTimestamp = v
-	w.pb.Timestamp = &w.fieldTimestamp
-}
-
-func (w *Transaction) SetDuration(v time.Time) {
-	w.set = true
-	w.fieldDuration = v
-	w.pb.Duration = &w.fieldDuration
-}
-
-func (w *Transaction) SetSampled(v bool) {
-	w.set = true
-	w.pb.Sampled = (bool)(v)
-}
-
-func (w *Transaction) SetRepresentativeCount(v float64) {
-	w.set = true
-	w.pb.RepresentativeCount = (float64)(v)
-}
-
-func (w *Transaction) SetContext(v TransactionContext) {
-	w.set = true
-	w.fieldContext = v
-	w.pb.Context = &w.fieldContext.pb
+	pb        modelpb.Transaction
+	Metadata  Metadata
+	Timestamp time.Time
+	Duration  time.Time
+	Context   TransactionContext
 }
 
 type TransactionContext struct {
 	mixinTransactionContext
-	pb  modelpb.TransactionContext
-	set bool
+	pb modelpb.TransactionContext
 }

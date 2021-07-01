@@ -76,7 +76,6 @@ import (
 	generator := generator{pb: pkg}
 
 	for _, f := range pkg.Syntax {
-		//comments := ast.NewCommentMap(pkg.Fset, f, f.Comments)
 		for _, decl := range f.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok || genDecl.Tok != token.TYPE {
@@ -97,8 +96,6 @@ import (
 					continue
 				}
 				switch {
-				case hasMethod(named, "EnumDescriptor"):
-					generator.generateWrapperEnum(&buf, named, genDecl.Doc)
 				case hasMethod(named, "ProtoMessage"):
 					generator.generateWrapperStruct(&buf, named, genDecl.Doc)
 				}
@@ -133,20 +130,6 @@ type generator struct {
 	pb *packages.Package
 }
 
-func (g *generator) generateWrapperEnum(buf *bytes.Buffer, named *types.Named, doc *ast.CommentGroup) {
-	if doc != nil {
-		for _, line := range doc.List {
-			fmt.Fprintln(buf, line.Text)
-		}
-	}
-	name := named.Obj().Name()
-	pbName := types.TypeString(named, (*types.Package).Name)
-	fmt.Fprintf(buf, "type %s %s\n\n", name, pbName)
-	fmt.Fprintf(buf, "func (v %s) String() string {\n", name)
-	fmt.Fprintf(buf, "  return (%s)(v).String()\n", pbName)
-	fmt.Fprintf(buf, "}\n\n")
-}
-
 func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named, doc *ast.CommentGroup) {
 	structType := named.Underlying().(*types.Struct)
 
@@ -178,8 +161,7 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 	if hasManual {
 		fmt.Fprintf(buf, "  mixin%s\n", wrapper)
 	}
-	fmt.Fprintf(buf, "  pb modelpb.%s\n", named.Obj().Name())
-	fmt.Fprintf(buf, "  set bool\n")
+	//fmt.Fprintf(buf, "  pb modelpb.%s\n", named.Obj().Name())
 
 	hasWrapperField := make([]bool, numFields)
 	for i := 0; i < numFields; i++ {
@@ -191,30 +173,32 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 		case *types.Pointer, *types.Slice:
 			hasWrapperField[i] = true
 			name := wrapperTypeName(fieldType)
-			fmt.Fprintf(buf, "  field%s %s\n", field.Name(), name)
+			fmt.Fprintf(buf, "  %s %s\n", field.Name(), name)
 		}
 	}
 	fmt.Fprintf(buf, "}\n\n")
 
-	// Define setters.
-	for i := 0; i < numFields; i++ {
-		field := structType.Field(i)
-		if !field.Exported() || isManualField[i] {
-			continue
+	/*
+		// Define setters.
+		for i := 0; i < numFields; i++ {
+			field := structType.Field(i)
+			if !field.Exported() || isManualField[i] {
+				continue
+			}
+			wrappedArg := wrapperTypeName(field.Type())
+			fmt.Fprintf(buf, "func (w *%s) Set%s(v %s) {\n", wrapper, field.Name(), wrappedArg)
+			fmt.Fprintf(buf, "  w.set = true\n")
+			if !hasWrapperField[i] {
+				fmt.Fprintf(buf, "  w.pb.%s = (%s)(v)\n", field.Name(), types.TypeString(field.Type(), (*types.Package).Name))
+			} else {
+				wrapperFieldSelector := fmt.Sprintf("w.field%s", field.Name())
+				pbFieldSelector := fmt.Sprintf("w.pb.%s", field.Name())
+				fmt.Fprintf(buf, "  %s = %s\n", wrapperFieldSelector, "v")
+				generateCopyToProto(buf, field.Type(), wrapperFieldSelector, pbFieldSelector)
+			}
+			fmt.Fprintf(buf, "}\n\n")
 		}
-		wrappedArg := wrapperTypeName(field.Type())
-		fmt.Fprintf(buf, "func (w *%s) Set%s(v %s) {\n", wrapper, field.Name(), wrappedArg)
-		fmt.Fprintf(buf, "  w.set = true\n")
-		if !hasWrapperField[i] {
-			fmt.Fprintf(buf, "  w.pb.%s = (%s)(v)\n", field.Name(), types.TypeString(field.Type(), (*types.Package).Name))
-		} else {
-			wrapperFieldSelector := fmt.Sprintf("w.field%s", field.Name())
-			pbFieldSelector := fmt.Sprintf("w.pb.%s", field.Name())
-			fmt.Fprintf(buf, "  %s = %s\n", wrapperFieldSelector, "v")
-			generateCopyToProto(buf, field.Type(), wrapperFieldSelector, pbFieldSelector)
-		}
-		fmt.Fprintf(buf, "}\n\n")
-	}
+	*/
 }
 
 func generateCopyToProto(buf *bytes.Buffer, typ types.Type, wrapperField, pbField string) {
