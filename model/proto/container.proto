@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Container {
+  string id = 2 [(gogoproto.customname)="ID"];
+}

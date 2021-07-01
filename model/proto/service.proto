@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Service {
+  string name = 1;
+  string version = 2;
+  string environment = 3;
+  ServiceNode node = 4;
+  ServiceLanguage language = 5;
+  ServiceRuntime runtime = 6;
+  ServiceFramework framework = 7;
+}
+
+message ServiceNode {
+  string name = 1;
+}
+
+message ServiceLanguage {
+  string name = 1;
+  string version = 2;
+}
+
+message ServiceRuntime {
+  string name = 1;
+  string version = 2;
+}
+
+message ServiceFramework {
+  string name = 1;
+  string version = 2;
+}

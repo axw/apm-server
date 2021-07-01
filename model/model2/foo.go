@@ -7,9 +7,16 @@ import (
 	"github.com/elastic/apm-server/model/modelpb"
 )
 
+type Labels struct {
+	Labels map[string]LabelValue
+}
+
+// LabelValue holds a label value.
+type LabelValue struct {
+	Value isLabelValue_Value
+}
+
 type Metadata struct {
-	mixinMetadata
-	pb        modelpb.Metadata
 	Service   Service
 	Process   Process
 	System    System
@@ -17,97 +24,123 @@ type Metadata struct {
 	UserAgent UserAgent
 	Client    Client
 	Cloud     Cloud
+	Labels    map[string]LabelValue
 }
 
 type Service struct {
-	pb        modelpb.Service
-	Language  Language
-	Runtime   Runtime
-	Framework Framework
-	Agent     Agent
-	Node      ServiceNode
+	Name        string
+	Version     string
+	Environment string
+	Language    Language
+	Runtime     Runtime
+	Framework   Framework
+	Agent       Agent
+	Node        ServiceNode
 }
 
 type Language struct {
-	pb modelpb.Language
+	Name    string
+	Version string
 }
 
 type Runtime struct {
-	pb modelpb.Runtime
+	Name    string
+	Version string
 }
 
 type Framework struct {
-	pb modelpb.Framework
+	Name    string
+	Version string
 }
 
 type Agent struct {
-	pb modelpb.Agent
+	Name        string
+	Version     string
+	EphemeralId string
 }
 
 type ServiceNode struct {
-	pb modelpb.ServiceNode
+	Name string
 }
 
 type Process struct {
-	pb   modelpb.Process
-	Argv []string
+	Pid   int64
+	Ppid  int64
+	Title string
+	Argv  []string
 }
 
 type System struct {
-	pb         modelpb.System
-	Container  Container
-	Kubernetes Kubernetes
+	DetectedHostname   string
+	ConfiguredHostname string
+	Architecture       string
+	IP                 string
+	Container          Container
+	Kubernetes         Kubernetes
 }
 
 type Container struct {
-	pb modelpb.Container
+	Id string
 }
 
 type Kubernetes struct {
-	pb   modelpb.Kubernetes
-	Node KubernetesNode
-	Pod  KubernetesPod
+	Namespace string
+	Node      KubernetesNode
+	Pod       KubernetesPod
 }
 
 type KubernetesNode struct {
-	pb modelpb.KubernetesNode
+	Name string
 }
 
 type KubernetesPod struct {
-	pb modelpb.KubernetesPod
+	Name string
+	Uid  string
 }
 
 type User struct {
-	pb modelpb.User
+	Id     string
+	Email  string
+	Name   string
+	Domain string
 }
 
 type UserAgent struct {
-	pb modelpb.UserAgent
+	Original string
+	Name     string
 }
 
 type Client struct {
-	pb modelpb.Client
+	IP string
 }
 
 type Cloud struct {
-	pb      modelpb.Cloud
-	Account CloudAccount
+	Account          CloudAccount
+	AvailabilityZone string
 }
 
 type CloudAccount struct {
-	pb modelpb.CloudAccount
+	Id   string
+	Name string
 }
 
-// Transaction foo bar
 type Transaction struct {
-	pb        modelpb.Transaction
-	Metadata  Metadata
-	Timestamp time.Time
-	Duration  time.Time
-	Context   TransactionContext
+	Metadata            Metadata
+	Type                string
+	Name                string
+	Result              string
+	Outcome             string
+	ID                  string
+	TraceID             string
+	ParentID            string
+	Timestamp           time.Time
+	Duration            time.Time
+	Sampled             bool
+	RepresentativeCount float64
+	Context             TransactionContext
 }
 
 type TransactionContext struct {
-	mixinTransactionContext
-	pb modelpb.TransactionContext
+	Custom       types.Struct
+	Experimental types.Value
 }

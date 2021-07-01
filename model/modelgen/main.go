@@ -32,15 +32,9 @@ import (
 )
 
 const (
-	modelpbPackage = "github.com/elastic/apm-server/model/modelpb"
+	modelpbPackage           = "github.com/elastic/apm-server/model/modelpb"
+	gogoProtobufTypesPackage = "github.com/gogo/protobuf/types"
 )
-
-var manualTypes = map[string]bool{
-	"github.com/elastic/apm-server/model/modelpb.AnyValue":     true,
-	"github.com/elastic/apm-server/model/modelpb.AnyValueList": true,
-	"github.com/elastic/apm-server/model/modelpb.KeyValueList": true,
-	"github.com/elastic/apm-server/model/modelpb.KeyValue":     true,
-}
 
 func main() {
 	if err := Main(); err != nil {
@@ -92,9 +86,6 @@ import (
 				}
 				typeName := obj.(*types.TypeName)
 				named := typeName.Type().(*types.Named)
-				if isManualType(named) {
-					continue
-				}
 				switch {
 				case hasMethod(named, "ProtoMessage"):
 					generator.generateWrapperStruct(&buf, named, genDecl.Doc)
@@ -143,38 +134,24 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 		}
 	}
 
-	var hasManual bool
+	fmt.Fprintf(buf, "type %s struct {\n", wrapper)
+	//if hasManual {
+	//	fmt.Fprintf(buf, "  mixin%s\n", wrapper)
+	//}
+	//fmt.Fprintf(buf, "  pb modelpb.%s\n", named.Obj().Name())
+
 	numFields := structType.NumFields()
-	isManualField := make([]bool, numFields)
 	for i := 0; i < numFields; i++ {
 		field := structType.Field(i)
 		if !field.Exported() {
 			continue
 		}
-		if isManualType(field.Type()) {
-			hasManual = true
-			isManualField[i] = true
-		}
-	}
-
-	fmt.Fprintf(buf, "type %s struct {\n", wrapper)
-	if hasManual {
-		fmt.Fprintf(buf, "  mixin%s\n", wrapper)
-	}
-	//fmt.Fprintf(buf, "  pb modelpb.%s\n", named.Obj().Name())
-
-	hasWrapperField := make([]bool, numFields)
-	for i := 0; i < numFields; i++ {
-		field := structType.Field(i)
-		if !field.Exported() || isManualField[i] {
-			continue
-		}
-		switch fieldType := field.Type().(type) {
-		case *types.Pointer, *types.Slice:
-			hasWrapperField[i] = true
-			name := wrapperTypeName(fieldType)
-			fmt.Fprintf(buf, "  %s %s\n", field.Name(), name)
-		}
+		//switch fieldType := field.Type().(type) {
+		//case *types.Pointer, *types.Slice:
+		//	hasWrapperField[i] = true
+		typeName := wrapperTypeName(field.Type())
+		fmt.Fprintf(buf, "  %s %s\n", field.Name(), typeName)
+		//}
 	}
 	fmt.Fprintf(buf, "}\n\n")
 
@@ -201,6 +178,7 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 	*/
 }
 
+/*
 func generateCopyToProto(buf *bytes.Buffer, typ types.Type, wrapperField, pbField string) {
 	switch typ := typ.(type) {
 	case *types.Pointer:
@@ -226,25 +204,7 @@ func generateCopyToProto(buf *bytes.Buffer, typ types.Type, wrapperField, pbFiel
 		panic("unhandled type: " + typ.String())
 	}
 }
-
-// isManualType reports whether or not the message type ha
-// a manually defined wrapper.
-func isManualType(typ types.Type) bool {
-	switch typ := typ.(type) {
-	case *types.Named:
-		if typ.Obj().Pkg().Path() == modelpbPackage {
-			return manualTypes[typ.String()]
-		}
-		return false
-	case *types.Pointer:
-		return isManualType(typ.Elem())
-	case *types.Slice:
-		return isManualType(typ.Elem())
-	case *types.Basic:
-		return false
-	}
-	panic("unhandled type: " + typ.String())
-}
+*/
 
 // wrapperTypeName returns the name of the wrapper for typ, if it is wrapped,
 // or the original name otherwise.
@@ -254,7 +214,7 @@ func wrapperTypeName(typ types.Type) string {
 		switch pkgpath := typ.Obj().Pkg().Path(); pkgpath {
 		case modelpbPackage:
 			return typ.Obj().Name()
-		case "time":
+		case "time", gogoProtobufTypesPackage:
 			return types.TypeString(typ, (*types.Package).Name)
 		default:
 			panic(fmt.Errorf("unhandled package path %q", pkgpath))
@@ -263,6 +223,10 @@ func wrapperTypeName(typ types.Type) string {
 		return wrapperTypeName(typ.Elem())
 	case *types.Slice:
 		return "[]" + wrapperTypeName(typ.Elem())
+	case *types.Map:
+		key := wrapperTypeName(typ.Key())
+		elem := wrapperTypeName(typ.Elem())
+		return fmt.Sprintf("map[%s]%s", key, elem)
 	case *types.Basic:
 		return typ.String()
 	}

@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message OperatingSystem {
+  string platform = 1;
+  string full = 2;
+  string type = 3;
+}

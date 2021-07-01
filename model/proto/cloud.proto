@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Cloud {
+  string availability_zone = 1;
+  string region = 2;
+  string provider = 3;
+
+  CloudAccount account = 4;
+  CloudInstance instance = 5;
+  CloudMachine machine = 6;
+  CloudProject project = 7;
+  CloudService service = 8;
+}
+
+message CloudAccount {
+  string id = 1 [(gogoproto.customname)="ID"];
+  string name = 2;
+}
+
+message CloudInstance {
+  string id = 1 [(gogoproto.customname)="ID"];
+  string name = 2;
+}
+
+message CloudMachine {
+  string type = 1;
+}
+
+message CloudProject {
+  string id = 1 [(gogoproto.customname)="ID"];
+  string name = 2;
+}
+
+message CloudService {
+  string name = 1;
+}

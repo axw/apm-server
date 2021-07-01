@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+// URL the components of a parsed URL and/or the original URL value.
+message URL {
+  string original = 1;
+  string full = 2;
+  string scheme = 3;
+  string domain = 4;
+  uint32 port = 5;
+  string path = 6;
+  string query = 7;
+  string fragment = 8;
+}

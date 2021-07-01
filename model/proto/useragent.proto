@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message UserAgent {
+  string original = 1;
+  string name = 2;
+}

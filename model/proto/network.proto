@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Network {
+  string connection_type = 1;
+  NetworkCarrier carrier = 2;
+}
+
+message NetworkCarrier {
+  string name = 1;
+
+  // Mobile country code.
+  string mcc = 2;
+
+  // Mobile network code.
+  string mnc = 3;
+
+  // ISO country code.
+  string icc = 4;
+}

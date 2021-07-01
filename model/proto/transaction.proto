@@ -4,8 +4,12 @@ package elastic.apm.model;
 
 import "apm-server/model/proto/common.proto";
 import "apm-server/model/proto/metadata.proto";
+import "apm-server/model/proto/context.proto";
+import "apm-server/model/proto/url.proto";
+
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
@@ -13,7 +17,7 @@ option go_package = "github.com/elastic/apm-server/model/modelpb";
 message Transaction {
   // Categorisation fields.
 
-  Metadata metadata = 1;
+  Metadata metadata = 1 [(gogoproto.embed)=true];
   string type = 2;
   string name = 3;
   string result = 4;
@@ -27,22 +31,57 @@ message Transaction {
 
   // Time-related fields.
 
-  google.protobuf.Timestamp timestamp = 9 [(gogoproto.stdtime)=true];
-  google.protobuf.Duration duration = 10 [(gogoproto.stdtime)=true];
+  google.protobuf.Timestamp timestamp = 9 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false];
+  google.protobuf.Duration duration = 10 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false];
 
   // Sampling-related fields.
 
-  bool sampled = 11;
+  bool sampled = 11 [(gogoproto.jsontag)="sampled"];
   double representative_count = 12;
 
   // Instance-specific context fields.
 
-  TransactionContext context = 13;
+  int32 spans_started = 13;
+  int32 spans_dropped = 14;
+  TransactionContext context = 15;
+  TransactionUserExperience user_experience = 16;
+  TransactionSession session = 17;
+  map<string, TransactionMarks> marks = 18;
+  URL url = 19 [(gogoproto.customname)="URL"];
+}
+
+message TransactionMarks {
+  repeated TransactionMark marks = 1;
+}
+
+message TransactionMark {
+  string key = 1;
+  double value = 2;
 }
 
 message TransactionContext {
-  repeated KeyValue custom = 1;
-  AnyValue experimental = 2;
+  google.protobuf.Struct custom = 1;
+  google.protobuf.Value experimental = 2;
+  Message message = 3;
+  Page page = 4;
+  Request request = 5;
+  Response response = 6;
+  map<string, LabelValue> labels = 7;
+}
 
-  //UserExperience user_experience = 2;
+message TransactionUserExperience {
+  double CumulativeLayoutShift = 1;
+  double FirstInputDelay = 2;
+  double Longtask = 3;
+  double TotalBlockingTime = 4;
+}
+
+message TransactionSpanCount {
+  int32 started = 1;
+  int32 dropped = 2;
+}
+
+message TransactionSession {
+  string id = 1 [(gogoproto.customname)="ID"];
+  int64 sequence = 2;
 }

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Process {
+  int64 pid = 1;
+  int64 ppid = 2;
+  string title = 3;
+  repeated string args = 4;
+  string command_line = 5;
+  string executable = 6;
+}

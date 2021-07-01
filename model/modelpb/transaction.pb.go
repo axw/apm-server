@@ -8,8 +8,8 @@ import (
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
-	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
+	types "github.com/gogo/protobuf/types"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -29,19 +29,25 @@ var _ = time.Kitchen
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type Transaction struct {
-	Metadata            *Metadata           `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Type                string              `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	Name                string              `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Result              string              `protobuf:"bytes,4,opt,name=result,proto3" json:"result,omitempty"`
-	Outcome             string              `protobuf:"bytes,5,opt,name=outcome,proto3" json:"outcome,omitempty"`
-	ID                  string              `protobuf:"bytes,6,opt,name=id,proto3" json:"id,omitempty"`
-	TraceID             string              `protobuf:"bytes,7,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	ParentID            string              `protobuf:"bytes,8,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	Timestamp           *time.Time          `protobuf:"bytes,9,opt,name=timestamp,proto3,stdtime" json:"timestamp,omitempty"`
-	Duration            *time.Time          `protobuf:"bytes,10,opt,name=duration,proto3,stdtime" json:"duration,omitempty"`
-	Sampled             bool                `protobuf:"varint,11,opt,name=sampled,proto3" json:"sampled,omitempty"`
-	RepresentativeCount float64             `protobuf:"fixed64,12,opt,name=representative_count,json=representativeCount,proto3" json:"representative_count,omitempty"`
-	Context             *TransactionContext `protobuf:"bytes,13,opt,name=context,proto3" json:"context,omitempty"`
+	*Metadata           `protobuf:"bytes,1,opt,name=metadata,proto3,embedded=metadata" json:"metadata,omitempty"`
+	Type                string                       `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	Name                string                       `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Result              string                       `protobuf:"bytes,4,opt,name=result,proto3" json:"result,omitempty"`
+	Outcome             string                       `protobuf:"bytes,5,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	ID                  string                       `protobuf:"bytes,6,opt,name=id,proto3" json:"id,omitempty"`
+	TraceID             string                       `protobuf:"bytes,7,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	ParentID            string                       `protobuf:"bytes,8,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	Timestamp           time.Time                    `protobuf:"bytes,9,opt,name=timestamp,proto3,stdtime" json:"timestamp"`
+	Duration            time.Time                    `protobuf:"bytes,10,opt,name=duration,proto3,stdtime" json:"duration"`
+	Sampled             bool                         `protobuf:"varint,11,opt,name=sampled,proto3" json:"sampled"`
+	RepresentativeCount float64                      `protobuf:"fixed64,12,opt,name=representative_count,json=representativeCount,proto3" json:"representative_count,omitempty"`
+	SpansStarted        int32                        `protobuf:"varint,13,opt,name=spans_started,json=spansStarted,proto3" json:"spans_started,omitempty"`
+	SpansDropped        int32                        `protobuf:"varint,14,opt,name=spans_dropped,json=spansDropped,proto3" json:"spans_dropped,omitempty"`
+	Context             *TransactionContext          `protobuf:"bytes,15,opt,name=context,proto3" json:"context,omitempty"`
+	UserExperience      *TransactionUserExperience   `protobuf:"bytes,16,opt,name=user_experience,json=userExperience,proto3" json:"user_experience,omitempty"`
+	Session             *TransactionSession          `protobuf:"bytes,17,opt,name=session,proto3" json:"session,omitempty"`
+	Marks               map[string]*TransactionMarks `protobuf:"bytes,18,rep,name=marks,proto3" json:"marks,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	URL                 *URL                         `protobuf:"bytes,19,opt,name=url,proto3" json:"url,omitempty"`
 }
 
 func (m *Transaction) Reset()         { *m = Transaction{} }
@@ -76,13 +82,6 @@ func (m *Transaction) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_Transaction proto.InternalMessageInfo
-
-func (m *Transaction) GetMetadata() *Metadata {
-	if m != nil {
-		return m.Metadata
-	}
-	return nil
-}
 
 func (m *Transaction) GetType() string {
 	if m != nil {
@@ -133,18 +132,18 @@ func (m *Transaction) GetParentID() string {
 	return ""
 }
 
-func (m *Transaction) GetTimestamp() *time.Time {
+func (m *Transaction) GetTimestamp() time.Time {
 	if m != nil {
 		return m.Timestamp
 	}
-	return nil
+	return time.Time{}
 }
 
-func (m *Transaction) GetDuration() *time.Time {
+func (m *Transaction) GetDuration() time.Time {
 	if m != nil {
 		return m.Duration
 	}
-	return nil
+	return time.Time{}
 }
 
 func (m *Transaction) GetSampled() bool {
@@ -161,6 +160,20 @@ func (m *Transaction) GetRepresentativeCount() float64 {
 	return 0
 }
 
+func (m *Transaction) GetSpansStarted() int32 {
+	if m != nil {
+		return m.SpansStarted
+	}
+	return 0
+}
+
+func (m *Transaction) GetSpansDropped() int32 {
+	if m != nil {
+		return m.SpansDropped
+	}
+	return 0
+}
+
 func (m *Transaction) GetContext() *TransactionContext {
 	if m != nil {
 		return m.Context
@@ -168,16 +181,145 @@ func (m *Transaction) GetContext() *TransactionContext {
 	return nil
 }
 
+func (m *Transaction) GetUserExperience() *TransactionUserExperience {
+	if m != nil {
+		return m.UserExperience
+	}
+	return nil
+}
+
+func (m *Transaction) GetSession() *TransactionSession {
+	if m != nil {
+		return m.Session
+	}
+	return nil
+}
+
+func (m *Transaction) GetMarks() map[string]*TransactionMarks {
+	if m != nil {
+		return m.Marks
+	}
+	return nil
+}
+
+func (m *Transaction) GetURL() *URL {
+	if m != nil {
+		return m.URL
+	}
+	return nil
+}
+
+type TransactionMarks struct {
+	Marks []*TransactionMark `protobuf:"bytes,1,rep,name=marks,proto3" json:"marks,omitempty"`
+}
+
+func (m *TransactionMarks) Reset()         { *m = TransactionMarks{} }
+func (m *TransactionMarks) String() string { return proto.CompactTextString(m) }
+func (*TransactionMarks) ProtoMessage()    {}
+func (*TransactionMarks) Descriptor() ([]byte, []int) {
+	return fileDescriptor_648e4eb07362dca8, []int{1}
+}
+func (m *TransactionMarks) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TransactionMarks) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TransactionMarks.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TransactionMarks) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TransactionMarks.Merge(m, src)
+}
+func (m *TransactionMarks) XXX_Size() int {
+	return m.Size()
+}
+func (m *TransactionMarks) XXX_DiscardUnknown() {
+	xxx_messageInfo_TransactionMarks.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TransactionMarks proto.InternalMessageInfo
+
+func (m *TransactionMarks) GetMarks() []*TransactionMark {
+	if m != nil {
+		return m.Marks
+	}
+	return nil
+}
+
+type TransactionMark struct {
+	Key   string  `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value float64 `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
+}
+
+func (m *TransactionMark) Reset()         { *m = TransactionMark{} }
+func (m *TransactionMark) String() string { return proto.CompactTextString(m) }
+func (*TransactionMark) ProtoMessage()    {}
+func (*TransactionMark) Descriptor() ([]byte, []int) {
+	return fileDescriptor_648e4eb07362dca8, []int{2}
+}
+func (m *TransactionMark) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TransactionMark) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TransactionMark.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TransactionMark) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TransactionMark.Merge(m, src)
+}
+func (m *TransactionMark) XXX_Size() int {
+	return m.Size()
+}
+func (m *TransactionMark) XXX_DiscardUnknown() {
+	xxx_messageInfo_TransactionMark.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TransactionMark proto.InternalMessageInfo
+
+func (m *TransactionMark) GetKey() string {
+	if m != nil {
+		return m.Key
+	}
+	return ""
+}
+
+func (m *TransactionMark) GetValue() float64 {
+	if m != nil {
+		return m.Value
+	}
+	return 0
+}
+
 type TransactionContext struct {
-	Custom       []*KeyValue `protobuf:"bytes,1,rep,name=custom,proto3" json:"custom,omitempty"`
-	Experimental *AnyValue   `protobuf:"bytes,2,opt,name=experimental,proto3" json:"experimental,omitempty"`
+	Custom       *types.Struct          `protobuf:"bytes,1,opt,name=custom,proto3" json:"custom,omitempty"`
+	Experimental *types.Value           `protobuf:"bytes,2,opt,name=experimental,proto3" json:"experimental,omitempty"`
+	Message      *Message               `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	Page         *Page                  `protobuf:"bytes,4,opt,name=page,proto3" json:"page,omitempty"`
+	Request      *Request               `protobuf:"bytes,5,opt,name=request,proto3" json:"request,omitempty"`
+	Response     *Response              `protobuf:"bytes,6,opt,name=response,proto3" json:"response,omitempty"`
+	Labels       map[string]*LabelValue `protobuf:"bytes,7,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *TransactionContext) Reset()         { *m = TransactionContext{} }
 func (m *TransactionContext) String() string { return proto.CompactTextString(m) }
 func (*TransactionContext) ProtoMessage()    {}
 func (*TransactionContext) Descriptor() ([]byte, []int) {
-	return fileDescriptor_648e4eb07362dca8, []int{1}
+	return fileDescriptor_648e4eb07362dca8, []int{3}
 }
 func (m *TransactionContext) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -206,23 +348,237 @@ func (m *TransactionContext) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_TransactionContext proto.InternalMessageInfo
 
-func (m *TransactionContext) GetCustom() []*KeyValue {
+func (m *TransactionContext) GetCustom() *types.Struct {
 	if m != nil {
 		return m.Custom
 	}
 	return nil
 }
 
-func (m *TransactionContext) GetExperimental() *AnyValue {
+func (m *TransactionContext) GetExperimental() *types.Value {
 	if m != nil {
 		return m.Experimental
 	}
 	return nil
 }
 
+func (m *TransactionContext) GetMessage() *Message {
+	if m != nil {
+		return m.Message
+	}
+	return nil
+}
+
+func (m *TransactionContext) GetPage() *Page {
+	if m != nil {
+		return m.Page
+	}
+	return nil
+}
+
+func (m *TransactionContext) GetRequest() *Request {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (m *TransactionContext) GetResponse() *Response {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
+func (m *TransactionContext) GetLabels() map[string]*LabelValue {
+	if m != nil {
+		return m.Labels
+	}
+	return nil
+}
+
+type TransactionUserExperience struct {
+	CumulativeLayoutShift float64 `protobuf:"fixed64,1,opt,name=CumulativeLayoutShift,proto3" json:"CumulativeLayoutShift,omitempty"`
+	FirstInputDelay       float64 `protobuf:"fixed64,2,opt,name=FirstInputDelay,proto3" json:"FirstInputDelay,omitempty"`
+	Longtask              float64 `protobuf:"fixed64,3,opt,name=Longtask,proto3" json:"Longtask,omitempty"`
+	TotalBlockingTime     float64 `protobuf:"fixed64,4,opt,name=TotalBlockingTime,proto3" json:"TotalBlockingTime,omitempty"`
+}
+
+func (m *TransactionUserExperience) Reset()         { *m = TransactionUserExperience{} }
+func (m *TransactionUserExperience) String() string { return proto.CompactTextString(m) }
+func (*TransactionUserExperience) ProtoMessage()    {}
+func (*TransactionUserExperience) Descriptor() ([]byte, []int) {
+	return fileDescriptor_648e4eb07362dca8, []int{4}
+}
+func (m *TransactionUserExperience) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TransactionUserExperience) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TransactionUserExperience.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TransactionUserExperience) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TransactionUserExperience.Merge(m, src)
+}
+func (m *TransactionUserExperience) XXX_Size() int {
+	return m.Size()
+}
+func (m *TransactionUserExperience) XXX_DiscardUnknown() {
+	xxx_messageInfo_TransactionUserExperience.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TransactionUserExperience proto.InternalMessageInfo
+
+func (m *TransactionUserExperience) GetCumulativeLayoutShift() float64 {
+	if m != nil {
+		return m.CumulativeLayoutShift
+	}
+	return 0
+}
+
+func (m *TransactionUserExperience) GetFirstInputDelay() float64 {
+	if m != nil {
+		return m.FirstInputDelay
+	}
+	return 0
+}
+
+func (m *TransactionUserExperience) GetLongtask() float64 {
+	if m != nil {
+		return m.Longtask
+	}
+	return 0
+}
+
+func (m *TransactionUserExperience) GetTotalBlockingTime() float64 {
+	if m != nil {
+		return m.TotalBlockingTime
+	}
+	return 0
+}
+
+type TransactionSpanCount struct {
+	Started int32 `protobuf:"varint,1,opt,name=started,proto3" json:"started,omitempty"`
+	Dropped int32 `protobuf:"varint,2,opt,name=dropped,proto3" json:"dropped,omitempty"`
+}
+
+func (m *TransactionSpanCount) Reset()         { *m = TransactionSpanCount{} }
+func (m *TransactionSpanCount) String() string { return proto.CompactTextString(m) }
+func (*TransactionSpanCount) ProtoMessage()    {}
+func (*TransactionSpanCount) Descriptor() ([]byte, []int) {
+	return fileDescriptor_648e4eb07362dca8, []int{5}
+}
+func (m *TransactionSpanCount) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TransactionSpanCount) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TransactionSpanCount.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TransactionSpanCount) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TransactionSpanCount.Merge(m, src)
+}
+func (m *TransactionSpanCount) XXX_Size() int {
+	return m.Size()
+}
+func (m *TransactionSpanCount) XXX_DiscardUnknown() {
+	xxx_messageInfo_TransactionSpanCount.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TransactionSpanCount proto.InternalMessageInfo
+
+func (m *TransactionSpanCount) GetStarted() int32 {
+	if m != nil {
+		return m.Started
+	}
+	return 0
+}
+
+func (m *TransactionSpanCount) GetDropped() int32 {
+	if m != nil {
+		return m.Dropped
+	}
+	return 0
+}
+
+type TransactionSession struct {
+	ID       string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Sequence int64  `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
+}
+
+func (m *TransactionSession) Reset()         { *m = TransactionSession{} }
+func (m *TransactionSession) String() string { return proto.CompactTextString(m) }
+func (*TransactionSession) ProtoMessage()    {}
+func (*TransactionSession) Descriptor() ([]byte, []int) {
+	return fileDescriptor_648e4eb07362dca8, []int{6}
+}
+func (m *TransactionSession) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TransactionSession) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TransactionSession.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TransactionSession) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TransactionSession.Merge(m, src)
+}
+func (m *TransactionSession) XXX_Size() int {
+	return m.Size()
+}
+func (m *TransactionSession) XXX_DiscardUnknown() {
+	xxx_messageInfo_TransactionSession.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TransactionSession proto.InternalMessageInfo
+
+func (m *TransactionSession) GetID() string {
+	if m != nil {
+		return m.ID
+	}
+	return ""
+}
+
+func (m *TransactionSession) GetSequence() int64 {
+	if m != nil {
+		return m.Sequence
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*Transaction)(nil), "elastic.apm.model.Transaction")
+	proto.RegisterMapType((map[string]*TransactionMarks)(nil), "elastic.apm.model.Transaction.MarksEntry")
+	proto.RegisterType((*TransactionMarks)(nil), "elastic.apm.model.TransactionMarks")
+	proto.RegisterType((*TransactionMark)(nil), "elastic.apm.model.TransactionMark")
 	proto.RegisterType((*TransactionContext)(nil), "elastic.apm.model.TransactionContext")
+	proto.RegisterMapType((map[string]*LabelValue)(nil), "elastic.apm.model.TransactionContext.LabelsEntry")
+	proto.RegisterType((*TransactionUserExperience)(nil), "elastic.apm.model.TransactionUserExperience")
+	proto.RegisterType((*TransactionSpanCount)(nil), "elastic.apm.model.TransactionSpanCount")
+	proto.RegisterType((*TransactionSession)(nil), "elastic.apm.model.TransactionSession")
 }
 
 func init() {
@@ -230,41 +586,73 @@ func init() {
 }
 
 var fileDescriptor_648e4eb07362dca8 = []byte{
-	// 539 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x93, 0x41, 0x6f, 0xd3, 0x30,
-	0x14, 0xc7, 0xeb, 0xae, 0xb4, 0xa9, 0x5b, 0x0e, 0x18, 0x34, 0x99, 0x22, 0xa5, 0xd5, 0xd0, 0x50,
-	0x11, 0x5a, 0x22, 0xd8, 0x81, 0x03, 0x12, 0x13, 0x5d, 0x39, 0x54, 0x08, 0x09, 0x45, 0x15, 0x07,
-	0x2e, 0x93, 0x9b, 0x3c, 0x42, 0xa4, 0x38, 0x8e, 0x1c, 0x67, 0xda, 0xbe, 0x02, 0xa7, 0x9d, 0xf8,
-	0x4c, 0x1c, 0x77, 0xe4, 0x54, 0x50, 0xfa, 0x45, 0x90, 0x9d, 0xa4, 0xdd, 0xd6, 0xf5, 0x52, 0xf9,
-	0xfd, 0xff, 0xbf, 0x7f, 0xfb, 0xfc, 0x9e, 0x8b, 0xc7, 0x2c, 0xe5, 0x47, 0x19, 0xc8, 0x73, 0x90,
-	0x2e, 0x17, 0x01, 0xc4, 0x6e, 0x2a, 0x85, 0x12, 0xae, 0x92, 0x2c, 0xc9, 0x98, 0xaf, 0x22, 0x91,
-	0x38, 0x46, 0x21, 0x8f, 0x20, 0x66, 0x99, 0x8a, 0x7c, 0x87, 0xa5, 0xdc, 0x31, 0xe8, 0xe0, 0xf9,
-	0x8e, 0xb0, 0x2f, 0x38, 0xaf, 0x73, 0x83, 0xc3, 0x1d, 0x10, 0x07, 0xc5, 0x02, 0xa6, 0x58, 0x85,
-	0x0d, 0x43, 0x21, 0xc2, 0x18, 0x4a, 0x73, 0x91, 0x7f, 0x77, 0x55, 0xc4, 0x21, 0x53, 0x8c, 0xa7,
-	0x15, 0x60, 0xdf, 0x05, 0x82, 0x5c, 0xb2, 0x4d, 0x7f, 0x83, 0xa3, 0x30, 0x52, 0x3f, 0xf2, 0x85,
-	0xe3, 0x0b, 0xee, 0x86, 0x22, 0x14, 0x1b, 0x50, 0x57, 0xe5, 0x6f, 0xea, 0x53, 0x89, 0x1f, 0xfc,
-	0x6a, 0xe1, 0xde, 0x7c, 0x73, 0x49, 0xf2, 0x16, 0x5b, 0x75, 0x47, 0x14, 0x8d, 0xd0, 0xb8, 0xf7,
-	0xe6, 0x99, 0xb3, 0x75, 0x63, 0xe7, 0x73, 0x85, 0x78, 0x6b, 0x98, 0x10, 0xdc, 0x52, 0x97, 0x29,
-	0xd0, 0xe6, 0x08, 0x8d, 0xbb, 0x9e, 0x39, 0x6b, 0x2d, 0x61, 0x1c, 0xe8, 0x5e, 0xa9, 0xe9, 0x33,
-	0xd9, 0xc7, 0x6d, 0x09, 0x59, 0x1e, 0x2b, 0xda, 0x32, 0x6a, 0x55, 0x11, 0x8a, 0x3b, 0x22, 0x57,
-	0xbe, 0xe0, 0x40, 0x1f, 0x18, 0xa3, 0x2e, 0xc9, 0x3e, 0x6e, 0x46, 0x01, 0x6d, 0x6b, 0x71, 0xd2,
-	0x2e, 0x96, 0xc3, 0xe6, 0x6c, 0xea, 0x35, 0xa3, 0x80, 0xbc, 0xc0, 0x96, 0x92, 0xcc, 0x87, 0xb3,
-	0x28, 0xa0, 0x1d, 0xe3, 0xf6, 0x8a, 0xe5, 0xb0, 0x33, 0xd7, 0xda, 0x6c, 0xea, 0x75, 0x8c, 0x39,
-	0x0b, 0xc8, 0x4b, 0xdc, 0x4d, 0x99, 0x84, 0x44, 0x69, 0xd0, 0x32, 0x60, 0xbf, 0x58, 0x0e, 0xad,
-	0x2f, 0x46, 0x9c, 0x4d, 0x3d, 0xab, 0xb4, 0x67, 0x01, 0x79, 0x8f, 0xbb, 0xeb, 0x79, 0xd3, 0xae,
-	0xb9, 0xfe, 0xc0, 0x29, 0x07, 0xee, 0xd4, 0x73, 0x74, 0xe6, 0x35, 0x31, 0x69, 0x5d, 0xfd, 0x1d,
-	0x22, 0x6f, 0x13, 0x21, 0xef, 0xb0, 0x55, 0xaf, 0x83, 0x62, 0x13, 0x7f, 0xba, 0x15, 0x9f, 0x56,
-	0x40, 0x95, 0x5e, 0x07, 0xf4, 0x04, 0x32, 0xc6, 0xd3, 0x18, 0x02, 0xda, 0x1b, 0xa1, 0xb1, 0xe5,
-	0xd5, 0x25, 0x79, 0x8d, 0x9f, 0x48, 0x48, 0x25, 0x64, 0x90, 0x28, 0xa6, 0xa2, 0x73, 0x38, 0xf3,
-	0x45, 0x9e, 0x28, 0xda, 0x1f, 0xa1, 0x31, 0xf2, 0x1e, 0xdf, 0xf6, 0x4e, 0xb5, 0x45, 0x4e, 0x70,
-	0xc7, 0x17, 0x89, 0x82, 0x0b, 0x45, 0x1f, 0x9a, 0x46, 0x0e, 0xef, 0x59, 0xe3, 0x8d, 0xc5, 0x9f,
-	0x96, 0xb0, 0x57, 0xa7, 0x0e, 0x7e, 0x22, 0x4c, 0xb6, 0x7d, 0x72, 0x8c, 0xdb, 0x7e, 0x9e, 0x29,
-	0xc1, 0x29, 0x1a, 0xed, 0xed, 0x78, 0x1d, 0x9f, 0xe0, 0xf2, 0x2b, 0x8b, 0x73, 0xf0, 0x2a, 0x94,
-	0x9c, 0xe0, 0x3e, 0x5c, 0xa4, 0x20, 0x23, 0xae, 0x9b, 0x8c, 0xcd, 0x1b, 0xb9, 0x3f, 0xfa, 0x21,
-	0xa9, 0xa2, 0xb7, 0x02, 0x93, 0x8f, 0xbf, 0x0b, 0x1b, 0x5d, 0x17, 0x36, 0xfa, 0x57, 0xd8, 0xe8,
-	0x6a, 0x65, 0x37, 0xae, 0x57, 0x76, 0xe3, 0xcf, 0xca, 0x6e, 0x7c, 0x7b, 0x75, 0xe3, 0xb9, 0x57,
-	0x5f, 0xe7, 0x6e, 0xfd, 0xd3, 0xcc, 0x67, 0xba, 0x58, 0xb4, 0xcd, 0x12, 0x8e, 0xff, 0x07, 0x00,
-	0x00, 0xff, 0xff, 0xd2, 0x42, 0x62, 0x32, 0xee, 0x03, 0x00, 0x00,
+	// 1043 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x56, 0x5f, 0x4f, 0x1b, 0x47,
+	0x10, 0x67, 0x6d, 0xb0, 0x8f, 0x31, 0x09, 0xb0, 0xa1, 0xf4, 0xe2, 0xb6, 0xb6, 0x65, 0x4a, 0xe5,
+	0x28, 0xc9, 0x59, 0x90, 0x48, 0x4d, 0x22, 0x55, 0x48, 0xc6, 0x54, 0x75, 0xe5, 0x48, 0xd1, 0x02,
+	0x55, 0x55, 0xa9, 0x42, 0xcb, 0xdd, 0xc6, 0x39, 0x71, 0xff, 0xba, 0xbb, 0x87, 0xc2, 0xb7, 0xc8,
+	0x97, 0xaa, 0x94, 0x47, 0x1e, 0xfb, 0xe4, 0x56, 0x46, 0xea, 0x43, 0x3f, 0x41, 0x1f, 0xab, 0xdd,
+	0xdb, 0xb3, 0x0d, 0x36, 0x34, 0x2f, 0xd6, 0xee, 0xcc, 0xef, 0x37, 0x3b, 0x3b, 0x3b, 0xf3, 0xf3,
+	0x41, 0x8b, 0x26, 0xe1, 0x53, 0xc1, 0xf8, 0x39, 0xe3, 0xed, 0x30, 0xf6, 0x58, 0xd0, 0x4e, 0x78,
+	0x2c, 0xe3, 0xb6, 0xe4, 0x34, 0x12, 0xd4, 0x95, 0x7e, 0x1c, 0x39, 0xda, 0x82, 0xd7, 0x59, 0x40,
+	0x85, 0xf4, 0x5d, 0x87, 0x26, 0xa1, 0xa3, 0xa1, 0xd5, 0xad, 0x5b, 0xc8, 0x6e, 0x1c, 0x86, 0x39,
+	0xaf, 0xba, 0x7d, 0x0b, 0x28, 0x64, 0x92, 0x7a, 0x54, 0x52, 0x03, 0xfb, 0xfa, 0xd6, 0x58, 0x91,
+	0x64, 0xef, 0xa5, 0x41, 0x35, 0x6e, 0x41, 0xa5, 0x3c, 0x30, 0x88, 0xfa, 0x20, 0x8e, 0x07, 0x01,
+	0xcb, 0xec, 0xa7, 0xe9, 0xdb, 0xb6, 0xf4, 0x43, 0x26, 0x24, 0x0d, 0x13, 0x03, 0xa8, 0xdd, 0x04,
+	0x78, 0x29, 0xa7, 0x93, 0x7b, 0x56, 0xbf, 0xbc, 0xe9, 0x17, 0x92, 0xa7, 0x6e, 0x9e, 0xc0, 0xd3,
+	0x81, 0x2f, 0xdf, 0xa5, 0xa7, 0x8e, 0x1b, 0x87, 0xed, 0x41, 0x3c, 0x88, 0x27, 0x30, 0xb5, 0xcb,
+	0x92, 0x51, 0xab, 0x0c, 0xde, 0xfc, 0xbb, 0x0c, 0x95, 0xa3, 0x49, 0x29, 0xf1, 0x77, 0x60, 0xe5,
+	0xf7, 0xb6, 0x51, 0x03, 0xb5, 0x2a, 0xbb, 0x5f, 0x38, 0x33, 0x75, 0x75, 0x5e, 0x1b, 0x48, 0x67,
+	0xf1, 0x72, 0x58, 0x47, 0x64, 0x4c, 0xc1, 0x18, 0x16, 0xe5, 0x45, 0xc2, 0xec, 0x42, 0x03, 0xb5,
+	0x96, 0x89, 0x5e, 0x2b, 0x5b, 0x44, 0x43, 0x66, 0x17, 0x33, 0x9b, 0x5a, 0xe3, 0x4d, 0x28, 0x71,
+	0x26, 0xd2, 0x40, 0xda, 0x8b, 0xda, 0x6a, 0x76, 0xd8, 0x86, 0x72, 0x9c, 0x4a, 0x37, 0x0e, 0x99,
+	0xbd, 0xa4, 0x1d, 0xf9, 0x16, 0x6f, 0x42, 0xc1, 0xf7, 0xec, 0x92, 0x32, 0x76, 0x4a, 0xa3, 0x61,
+	0xbd, 0xd0, 0xeb, 0x92, 0x82, 0xef, 0xe1, 0x6f, 0xc0, 0x92, 0x9c, 0xba, 0xec, 0xc4, 0xf7, 0xec,
+	0xb2, 0xf6, 0x56, 0x46, 0xc3, 0x7a, 0xf9, 0x48, 0xd9, 0x7a, 0x5d, 0x52, 0xd6, 0xce, 0x9e, 0x87,
+	0x1f, 0xc1, 0x72, 0x42, 0x39, 0x8b, 0xa4, 0x02, 0x5a, 0x1a, 0xb8, 0x32, 0x1a, 0xd6, 0xad, 0x37,
+	0xda, 0xd8, 0xeb, 0x12, 0x2b, 0x73, 0xf7, 0x3c, 0xdc, 0x81, 0xe5, 0xf1, 0x9b, 0xd8, 0xcb, 0xba,
+	0x08, 0x55, 0x27, 0x2b, 0xba, 0x93, 0x57, 0xd3, 0x39, 0xca, 0x11, 0x1d, 0xeb, 0xe3, 0xb0, 0xbe,
+	0xf0, 0xe1, 0xcf, 0x3a, 0x22, 0x13, 0x1a, 0xde, 0x03, 0x2b, 0x7f, 0x36, 0x1b, 0x74, 0x88, 0x87,
+	0x33, 0x21, 0xba, 0x06, 0x30, 0x15, 0x61, 0x4c, 0xc2, 0xdb, 0x50, 0x16, 0x34, 0x4c, 0x02, 0xe6,
+	0xd9, 0x95, 0x06, 0x6a, 0x59, 0x9d, 0xca, 0x3f, 0xc3, 0x7a, 0x6e, 0x22, 0xf9, 0x02, 0xef, 0xc0,
+	0x06, 0x67, 0x09, 0x67, 0x82, 0x45, 0x92, 0x4a, 0xff, 0x9c, 0x9d, 0xb8, 0x71, 0x1a, 0x49, 0x7b,
+	0xa5, 0x81, 0x5a, 0x88, 0x3c, 0xb8, 0xee, 0xdb, 0x57, 0x2e, 0xbc, 0x05, 0xf7, 0x44, 0x42, 0x23,
+	0x71, 0x22, 0x24, 0xe5, 0x92, 0x79, 0xf6, 0xbd, 0x06, 0x6a, 0x2d, 0x91, 0x15, 0x6d, 0x3c, 0xcc,
+	0x6c, 0x13, 0x90, 0xc7, 0xe3, 0x24, 0x61, 0x9e, 0x7d, 0x7f, 0x0a, 0xd4, 0xcd, 0x6c, 0x78, 0x0f,
+	0xca, 0xa6, 0xfb, 0xed, 0x55, 0x7d, 0xc7, 0xed, 0x39, 0xbd, 0x32, 0xd5, 0x5d, 0xfb, 0x19, 0x98,
+	0xe4, 0x2c, 0x7c, 0x0c, 0xab, 0xa9, 0x60, 0xfc, 0x84, 0xbd, 0x4f, 0x18, 0xf7, 0x59, 0xe4, 0x32,
+	0x7b, 0x4d, 0x07, 0x7a, 0x72, 0x77, 0xa0, 0x63, 0xc1, 0xf8, 0xc1, 0x98, 0x43, 0xee, 0xa7, 0xd7,
+	0xf6, 0x2a, 0x2f, 0xc1, 0x84, 0x50, 0xb5, 0x5f, 0xff, 0x94, 0xbc, 0x0e, 0x33, 0x30, 0xc9, 0x59,
+	0x78, 0x0f, 0x96, 0x42, 0xca, 0xcf, 0x84, 0x8d, 0x1b, 0xc5, 0x56, 0x65, 0xf7, 0xd1, 0xdd, 0x74,
+	0xe7, 0xb5, 0xc2, 0x1e, 0x44, 0x92, 0x5f, 0x90, 0x8c, 0x87, 0x77, 0xa0, 0x98, 0xf2, 0xc0, 0x7e,
+	0xa0, 0x4f, 0xdf, 0x9c, 0x43, 0x3f, 0x26, 0xfd, 0x4e, 0x79, 0x34, 0xac, 0x17, 0x8f, 0x49, 0x9f,
+	0x28, 0x6c, 0xf5, 0x57, 0x80, 0x49, 0x1c, 0xbc, 0x06, 0xc5, 0x33, 0x76, 0xa1, 0x47, 0x70, 0x99,
+	0xa8, 0x25, 0x7e, 0x09, 0x4b, 0xe7, 0x34, 0x48, 0xb3, 0xd9, 0xaa, 0xec, 0x6e, 0xdd, 0x9d, 0x93,
+	0x0e, 0x45, 0x32, 0xc6, 0xab, 0xc2, 0x0b, 0xd4, 0xec, 0xc3, 0xda, 0x4d, 0x37, 0x7e, 0x91, 0x5f,
+	0x13, 0xe9, 0x6b, 0x36, 0xff, 0x3f, 0xa4, 0xb9, 0x5f, 0xf3, 0x25, 0xac, 0xde, 0xf0, 0xcc, 0xc9,
+	0x78, 0x63, 0x3a, 0x63, 0x64, 0x92, 0x69, 0xfe, 0x5b, 0x04, 0x3c, 0xdb, 0x13, 0xb8, 0x0d, 0x25,
+	0x37, 0x15, 0x32, 0x0e, 0x8d, 0xec, 0x7c, 0x3e, 0x33, 0x2e, 0x87, 0x5a, 0xe6, 0x88, 0x81, 0xe1,
+	0x57, 0xb0, 0x92, 0xb5, 0x4d, 0xa8, 0xda, 0x3b, 0x30, 0x65, 0xd9, 0x9c, 0xa1, 0xfd, 0xa4, 0x4e,
+	0x25, 0xd7, 0xb0, 0xf8, 0x39, 0x94, 0x43, 0x26, 0x04, 0x1d, 0x64, 0xaa, 0xa4, 0xe6, 0x7b, 0x9e,
+	0xc8, 0x69, 0x04, 0xc9, 0xa1, 0xf8, 0x31, 0x2c, 0x26, 0x8a, 0xb2, 0x68, 0x12, 0x9c, 0xa5, 0xbc,
+	0x51, 0x78, 0x0d, 0x52, 0x47, 0x70, 0xf6, 0x5b, 0xca, 0x84, 0xd4, 0x4a, 0x36, 0xff, 0x08, 0x92,
+	0x21, 0x48, 0x0e, 0xc5, 0xdf, 0x82, 0xc5, 0x99, 0x48, 0xe2, 0x48, 0x30, 0xad, 0x75, 0xf3, 0xe5,
+	0x97, 0x18, 0x08, 0x19, 0x83, 0x71, 0x0f, 0x4a, 0x01, 0x3d, 0x65, 0x81, 0xb0, 0xcb, 0xfa, 0x2d,
+	0x77, 0x3e, 0x69, 0x12, 0x9d, 0xbe, 0xe6, 0x64, 0xad, 0x6b, 0x02, 0x54, 0x7f, 0x86, 0xca, 0x94,
+	0x79, 0xce, 0xbb, 0x3e, 0xbb, 0xde, 0x89, 0x5f, 0xcd, 0x39, 0x4a, 0x07, 0xc8, 0x2a, 0x3f, 0xd5,
+	0x83, 0xbf, 0x23, 0x78, 0x78, 0xeb, 0x14, 0xe3, 0xe7, 0xf0, 0xd9, 0x7e, 0x1a, 0xa6, 0x81, 0x96,
+	0xaa, 0x3e, 0xbd, 0x88, 0x53, 0x79, 0xf8, 0xce, 0x7f, 0x2b, 0xf5, 0xd1, 0x88, 0xcc, 0x77, 0xe2,
+	0x16, 0xac, 0x7e, 0xef, 0x73, 0x21, 0x7b, 0x51, 0x92, 0xca, 0x2e, 0x0b, 0xe8, 0x85, 0x69, 0xb7,
+	0x9b, 0x66, 0x5c, 0x05, 0xab, 0x1f, 0x47, 0x03, 0x49, 0xc5, 0x99, 0x7e, 0x75, 0x44, 0xc6, 0x7b,
+	0xfc, 0x04, 0xd6, 0x8f, 0x62, 0x49, 0x83, 0x4e, 0x10, 0xbb, 0x67, 0x7e, 0x34, 0x50, 0xea, 0xae,
+	0xdf, 0x19, 0x91, 0x59, 0x47, 0xf3, 0x47, 0xd8, 0x98, 0x56, 0x8f, 0x84, 0x46, 0x99, 0xb2, 0xda,
+	0x50, 0xce, 0x35, 0x15, 0x69, 0xb9, 0xcc, 0xb7, 0xca, 0x93, 0x0b, 0x69, 0x21, 0xf3, 0x98, 0x6d,
+	0xf3, 0x87, 0x6b, 0xd3, 0x60, 0x94, 0xc8, 0xfc, 0xdb, 0xa1, 0x99, 0x7f, 0xbb, 0x2a, 0x58, 0x42,
+	0xb5, 0x8a, 0x52, 0x4a, 0x15, 0xa8, 0x48, 0xc6, 0xfb, 0xce, 0xc1, 0xc7, 0x51, 0x0d, 0x5d, 0x8e,
+	0x6a, 0xe8, 0xaf, 0x51, 0x0d, 0x7d, 0xb8, 0xaa, 0x2d, 0x5c, 0x5e, 0xd5, 0x16, 0xfe, 0xb8, 0xaa,
+	0x2d, 0xfc, 0xf2, 0x78, 0xea, 0x9b, 0xc0, 0xbc, 0x55, 0x7b, 0xe6, 0x3b, 0x45, 0xff, 0x26, 0xa7,
+	0xa7, 0x25, 0x3d, 0x39, 0xcf, 0xfe, 0x0b, 0x00, 0x00, 0xff, 0xff, 0xa9, 0xce, 0x3e, 0x53, 0x79,
+	0x09, 0x00, 0x00,
 }
 
 func (m *Transaction) Marshal() (dAtA []byte, err error) {
@@ -287,6 +675,76 @@ func (m *Transaction) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.URL != nil {
+		{
+			size, err := m.URL.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTransaction(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x9a
+	}
+	if len(m.Marks) > 0 {
+		for k := range m.Marks {
+			v := m.Marks[k]
+			baseI := i
+			if v != nil {
+				{
+					size, err := v.MarshalToSizedBuffer(dAtA[:i])
+					if err != nil {
+						return 0, err
+					}
+					i -= size
+					i = encodeVarintTransaction(dAtA, i, uint64(size))
+				}
+				i--
+				dAtA[i] = 0x12
+			}
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintTransaction(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintTransaction(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x1
+			i--
+			dAtA[i] = 0x92
+		}
+	}
+	if m.Session != nil {
+		{
+			size, err := m.Session.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTransaction(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x8a
+	}
+	if m.UserExperience != nil {
+		{
+			size, err := m.UserExperience.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTransaction(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x82
+	}
 	if m.Context != nil {
 		{
 			size, err := m.Context.MarshalToSizedBuffer(dAtA[:i])
@@ -297,7 +755,17 @@ func (m *Transaction) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintTransaction(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x6a
+		dAtA[i] = 0x7a
+	}
+	if m.SpansDropped != 0 {
+		i = encodeVarintTransaction(dAtA, i, uint64(m.SpansDropped))
+		i--
+		dAtA[i] = 0x70
+	}
+	if m.SpansStarted != 0 {
+		i = encodeVarintTransaction(dAtA, i, uint64(m.SpansStarted))
+		i--
+		dAtA[i] = 0x68
 	}
 	if m.RepresentativeCount != 0 {
 		i -= 8
@@ -315,26 +783,22 @@ func (m *Transaction) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x58
 	}
-	if m.Duration != nil {
-		n2, err2 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Duration, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Duration):])
-		if err2 != nil {
-			return 0, err2
-		}
-		i -= n2
-		i = encodeVarintTransaction(dAtA, i, uint64(n2))
-		i--
-		dAtA[i] = 0x52
+	n6, err6 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Duration, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Duration):])
+	if err6 != nil {
+		return 0, err6
 	}
-	if m.Timestamp != nil {
-		n3, err3 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Timestamp, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Timestamp):])
-		if err3 != nil {
-			return 0, err3
-		}
-		i -= n3
-		i = encodeVarintTransaction(dAtA, i, uint64(n3))
-		i--
-		dAtA[i] = 0x4a
+	i -= n6
+	i = encodeVarintTransaction(dAtA, i, uint64(n6))
+	i--
+	dAtA[i] = 0x52
+	n7, err7 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Timestamp, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Timestamp):])
+	if err7 != nil {
+		return 0, err7
 	}
+	i -= n7
+	i = encodeVarintTransaction(dAtA, i, uint64(n7))
+	i--
+	dAtA[i] = 0x4a
 	if len(m.ParentID) > 0 {
 		i -= len(m.ParentID)
 		copy(dAtA[i:], m.ParentID)
@@ -399,6 +863,79 @@ func (m *Transaction) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *TransactionMarks) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TransactionMarks) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TransactionMarks) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Marks) > 0 {
+		for iNdEx := len(m.Marks) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Marks[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintTransaction(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *TransactionMark) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TransactionMark) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TransactionMark) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Value != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Value))))
+		i--
+		dAtA[i] = 0x11
+	}
+	if len(m.Key) > 0 {
+		i -= len(m.Key)
+		copy(dAtA[i:], m.Key)
+		i = encodeVarintTransaction(dAtA, i, uint64(len(m.Key)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *TransactionContext) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -419,6 +956,80 @@ func (m *TransactionContext) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.Labels) > 0 {
+		for k := range m.Labels {
+			v := m.Labels[k]
+			baseI := i
+			if v != nil {
+				{
+					size, err := v.MarshalToSizedBuffer(dAtA[:i])
+					if err != nil {
+						return 0, err
+					}
+					i -= size
+					i = encodeVarintTransaction(dAtA, i, uint64(size))
+				}
+				i--
+				dAtA[i] = 0x12
+			}
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintTransaction(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintTransaction(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
+	if m.Response != nil {
+		{
+			size, err := m.Response.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTransaction(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x32
+	}
+	if m.Request != nil {
+		{
+			size, err := m.Request.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTransaction(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.Page != nil {
+		{
+			size, err := m.Page.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTransaction(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.Message != nil {
+		{
+			size, err := m.Message.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTransaction(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
 	if m.Experimental != nil {
 		{
 			size, err := m.Experimental.MarshalToSizedBuffer(dAtA[:i])
@@ -431,19 +1042,132 @@ func (m *TransactionContext) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x12
 	}
-	if len(m.Custom) > 0 {
-		for iNdEx := len(m.Custom) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Custom[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintTransaction(dAtA, i, uint64(size))
+	if m.Custom != nil {
+		{
+			size, err := m.Custom.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
 			}
-			i--
-			dAtA[i] = 0xa
+			i -= size
+			i = encodeVarintTransaction(dAtA, i, uint64(size))
 		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *TransactionUserExperience) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TransactionUserExperience) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TransactionUserExperience) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.TotalBlockingTime != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.TotalBlockingTime))))
+		i--
+		dAtA[i] = 0x21
+	}
+	if m.Longtask != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Longtask))))
+		i--
+		dAtA[i] = 0x19
+	}
+	if m.FirstInputDelay != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.FirstInputDelay))))
+		i--
+		dAtA[i] = 0x11
+	}
+	if m.CumulativeLayoutShift != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.CumulativeLayoutShift))))
+		i--
+		dAtA[i] = 0x9
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *TransactionSpanCount) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TransactionSpanCount) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TransactionSpanCount) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Dropped != 0 {
+		i = encodeVarintTransaction(dAtA, i, uint64(m.Dropped))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.Started != 0 {
+		i = encodeVarintTransaction(dAtA, i, uint64(m.Started))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *TransactionSession) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TransactionSession) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TransactionSession) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Sequence != 0 {
+		i = encodeVarintTransaction(dAtA, i, uint64(m.Sequence))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintTransaction(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -497,23 +1221,81 @@ func (m *Transaction) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovTransaction(uint64(l))
 	}
-	if m.Timestamp != nil {
-		l = github_com_gogo_protobuf_types.SizeOfStdTime(*m.Timestamp)
-		n += 1 + l + sovTransaction(uint64(l))
-	}
-	if m.Duration != nil {
-		l = github_com_gogo_protobuf_types.SizeOfStdTime(*m.Duration)
-		n += 1 + l + sovTransaction(uint64(l))
-	}
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Timestamp)
+	n += 1 + l + sovTransaction(uint64(l))
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Duration)
+	n += 1 + l + sovTransaction(uint64(l))
 	if m.Sampled {
 		n += 2
 	}
 	if m.RepresentativeCount != 0 {
 		n += 9
 	}
+	if m.SpansStarted != 0 {
+		n += 1 + sovTransaction(uint64(m.SpansStarted))
+	}
+	if m.SpansDropped != 0 {
+		n += 1 + sovTransaction(uint64(m.SpansDropped))
+	}
 	if m.Context != nil {
 		l = m.Context.Size()
 		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if m.UserExperience != nil {
+		l = m.UserExperience.Size()
+		n += 2 + l + sovTransaction(uint64(l))
+	}
+	if m.Session != nil {
+		l = m.Session.Size()
+		n += 2 + l + sovTransaction(uint64(l))
+	}
+	if len(m.Marks) > 0 {
+		for k, v := range m.Marks {
+			_ = k
+			_ = v
+			l = 0
+			if v != nil {
+				l = v.Size()
+				l += 1 + sovTransaction(uint64(l))
+			}
+			mapEntrySize := 1 + len(k) + sovTransaction(uint64(len(k))) + l
+			n += mapEntrySize + 2 + sovTransaction(uint64(mapEntrySize))
+		}
+	}
+	if m.URL != nil {
+		l = m.URL.Size()
+		n += 2 + l + sovTransaction(uint64(l))
+	}
+	return n
+}
+
+func (m *TransactionMarks) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Marks) > 0 {
+		for _, e := range m.Marks {
+			l = e.Size()
+			n += 1 + l + sovTransaction(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *TransactionMark) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Key)
+	if l > 0 {
+		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if m.Value != 0 {
+		n += 9
 	}
 	return n
 }
@@ -524,15 +1306,94 @@ func (m *TransactionContext) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.Custom) > 0 {
-		for _, e := range m.Custom {
-			l = e.Size()
-			n += 1 + l + sovTransaction(uint64(l))
-		}
+	if m.Custom != nil {
+		l = m.Custom.Size()
+		n += 1 + l + sovTransaction(uint64(l))
 	}
 	if m.Experimental != nil {
 		l = m.Experimental.Size()
 		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if m.Message != nil {
+		l = m.Message.Size()
+		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if m.Page != nil {
+		l = m.Page.Size()
+		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if m.Request != nil {
+		l = m.Request.Size()
+		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if m.Response != nil {
+		l = m.Response.Size()
+		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if len(m.Labels) > 0 {
+		for k, v := range m.Labels {
+			_ = k
+			_ = v
+			l = 0
+			if v != nil {
+				l = v.Size()
+				l += 1 + sovTransaction(uint64(l))
+			}
+			mapEntrySize := 1 + len(k) + sovTransaction(uint64(len(k))) + l
+			n += mapEntrySize + 1 + sovTransaction(uint64(mapEntrySize))
+		}
+	}
+	return n
+}
+
+func (m *TransactionUserExperience) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.CumulativeLayoutShift != 0 {
+		n += 9
+	}
+	if m.FirstInputDelay != 0 {
+		n += 9
+	}
+	if m.Longtask != 0 {
+		n += 9
+	}
+	if m.TotalBlockingTime != 0 {
+		n += 9
+	}
+	return n
+}
+
+func (m *TransactionSpanCount) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Started != 0 {
+		n += 1 + sovTransaction(uint64(m.Started))
+	}
+	if m.Dropped != 0 {
+		n += 1 + sovTransaction(uint64(m.Dropped))
+	}
+	return n
+}
+
+func (m *TransactionSession) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ID)
+	if l > 0 {
+		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if m.Sequence != 0 {
+		n += 1 + sovTransaction(uint64(m.Sequence))
 	}
 	return n
 }
@@ -861,10 +1722,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Timestamp == nil {
-				m.Timestamp = new(time.Time)
-			}
-			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(m.Timestamp, dAtA[iNdEx:postIndex]); err != nil {
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Timestamp, dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -897,10 +1755,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Duration == nil {
-				m.Duration = new(time.Time)
-			}
-			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(m.Duration, dAtA[iNdEx:postIndex]); err != nil {
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Duration, dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -936,6 +1791,44 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 			iNdEx += 8
 			m.RepresentativeCount = float64(math.Float64frombits(v))
 		case 13:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SpansStarted", wireType)
+			}
+			m.SpansStarted = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.SpansStarted |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 14:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SpansDropped", wireType)
+			}
+			m.SpansDropped = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.SpansDropped |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 15:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Context", wireType)
 			}
@@ -971,6 +1864,420 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 16:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserExperience", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.UserExperience == nil {
+				m.UserExperience = &TransactionUserExperience{}
+			}
+			if err := m.UserExperience.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 17:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Session", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Session == nil {
+				m.Session = &TransactionSession{}
+			}
+			if err := m.Session.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 18:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Marks", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Marks == nil {
+				m.Marks = make(map[string]*TransactionMarks)
+			}
+			var mapkey string
+			var mapvalue *TransactionMarks
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowTransaction
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowTransaction
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowTransaction
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &TransactionMarks{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipTransaction(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Marks[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 19:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field URL", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.URL == nil {
+				m.URL = &URL{}
+			}
+			if err := m.URL.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTransaction(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TransactionMarks) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTransaction
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TransactionMarks: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TransactionMarks: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Marks", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Marks = append(m.Marks, &TransactionMark{})
+			if err := m.Marks[len(m.Marks)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTransaction(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TransactionMark) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTransaction
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TransactionMark: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TransactionMark: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Key = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Value = float64(math.Float64frombits(v))
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTransaction(dAtA[iNdEx:])
@@ -1050,8 +2357,10 @@ func (m *TransactionContext) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Custom = append(m.Custom, &KeyValue{})
-			if err := m.Custom[len(m.Custom)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if m.Custom == nil {
+				m.Custom = &types.Struct{}
+			}
+			if err := m.Custom.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1085,12 +2394,568 @@ func (m *TransactionContext) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Experimental == nil {
-				m.Experimental = &AnyValue{}
+				m.Experimental = &types.Value{}
 			}
 			if err := m.Experimental.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Message == nil {
+				m.Message = &Message{}
+			}
+			if err := m.Message.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Page", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Page == nil {
+				m.Page = &Page{}
+			}
+			if err := m.Page.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Request", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Request == nil {
+				m.Request = &Request{}
+			}
+			if err := m.Request.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Response", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Response == nil {
+				m.Response = &Response{}
+			}
+			if err := m.Response.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Labels", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Labels == nil {
+				m.Labels = make(map[string]*LabelValue)
+			}
+			var mapkey string
+			var mapvalue *LabelValue
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowTransaction
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowTransaction
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowTransaction
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &LabelValue{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipTransaction(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Labels[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTransaction(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TransactionUserExperience) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTransaction
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TransactionUserExperience: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TransactionUserExperience: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CumulativeLayoutShift", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.CumulativeLayoutShift = float64(math.Float64frombits(v))
+		case 2:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FirstInputDelay", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.FirstInputDelay = float64(math.Float64frombits(v))
+		case 3:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Longtask", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Longtask = float64(math.Float64frombits(v))
+		case 4:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TotalBlockingTime", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.TotalBlockingTime = float64(math.Float64frombits(v))
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTransaction(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TransactionSpanCount) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTransaction
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TransactionSpanCount: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TransactionSpanCount: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Started", wireType)
+			}
+			m.Started = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Started |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Dropped", wireType)
+			}
+			m.Dropped = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Dropped |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTransaction(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TransactionSession) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTransaction
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TransactionSession: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TransactionSession: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Sequence", wireType)
+			}
+			m.Sequence = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Sequence |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTransaction(dAtA[iNdEx:])

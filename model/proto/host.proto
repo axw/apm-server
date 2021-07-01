@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "apm-server/model/proto/os.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Host {
+  string hostname = 1;
+  string name = 2;
+  string architecture = 3;
+  string type = 4;
+  string ip = 5 [(gogoproto.customname)="IP"];
+  OperatingSystem os = 6 [(gogoproto.customname)="OS"];
+}

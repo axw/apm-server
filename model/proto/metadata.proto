@@ -2,116 +2,30 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
+import "apm-server/model/proto/agent.proto";
 import "apm-server/model/proto/common.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "apm-server/model/proto/client.proto";
+import "apm-server/model/proto/cloud.proto";
+import "apm-server/model/proto/container.proto";
+import "apm-server/model/proto/host.proto";
+import "apm-server/model/proto/kubernetes.proto";
+import "apm-server/model/proto/process.proto";
+import "apm-server/model/proto/service.proto";
+import "apm-server/model/proto/user.proto";
+import "apm-server/model/proto/useragent.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Metadata {
-  Service service = 1;
-  Process process = 2;
-  System system = 3;
-  User user = 4;
-  UserAgent user_agent = 5;
-  Client client = 6;
-  Cloud cloud = 7;
-  repeated Label labels = 8;
-}
-
-message Service {
-  string name = 1;
-  string version = 2;
-  string environment = 3;
-  Language language = 4;
-  Runtime runtime = 5;
-  Framework framework = 6;
-  Agent agent = 7;
-  ServiceNode node = 8;
-}
-
-message Language {
-  string name = 1;
-  string version = 2;
-}
-
-message Runtime {
-  string name = 1;
-  string version = 2;
-}
-
-message Framework {
-  string name = 1;
-  string version = 2;
-}
-
-message Agent {
-  string name = 1;
-  string version = 2;
-  string ephemeral_id = 3;
-}
-
-message ServiceNode {
-  string name = 1;
-}
-
-message Process {
-  int64 pid = 1; // TODO int32?
-  int64 ppid = 2;
-  string title = 3;
-  repeated string argv = 4;
-}
-
-message System {
-  string detected_hostname = 1;
-  string configured_hostname = 2;
-  string architecture = 3;
-  string ip = 4 [(gogoproto.customname)="IP"]; // TODO how to make this net.IP
-  Container container = 5;
+  Agent agent = 1;
+  Client client = 2;
+  Cloud cloud = 3;
+  Container container = 4;
+  Host host = 5;
   Kubernetes kubernetes = 6;
-}
-
-message Container {
-  string id = 1;
-}
-
-message Kubernetes {
-  string namespace = 1;
-  KubernetesNode node = 2;
-  KubernetesPod pod = 3;
-}
-
-message KubernetesNode {
-  string name = 1;
-}
-
-message KubernetesPod {
-  string name = 1;
-  string uid = 2;
-}
-
-message User {
-  string id = 1;
-  string email = 2;
-  string name = 3;
-  string domain = 4;
-}
-
-message UserAgent {
-  string original = 1;
-  string name = 2;
-}
-
-message Client {
-  string ip = 1 [(gogoproto.customname)="IP"];
-}
-
-message Cloud {
-  CloudAccount account = 1;
-  string availability_zone = 2;
-  // TODO the rest
-}
-
-message CloudAccount {
-  string id = 1;
-  string name = 2;
+  map<string, LabelValue> labels = 7;
+  Process process = 8;
+  Service service = 9;
+  User user = 10;
+  UserAgent user_agent = 11;
 }

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Client {
+  string ip = 1 [(gogoproto.customname)="IP"];
+  string domain = 2;
+  uint32 port = 3;
+}
