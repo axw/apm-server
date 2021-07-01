@@ -35,11 +35,11 @@ const (
 	modelpbPackage = "github.com/elastic/apm-server/model/modelpb"
 )
 
-var manualTypes = map[string]string{
-	"github.com/elastic/apm-server/model/modelpb.AnyValue":     "anyValue",
-	"github.com/elastic/apm-server/model/modelpb.ArrayValue":   "arrayValue",
-	"github.com/elastic/apm-server/model/modelpb.KeyValueList": "keyValueList",
-	"github.com/elastic/apm-server/model/modelpb.KeyValue":     "keyValue",
+var manualTypes = map[string]bool{
+	"github.com/elastic/apm-server/model/modelpb.AnyValue":     true,
+	"github.com/elastic/apm-server/model/modelpb.AnyValueList": true,
+	"github.com/elastic/apm-server/model/modelpb.KeyValueList": true,
+	"github.com/elastic/apm-server/model/modelpb.KeyValue":     true,
 }
 
 func main() {
@@ -93,7 +93,7 @@ import (
 				}
 				typeName := obj.(*types.TypeName)
 				named := typeName.Type().(*types.Named)
-				if _, ok := manualTypes[named.String()]; ok {
+				if isManualType(named) {
 					continue
 				}
 				switch {
@@ -153,28 +153,44 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 	// Define the wrapper struct type, with a "set" field which indicates
 	// that the struct value is non-zero, and fields for holding values
 	// for pointer fields in modelpb structs.
-	wrapper, _ := wrapperTypeName(named)
+	wrapper := wrapperTypeName(named)
 	if doc != nil {
 		for _, line := range doc.List {
 			fmt.Fprintln(buf, line.Text)
 		}
 	}
-	fmt.Fprintf(buf, "type %s struct {\n", wrapper)
-	fmt.Fprintf(buf, "  mixin%s\n", wrapper)
-	fmt.Fprintf(buf, "  pb modelpb.%s\n", named.Obj().Name())
-	fmt.Fprintf(buf, "  set bool\n")
 
+	var hasManual bool
 	numFields := structType.NumFields()
-	hasWrapperField := make([]bool, numFields)
+	isManualField := make([]bool, numFields)
 	for i := 0; i < numFields; i++ {
 		field := structType.Field(i)
 		if !field.Exported() {
 			continue
 		}
+		if isManualType(field.Type()) {
+			hasManual = true
+			isManualField[i] = true
+		}
+	}
+
+	fmt.Fprintf(buf, "type %s struct {\n", wrapper)
+	if hasManual {
+		fmt.Fprintf(buf, "  mixin%s\n", wrapper)
+	}
+	fmt.Fprintf(buf, "  pb modelpb.%s\n", named.Obj().Name())
+	fmt.Fprintf(buf, "  set bool\n")
+
+	hasWrapperField := make([]bool, numFields)
+	for i := 0; i < numFields; i++ {
+		field := structType.Field(i)
+		if !field.Exported() || isManualField[i] {
+			continue
+		}
 		switch fieldType := field.Type().(type) {
 		case *types.Pointer, *types.Slice:
 			hasWrapperField[i] = true
-			name, _ := wrapperTypeName(fieldType)
+			name := wrapperTypeName(fieldType)
 			fmt.Fprintf(buf, "  field%s %s\n", field.Name(), name)
 		}
 	}
@@ -183,16 +199,10 @@ func (g *generator) generateWrapperStruct(buf *bytes.Buffer, named *types.Named,
 	// Define setters.
 	for i := 0; i < numFields; i++ {
 		field := structType.Field(i)
-		if !field.Exported() {
+		if !field.Exported() || isManualField[i] {
 			continue
 		}
-		wrappedArg, manual := wrapperTypeName(field.Type())
-		if manual {
-			// TODO(axw) record that this type has a manual field,
-			// inform at the end of the script. Require a mixin only
-			// for these.
-			continue
-		}
+		wrappedArg := wrapperTypeName(field.Type())
 		fmt.Fprintf(buf, "func (w *%s) Set%s(v %s) {\n", wrapper, field.Name(), wrappedArg)
 		fmt.Fprintf(buf, "  w.set = true\n")
 		if !hasWrapperField[i] {
@@ -233,30 +243,44 @@ func generateCopyToProto(buf *bytes.Buffer, typ types.Type, wrapperField, pbFiel
 	}
 }
 
+// isManualType reports whether or not the message type ha
+// a manually defined wrapper.
+func isManualType(typ types.Type) bool {
+	switch typ := typ.(type) {
+	case *types.Named:
+		if typ.Obj().Pkg().Path() == modelpbPackage {
+			return manualTypes[typ.String()]
+		}
+		return false
+	case *types.Pointer:
+		return isManualType(typ.Elem())
+	case *types.Slice:
+		return isManualType(typ.Elem())
+	case *types.Basic:
+		return false
+	}
+	panic("unhandled type: " + typ.String())
+}
+
 // wrapperTypeName returns the name of the wrapper for typ, if it is wrapped,
-// or the original name otherwise; and a boolean indicating whether or not
-// the type is manually wrapped.
-func wrapperTypeName(typ types.Type) (string, bool) {
+// or the original name otherwise.
+func wrapperTypeName(typ types.Type) string {
 	switch typ := typ.(type) {
 	case *types.Named:
 		switch pkgpath := typ.Obj().Pkg().Path(); pkgpath {
 		case modelpbPackage:
-			if name, ok := manualTypes[typ.String()]; ok {
-				return name, true
-			}
-			return typ.Obj().Name(), false
+			return typ.Obj().Name()
 		case "time":
-			return types.TypeString(typ, (*types.Package).Name), false
+			return types.TypeString(typ, (*types.Package).Name)
 		default:
 			panic(fmt.Errorf("unhandled package path %q", pkgpath))
 		}
 	case *types.Pointer:
 		return wrapperTypeName(typ.Elem())
 	case *types.Slice:
-		name, manual := wrapperTypeName(typ.Elem())
-		return "[]" + name, manual
+		return "[]" + wrapperTypeName(typ.Elem())
 	case *types.Basic:
-		return typ.String(), false
+		return typ.String()
 	}
 	panic("unhandled type: " + typ.String())
 }

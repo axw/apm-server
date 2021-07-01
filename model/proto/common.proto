@@ -46,14 +46,14 @@ message AnyValue {
     bool bool_value = 2;
     int64 int_value = 3;
     double double_value = 4;
-    ArrayValue array_value = 5;
+    AnyValueList array_value = 5;
     KeyValueList kvlist_value = 6;
   }
 }
 
-// ArrayValue is a list of AnyValue messages. We need ArrayValue as a message
+// AnyValueList is a list of AnyValue messages. We need AnyValueList as a message
 // since oneof in AnyValue does not allow repeated fields.
-message ArrayValue {
+message AnyValueList {
   repeated AnyValue values = 1;
 }
 

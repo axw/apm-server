@@ -18,7 +18,6 @@ type Metadata struct {
 	fieldUserAgent UserAgent
 	fieldClient    Client
 	fieldCloud     Cloud
-	fieldLabels    []keyValue
 }
 
 func (w *Metadata) SetService(v Service) {
@@ -64,7 +63,6 @@ func (w *Metadata) SetCloud(v Cloud) {
 }
 
 type Service struct {
-	mixinService
 	pb             modelpb.Service
 	set            bool
 	fieldLanguage  Language
@@ -120,7 +118,6 @@ func (w *Service) SetNode(v ServiceNode) {
 }
 
 type Language struct {
-	mixinLanguage
 	pb  modelpb.Language
 	set bool
 }
@@ -136,7 +133,6 @@ func (w *Language) SetVersion(v string) {
 }
 
 type Runtime struct {
-	mixinRuntime
 	pb  modelpb.Runtime
 	set bool
 }
@@ -152,7 +148,6 @@ func (w *Runtime) SetVersion(v string) {
 }
 
 type Framework struct {
-	mixinFramework
 	pb  modelpb.Framework
 	set bool
 }
@@ -168,7 +163,6 @@ func (w *Framework) SetVersion(v string) {
 }
 
 type Agent struct {
-	mixinAgent
 	pb  modelpb.Agent
 	set bool
 }
@@ -189,7 +183,6 @@ func (w *Agent) SetEphemeralId(v string) {
 }
 
 type ServiceNode struct {
-	mixinServiceNode
 	pb  modelpb.ServiceNode
 	set bool
 }
@@ -200,7 +193,6 @@ func (w *ServiceNode) SetName(v string) {
 }
 
 type Process struct {
-	mixinProcess
 	pb        modelpb.Process
 	set       bool
 	fieldArgv []string
@@ -233,7 +225,6 @@ func (w *Process) SetArgv(v []string) {
 }
 
 type System struct {
-	mixinSystem
 	pb              modelpb.System
 	set             bool
 	fieldContainer  Container
@@ -273,7 +264,6 @@ func (w *System) SetKubernetes(v Kubernetes) {
 }
 
 type Container struct {
-	mixinContainer
 	pb  modelpb.Container
 	set bool
 }
@@ -284,7 +274,6 @@ func (w *Container) SetId(v string) {
 }
 
 type Kubernetes struct {
-	mixinKubernetes
 	pb        modelpb.Kubernetes
 	set       bool
 	fieldNode KubernetesNode
@@ -309,7 +298,6 @@ func (w *Kubernetes) SetPod(v KubernetesPod) {
 }
 
 type KubernetesNode struct {
-	mixinKubernetesNode
 	pb  modelpb.KubernetesNode
 	set bool
 }
@@ -320,7 +308,6 @@ func (w *KubernetesNode) SetName(v string) {
 }
 
 type KubernetesPod struct {
-	mixinKubernetesPod
 	pb  modelpb.KubernetesPod
 	set bool
 }
@@ -336,7 +323,6 @@ func (w *KubernetesPod) SetUid(v string) {
 }
 
 type User struct {
-	mixinUser
 	pb  modelpb.User
 	set bool
 }
@@ -362,7 +348,6 @@ func (w *User) SetDomain(v string) {
 }
 
 type UserAgent struct {
-	mixinUserAgent
 	pb  modelpb.UserAgent
 	set bool
 }
@@ -378,7 +363,6 @@ func (w *UserAgent) SetName(v string) {
 }
 
 type Client struct {
-	mixinClient
 	pb  modelpb.Client
 	set bool
 }
@@ -389,7 +373,6 @@ func (w *Client) SetIP(v string) {
 }
 
 type Cloud struct {
-	mixinCloud
 	pb           modelpb.Cloud
 	set          bool
 	fieldAccount CloudAccount
@@ -407,7 +390,6 @@ func (w *Cloud) SetAvailabilityZone(v string) {
 }
 
 type CloudAccount struct {
-	mixinCloudAccount
 	pb  modelpb.CloudAccount
 	set bool
 }
@@ -424,7 +406,6 @@ func (w *CloudAccount) SetName(v string) {
 
 // Transaction foo bar
 type Transaction struct {
-	mixinTransaction
 	pb             modelpb.Transaction
 	set            bool
 	fieldMetadata  Metadata
@@ -504,8 +485,6 @@ func (w *Transaction) SetContext(v TransactionContext) {
 
 type TransactionContext struct {
 	mixinTransactionContext
-	pb                modelpb.TransactionContext
-	set               bool
-	fieldCustom       []keyValue
-	fieldExperimental anyValue
+	pb  modelpb.TransactionContext
+	set bool
 }

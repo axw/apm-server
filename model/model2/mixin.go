@@ -1,59 +1,39 @@
 package model
 
-import (
-	"github.com/elastic/apm-server/model/modelpb"
-)
-
-type anyValue struct {
-	pb  modelpb.AnyValue
-	set bool
-}
-
-type keyValue struct {
-	pb modelpb.KeyValue
-}
-
 type mixinMetadata struct {
+	fieldLabels []Label
 }
 
-type mixinService struct {
+// SetLabels sets the labels on the metadata object.
+func (m *Metadata) SetLabels(labels ...Label) {
+	m.set = true
+	m.pb.Labels = m.pb.Labels[:0]
+	m.fieldLabels = append(m.fieldLabels[:0], labels...)
+	for i := range m.fieldLabels {
+		m.pb.Labels[i] = &m.fieldLabels[i].pb
+	}
 }
 
-type mixinServiceNode struct {
+// Labels returns the labels in m.
+func (m *Metadata) Labels() []Label {
+	return m.fieldLabels
 }
 
-type mixinLanguage struct {
+type mixinTransactionContext struct {
+	fieldCustom       keyValueList
+	fieldExperimental Any
 }
 
-type mixinRuntime struct {
+// SetCustom sets custom transaction context.
+func (t *TransactionContext) SetCustom(kv ...KeyValue) {
+	t.set = true
+	t.fieldCustom.set(kv...)
+	t.pb.Custom = t.fieldCustom.pb.Values
 }
 
-type mixinFramework struct {
-}
-
-type mixinAgent struct {
-}
-
-type mixinProcess struct {
-}
-
-type mixinSystem struct {
-}
-
-type mixinContainer struct {
-}
-
-type mixinKubernetes struct {
-}
-
-type mixinKubernetesNode struct {
-}
-
-type mixinKubernetesPod struct {
-}
-
-type mixinUser struct {
-}
-
-type mixinUserAgent struct {
+// SetExperimental sets experimental transaction context.
+func (t *TransactionContext) SetExperimental(v Any) {
+	t.set = true
+	t.fieldExperimental = v
+	t.pb.Experimental = &t.fieldExperimental.pb
 }
