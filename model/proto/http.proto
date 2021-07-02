@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message HTTP {
@@ -14,6 +16,8 @@ message HTTPRequest {
   string method = 1;
   string referrer = 2;
   HTTPRequestBody body = 3;
+  repeated HTTPHeader headers = 4;
+  repeated google.protobuf.Struct cookies = 5;
 }
 
 message HTTPRequestBody {
@@ -27,4 +31,9 @@ message HTTPResponse {
 
 message HTTPResponseBody {
   string content = 1;
+}
+
+message HTTPHeader {
+  string key = 1;
+  repeated string value = 2;
 }

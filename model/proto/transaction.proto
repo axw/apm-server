@@ -48,6 +48,7 @@ message Transaction {
   TransactionUserExperience user_experience = 16;
   TransactionSession session = 17;
   map<string, TransactionMarks> marks = 18;
+  
 }
 
 message TransactionMarks {
@@ -66,6 +67,7 @@ message TransactionContext {
   Message message = 4;
   HTTP http = 5 [(gogoproto.customname)="HTTP"];
   URL url = 6 [(gogoproto.customname)="URL"];
+  google.protobuf.Struct env = 7;
 }
 
 message TransactionUserExperience {
