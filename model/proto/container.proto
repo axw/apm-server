@@ -7,5 +7,13 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Container {
-  string id = 2 [(gogoproto.customname)="ID"];
+  string id = 1 [(gogoproto.customname)="ID"];
+  string name = 2;
+  string runtime = 3;
+  ContainerImage image = 4;
+}
+
+message ContainerImage {
+  string name = 1;
+  string tag = 2;
 }

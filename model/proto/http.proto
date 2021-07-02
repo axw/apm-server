@@ -16,21 +16,36 @@ message HTTPRequest {
   string method = 1;
   string referrer = 2;
   HTTPRequestBody body = 3;
+
+  // Non-ECS fields
+
   repeated HTTPHeader headers = 4;
   repeated google.protobuf.Struct cookies = 5;
 }
 
 message HTTPRequestBody {
   string content = 1;
+  int32 bytes = 2;
 }
 
 message HTTPResponse {
   int32 status_code = 1;
   HTTPResponseBody body = 2;
+
+  // Non-ECS fields
+
+  repeated HTTPHeader headers = 3;
+  bool finished = 4;
+  bool headers_sent = 5;
 }
 
 message HTTPResponseBody {
   string content = 1;
+  int32 bytes = 2;
+
+  // Non-ECS fields
+
+  int32 decoded_bytes = 3;
 }
 
 message HTTPHeader {
