@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "google/protobuf/duration.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Event {
+  string outcome = 1;
+  google.protobuf.Duration duration = 10 [(gogoproto.stdduration)=true,(gogoproto.nullable)=false];
+}

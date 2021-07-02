@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message DataStream {
+  string type = 1;
+  string dataset = 2;
+  string namespace = 3;
+}

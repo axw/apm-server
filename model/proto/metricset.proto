@@ -2,28 +2,14 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "apm-server/model/proto/metadata.proto";
-
-import "google/protobuf/timestamp.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Metricset {
-  Metadata metadata = 1 [(gogoproto.embed)=true,(gogoproto.nullable)=false];
-  google.protobuf.Timestamp timestamp = 2 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false,(gogoproto.jsontag)="@timestamp"];
   string name = 3;
   string timeseries_id = 4;
 
-  string event_outcome = 5;
-  string transaction_name = 6;
-  string transaction_type = 7;
-  string transaction_result = 8;
-  bool transaction_root = 9;
-  string span_type = 10;
-  string span_subtype = 11;
-  string desination_service_resource = 12;
-  repeated Metric metrics = 13;
+  //string desination_service_resource = 12;
+  //repeated Metric metrics = 13;
 }
 
 message Metric {

@@ -21,6 +21,7 @@ message HTTPRequest {
 
   repeated HTTPHeader headers = 4;
   repeated google.protobuf.Struct cookies = 5;
+  google.protobuf.Struct env = 6;
 }
 
 message HTTPRequestBody {

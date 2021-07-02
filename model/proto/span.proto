@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "apm-server/model/proto/message.proto";
+import "apm-server/model/proto/stackframe.proto";
+
+import "google/protobuf/struct.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Span {
+  string id = 1 [(gogoproto.customname)="ID"];
+
+  // Non-ECS fields
+
+  string type = 2;
+  string subtype = 3;
+  string action = 4;
+  bool sync = 5;
+  repeated Stackframe stacktrace = 6;
+
+  google.protobuf.Value experimental = 7;
+  Message message = 8;
+  SpanDatabase db = 9 [(gogoproto.customname)="DB"];
+}
+
+message SpanDestination {
+  SpanDestinationService service = 1;
+}
+
+message SpanDestinationService {
+  string resource = 1;
+}
+
+message SpanDatabase {
+  string instance = 1;
+  string statement = 2;
+  string type = 3;
+  string username = 4;
+  string link = 5;
+  int64 rows_affected = 6;
+}

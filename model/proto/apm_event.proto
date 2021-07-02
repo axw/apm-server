@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "apm-server/model/proto/agent.proto";
+import "apm-server/model/proto/child.proto";
+import "apm-server/model/proto/client.proto";
+import "apm-server/model/proto/cloud.proto";
+import "apm-server/model/proto/common.proto";
+import "apm-server/model/proto/container.proto";
+import "apm-server/model/proto/datastream.proto";
+import "apm-server/model/proto/error.proto";
+import "apm-server/model/proto/event.proto";
+import "apm-server/model/proto/host.proto";
+import "apm-server/model/proto/http.proto";
+import "apm-server/model/proto/kubernetes.proto";
+import "apm-server/model/proto/metricset.proto";
+import "apm-server/model/proto/parent.proto";
+import "apm-server/model/proto/process.proto";
+import "apm-server/model/proto/service.proto";
+import "apm-server/model/proto/session.proto";
+import "apm-server/model/proto/span.proto";
+import "apm-server/model/proto/trace.proto";
+import "apm-server/model/proto/transaction.proto";
+import "apm-server/model/proto/url.proto";
+import "apm-server/model/proto/user.proto";
+import "apm-server/model/proto/useragent.proto";
+
+import "google/protobuf/timestamp.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message APMEvent {
+  google.protobuf.Timestamp timestamp = 1 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false,(gogoproto.jsontag)="@timestamp"];
+  Event event = 2;
+  Trace trace = 3;
+  Transaction transaction = 4;
+  Span span = 5;
+  Metricset metricset = 6;
+  Parent parent = 7;
+  Agent agent = 8;
+  Client client = 9;
+  Cloud cloud = 10;
+  Container container = 11;
+  Host host = 12;
+  Kubernetes kubernetes = 13;
+  map<string, LabelValue> labels = 14;
+  Process process = 15;
+  Service service = 16;
+  Session session = 17;
+  User user = 18;
+  UserAgent user_agent = 19;
+  HTTP http = 20 [(gogoproto.customname)="HTTP"];
+  URL url = 21 [(gogoproto.customname)="URL"];
+  Child child = 22;
+  Error error = 23;
+  DataStream data_stream = 25;
+}

@@ -2,29 +2,20 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "apm-server/model/proto/metadata.proto";
 import "apm-server/model/proto/stackframe.proto";
-import "apm-server/model/proto/transaction.proto";
 
-import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Error {
-  Metadata metadata = 1 [(gogoproto.embed)=true,(gogoproto.nullable)=false];
-  google.protobuf.Timestamp timestamp = 2 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false,(gogoproto.jsontag)="@timestamp"];
-  string id = 3 [(gogoproto.customname)="ID"];
-  string trace_id = 4 [(gogoproto.customname)="TraceID"];
-  string parent_id = 5 [(gogoproto.customname)="ParentID"];
-  string transaction_id = 6 [(gogoproto.customname)="TransactionID"];
-  string culprit = 7;
-  bool transaction_sampled = 8;
-  string transaction_type= 9;
-  TransactionContext context = 10;
+  string id = 1 [(gogoproto.customname)="ID"];
+  string culprit = 2;
   ErrorException exception = 11;
   ErrorLog log = 12;
+
+  //TransactionContext context = 10;
 }
 
 message ErrorException {

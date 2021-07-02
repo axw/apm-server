@@ -8,19 +8,16 @@ option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Message {
   string body = 1;
-  repeated Header headers = 2;
+  repeated MessageHeader headers = 2;
   google.protobuf.Duration age = 3;
   MessageQueue queue = 4;
 }
 
-message MessageQueue {
-  string name = 1;
-}
-
-message Page {
-}
-
-message Header {
+message MessageHeader {
   string key = 1;
   repeated string value = 2;
+}
+
+message MessageQueue {
+  string name = 1;
 }

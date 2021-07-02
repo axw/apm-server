@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package elastic.apm.model;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "github.com/elastic/apm-server/model/modelpb";
+
+message Child {
+  repeated string id = 1 [(gogoproto.customname)="ID"];
+}

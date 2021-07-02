@@ -2,53 +2,35 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "apm-server/model/proto/common.proto";
-import "apm-server/model/proto/context.proto";
-import "apm-server/model/proto/metadata.proto";
-import "apm-server/model/proto/http.proto";
-import "apm-server/model/proto/url.proto";
+import "apm-server/model/proto/message.proto";
 
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Transaction {
-  // Categorisation fields.
+  string id = 1 [(gogoproto.customname)="ID"];
 
-  Metadata metadata = 1 [(gogoproto.embed)=true,(gogoproto.nullable)=false];
+  // Non-ECS fields
+
   string type = 2;
   string name = 3;
   string result = 4;
-  string outcome = 5;
+  bool sampled = 5 [(gogoproto.jsontag)="sampled"];
+  double representative_count = 6;
+  TransactionSpanCount span_count = 7;
+  google.protobuf.Struct custom = 8;
+  google.protobuf.Value experimental = 9;
+  TransactionUserExperience experience = 10;
+  map<string, TransactionMarks> marks = 11;
+  Message message = 12;
+  bool root = 13; // only populated by metricset
+}
 
-  // Unique instance identifier fields.
-
-  string id = 6 [(gogoproto.customname)="ID"];
-  string trace_id = 7 [(gogoproto.customname)="TraceID"];
-  string parent_id = 8 [(gogoproto.customname)="ParentID"];
-
-  // Time-related fields.
-
-  google.protobuf.Timestamp timestamp = 9 [(gogoproto.stdtime)=true,(gogoproto.nullable)=false,(gogoproto.jsontag)="@timestamp"];
-  google.protobuf.Duration duration = 10 [(gogoproto.stdduration)=true,(gogoproto.nullable)=false];
-
-  // Sampling-related fields.
-
-  bool sampled = 11 [(gogoproto.jsontag)="sampled"];
-  double representative_count = 12;
-
-  // Instance-specific context fields.
-
-  int32 spans_started = 13;
-  int32 spans_dropped = 14;
-  TransactionContext context = 15;
-  TransactionUserExperience user_experience = 16;
-  TransactionSession session = 17;
-  map<string, TransactionMarks> marks = 18;
-  
+message TransactionSpanCount {
+  int32 dropped = 1;
+  int32 started = 2;
 }
 
 message TransactionMarks {
@@ -60,29 +42,9 @@ message TransactionMark {
   double value = 2;
 }
 
-message TransactionContext {
-  map<string, LabelValue> labels = 1;
-  google.protobuf.Struct custom = 2;
-  google.protobuf.Value experimental = 3;
-  Message message = 4;
-  HTTP http = 5 [(gogoproto.customname)="HTTP"];
-  URL url = 6 [(gogoproto.customname)="URL"];
-  google.protobuf.Struct env = 7;
-}
-
 message TransactionUserExperience {
   double CumulativeLayoutShift = 1;
   double FirstInputDelay = 2;
   double Longtask = 3;
   double TotalBlockingTime = 4;
-}
-
-message TransactionSpanCount {
-  int32 started = 1;
-  int32 dropped = 2;
-}
-
-message TransactionSession {
-  string id = 1 [(gogoproto.customname)="ID"];
-  int64 sequence = 2;
 }
