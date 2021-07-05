@@ -5,11 +5,9 @@ package elastic.apm.model;
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Metricset {
-  string name = 3;
-  string timeseries_id = 4;
-
-  //string desination_service_resource = 12;
-  //repeated Metric metrics = 13;
+  string name = 1;
+  string timeseries_id = 2;
+  repeated Metric metrics = 3;
 }
 
 message Metric {
