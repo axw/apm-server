@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.27.1
 // 	protoc        v3.17.3
-// source: apm-server/model/proto/client.proto
+// source: client.proto
 
 package modelpb
 
@@ -33,7 +33,7 @@ type Client struct {
 func (x *Client) Reset() {
 	*x = Client{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_apm_server_model_proto_client_proto_msgTypes[0]
+		mi := &file_client_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -46,7 +46,7 @@ func (x *Client) String() string {
 func (*Client) ProtoMessage() {}
 
 func (x *Client) ProtoReflect() protoreflect.Message {
-	mi := &file_apm_server_model_proto_client_proto_msgTypes[0]
+	mi := &file_client_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +59,7 @@ func (x *Client) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Client.ProtoReflect.Descriptor instead.
 func (*Client) Descriptor() ([]byte, []int) {
-	return file_apm_server_model_proto_client_proto_rawDescGZIP(), []int{0}
+	return file_client_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Client) GetIp() string {
@@ -83,40 +83,38 @@ func (x *Client) GetPort() uint32 {
 	return 0
 }
 
-var File_apm_server_model_proto_client_proto protoreflect.FileDescriptor
+var File_client_proto protoreflect.FileDescriptor
 
-var file_apm_server_model_proto_client_proto_rawDesc = []byte{
-	0x0a, 0x23, 0x61, 0x70, 0x6d, 0x2d, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2f, 0x6d, 0x6f, 0x64,
-	0x65, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x2e,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x11, 0x65, 0x6c, 0x61, 0x73, 0x74, 0x69, 0x63, 0x2e, 0x61,
-	0x70, 0x6d, 0x2e, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x22, 0x44, 0x0a, 0x06, 0x43, 0x6c, 0x69, 0x65,
-	0x6e, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02,
-	0x69, 0x70, 0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x12, 0x0a, 0x04, 0x70, 0x6f,
-	0x72, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x70, 0x6f, 0x72, 0x74, 0x42, 0x2d,
-	0x5a, 0x2b, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x65, 0x6c, 0x61,
-	0x73, 0x74, 0x69, 0x63, 0x2f, 0x61, 0x70, 0x6d, 0x2d, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2f,
-	0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x70, 0x62, 0x62, 0x06, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x33,
+var file_client_proto_rawDesc = []byte{
+	0x0a, 0x0c, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x11,
+	0x65, 0x6c, 0x61, 0x73, 0x74, 0x69, 0x63, 0x2e, 0x61, 0x70, 0x6d, 0x2e, 0x6d, 0x6f, 0x64, 0x65,
+	0x6c, 0x22, 0x44, 0x0a, 0x06, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69,
+	0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x70, 0x12, 0x16, 0x0a, 0x06, 0x64,
+	0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x6f, 0x6d,
+	0x61, 0x69, 0x6e, 0x12, 0x12, 0x0a, 0x04, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x0d, 0x52, 0x04, 0x70, 0x6f, 0x72, 0x74, 0x42, 0x2d, 0x5a, 0x2b, 0x67, 0x69, 0x74, 0x68, 0x75,
+	0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x65, 0x6c, 0x61, 0x73, 0x74, 0x69, 0x63, 0x2f, 0x61, 0x70,
+	0x6d, 0x2d, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x2f, 0x6d,
+	0x6f, 0x64, 0x65, 0x6c, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
-	file_apm_server_model_proto_client_proto_rawDescOnce sync.Once
-	file_apm_server_model_proto_client_proto_rawDescData = file_apm_server_model_proto_client_proto_rawDesc
+	file_client_proto_rawDescOnce sync.Once
+	file_client_proto_rawDescData = file_client_proto_rawDesc
 )
 
-func file_apm_server_model_proto_client_proto_rawDescGZIP() []byte {
-	file_apm_server_model_proto_client_proto_rawDescOnce.Do(func() {
-		file_apm_server_model_proto_client_proto_rawDescData = protoimpl.X.CompressGZIP(file_apm_server_model_proto_client_proto_rawDescData)
+func file_client_proto_rawDescGZIP() []byte {
+	file_client_proto_rawDescOnce.Do(func() {
+		file_client_proto_rawDescData = protoimpl.X.CompressGZIP(file_client_proto_rawDescData)
 	})
-	return file_apm_server_model_proto_client_proto_rawDescData
+	return file_client_proto_rawDescData
 }
 
-var file_apm_server_model_proto_client_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_apm_server_model_proto_client_proto_goTypes = []interface{}{
+var file_client_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_client_proto_goTypes = []interface{}{
 	(*Client)(nil), // 0: elastic.apm.model.Client
 }
-var file_apm_server_model_proto_client_proto_depIdxs = []int32{
+var file_client_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -124,13 +122,13 @@ var file_apm_server_model_proto_client_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_apm_server_model_proto_client_proto_init() }
-func file_apm_server_model_proto_client_proto_init() {
-	if File_apm_server_model_proto_client_proto != nil {
+func init() { file_client_proto_init() }
+func file_client_proto_init() {
+	if File_client_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_apm_server_model_proto_client_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_client_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Client); i {
 			case 0:
 				return &v.state
@@ -147,18 +145,18 @@ func file_apm_server_model_proto_client_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_apm_server_model_proto_client_proto_rawDesc,
+			RawDescriptor: file_client_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_apm_server_model_proto_client_proto_goTypes,
-		DependencyIndexes: file_apm_server_model_proto_client_proto_depIdxs,
-		MessageInfos:      file_apm_server_model_proto_client_proto_msgTypes,
+		GoTypes:           file_client_proto_goTypes,
+		DependencyIndexes: file_client_proto_depIdxs,
+		MessageInfos:      file_client_proto_msgTypes,
 	}.Build()
-	File_apm_server_model_proto_client_proto = out.File
-	file_apm_server_model_proto_client_proto_rawDesc = nil
-	file_apm_server_model_proto_client_proto_goTypes = nil
-	file_apm_server_model_proto_client_proto_depIdxs = nil
+	File_client_proto = out.File
+	file_client_proto_rawDesc = nil
+	file_client_proto_goTypes = nil
+	file_client_proto_depIdxs = nil
 }

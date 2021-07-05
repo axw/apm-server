@@ -73,6 +73,7 @@ require (
 	golang.org/x/tools v0.1.3
 	google.golang.org/genproto v0.0.0-20210614182748-5b3b54cad159 // indirect
 	google.golang.org/grpc v1.38.0
+	google.golang.org/protobuf v1.26.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools/gotestsum v0.6.0
 	honnef.co/go/tools v0.2.0
