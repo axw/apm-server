@@ -2,12 +2,10 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Process {
-  int64 pid = 1 [(gogoproto.customname)="PID"];
+  int64 pid = 1;
   string title = 2;
   repeated string args = 3;
   string command_line = 4;

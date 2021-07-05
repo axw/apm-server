@@ -1,13 +1,18 @@
 set -xe
 
-DOCKER_PROTOBUF=otel/build-protobuf:0.2.1
+DOCKER_IMAGE=elastic/apm-server-protoc
+docker build -t $DOCKER_IMAGE $PWD/script/genproto
+
 PROTOC="docker run --rm -u $(id -u) -v$PWD:$PWD -v$PWD:/src/github.com/elastic/apm-server -w$PWD \
-	$DOCKER_PROTOBUF -I/usr/include/github.com/gogo/protobuf -I/src/github.com/elastic"
+	$DOCKER_IMAGE protoc -I/src/github.com/elastic"
 
-GOGO_OPTIONS=\
-Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types
-
-$PROTOC --gogofaster_out=$GOGO_OPTIONS:/src /src/github.com/elastic/apm-server/model/proto/*.proto
+for x in model/proto/*.proto; do
+  $PROTOC \
+    --go_out=. \
+    --go_opt=module=github.com/elastic/apm-server \
+    --go_vtproto_out=. \
+    --go_vtproto_opt=features=marshal+unmarshal+size \
+    --go_vtproto_opt=module=github.com/elastic/apm-server \
+    -I /src/github.com/elastic/apm-server/model/proto \
+    /src/github.com/elastic/apm-server/$x
+done

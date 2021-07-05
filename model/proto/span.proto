@@ -2,16 +2,15 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "apm-server/model/proto/message.proto";
-import "apm-server/model/proto/stackframe.proto";
+import "message.proto";
+import "stackframe.proto";
 
 import "google/protobuf/struct.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Span {
-  string id = 1 [(gogoproto.customname)="ID"];
+  string id = 1;
 
   // Non-ECS fields
 
@@ -23,7 +22,7 @@ message Span {
 
   google.protobuf.Value experimental = 7;
   Message message = 8;
-  SpanDatabase db = 9 [(gogoproto.customname)="DB"];
+  SpanDatabase db = 9;
 }
 
 message SpanDestination {

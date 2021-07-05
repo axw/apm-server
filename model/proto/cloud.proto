@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Cloud {
@@ -19,12 +17,12 @@ message Cloud {
 }
 
 message CloudAccount {
-  string id = 1 [(gogoproto.customname)="ID"];
+  string id = 1;
   string name = 2;
 }
 
 message CloudInstance {
-  string id = 1 [(gogoproto.customname)="ID"];
+  string id = 1;
   string name = 2;
 }
 
@@ -33,7 +31,7 @@ message CloudMachine {
 }
 
 message CloudProject {
-  string id = 1 [(gogoproto.customname)="ID"];
+  string id = 1;
   string name = 2;
 }
 

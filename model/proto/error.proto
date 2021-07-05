@@ -2,15 +2,14 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "apm-server/model/proto/stackframe.proto";
+import "stackframe.proto";
 
 import "google/protobuf/struct.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Error {
-  string id = 1 [(gogoproto.customname)="ID"];
+  string id = 1;
   string culprit = 2;
   ErrorException exception = 11;
   ErrorLog log = 12;

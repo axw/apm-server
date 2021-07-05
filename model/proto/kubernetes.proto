@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Kubernetes {
@@ -18,5 +16,5 @@ message KubernetesNode {
 
 message KubernetesPod {
   string name = 1;
-  string uid = 2 [(gogoproto.customname)="UID"];
+  string uid = 2;
 }

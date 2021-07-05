@@ -2,22 +2,21 @@ syntax = "proto3";
 
 package elastic.apm.model;
 
-import "apm-server/model/proto/message.proto";
+import "message.proto";
 
 import "google/protobuf/struct.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option go_package = "github.com/elastic/apm-server/model/modelpb";
 
 message Transaction {
-  string id = 1 [(gogoproto.customname)="ID"];
+  string id = 1;
 
   // Non-ECS fields
 
   string type = 2;
   string name = 3;
   string result = 4;
-  bool sampled = 5 [(gogoproto.jsontag)="sampled"];
+  optional bool sampled = 5;
   double representative_count = 6;
   TransactionSpanCount span_count = 7;
   google.protobuf.Struct custom = 8;
