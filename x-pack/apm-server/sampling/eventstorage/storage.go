@@ -18,8 +18,7 @@ const (
 	// over time, to avoid misinterpreting historical data.
 	entryMetaTraceSampled   = 's'
 	entryMetaTraceUnsampled = 'u'
-	entryMetaTransaction    = 'T'
-	entryMetaSpan           = 'S'
+	entryMetaEvent          = 'e'
 )
 
 // ErrNotFound is returned by by the Storage.IsTraceSampled method,
@@ -36,10 +35,8 @@ type Storage struct {
 
 // Codec provides methods for encoding and decoding events.
 type Codec interface {
-	DecodeSpan([]byte, *model.Span) error
-	DecodeTransaction([]byte, *model.Transaction) error
-	EncodeSpan(*model.Span) ([]byte, error)
-	EncodeTransaction(*model.Transaction) ([]byte, error)
+	DecodeEvent([]byte, *model.APMEvent) error
+	EncodeEvent(*model.APMEvent) ([]byte, error)
 }
 
 // New returns a new Storage using db and codec.
@@ -133,30 +130,19 @@ func (rw *ReadWriter) IsTraceSampled(traceID string) (bool, error) {
 	return item.UserMeta() == entryMetaTraceSampled, nil
 }
 
-// WriteTransaction writes tx to storage.
+// WriteEvent writes an event to storage.
 //
-// WriteTransaction may return before the write is committed to storage.
+// WriteEvent may return before the write is committed to storage.
 // Call Flush to ensure the write is committed.
-func (rw *ReadWriter) WriteTransaction(tx *model.Transaction) error {
-	key := append(append([]byte(tx.TraceID), ':'), tx.ID...)
-	data, err := rw.s.codec.EncodeTransaction(tx)
+func (rw *ReadWriter) WriteEvent(event *model.APMEvent) error {
+	id := getEventID(event)
+	traceID := getTraceID(event)
+	key := append(append([]byte(traceID), ':'), id...)
+	data, err := rw.s.codec.EncodeEvent(event)
 	if err != nil {
 		return err
 	}
-	return rw.writeEvent(key[:], data, entryMetaTransaction)
-}
-
-// WriteSpan writes span to storage.
-//
-// WriteSpan may return before the write is committed to storage.
-// Call Flush to ensure the write is committed.
-func (rw *ReadWriter) WriteSpan(span *model.Span) error {
-	key := append(append([]byte(span.TraceID), ':'), span.ID...)
-	data, err := rw.s.codec.EncodeSpan(span)
-	if err != nil {
-		return err
-	}
-	return rw.writeEvent(key[:], data, entryMetaSpan)
+	return rw.writeEvent(key[:], data, entryMetaEvent)
 }
 
 func (rw *ReadWriter) writeEvent(key, value []byte, meta byte) error {
@@ -175,15 +161,9 @@ func (rw *ReadWriter) writeEntry(e *badger.Entry) error {
 	return rw.txn.SetEntry(e)
 }
 
-// DeleteTransaction deletes the transaction from storage.
-func (rw *ReadWriter) DeleteTransaction(tx *model.Transaction) error {
-	key := append(append([]byte(tx.TraceID), ':'), tx.ID...)
-	return rw.txn.Delete(key)
-}
-
-// DeleteSpan deletes the span from storage.
-func (rw *ReadWriter) DeleteSpan(span *model.Span) error {
-	key := append(append([]byte(span.TraceID), ':'), span.ID...)
+// DeleteEvent deletes the event from storage.
+func (rw *ReadWriter) DeleteEvent(event *model.APMEvent) error {
+	key := append(append([]byte(getTraceID(event)), ':'), getEventID(event)...)
 	return rw.txn.Delete(key)
 }
 
@@ -215,26 +195,38 @@ func (rw *ReadWriter) ReadEvents(traceID string, out *model.Batch) error {
 			continue
 		}
 		switch item.UserMeta() {
-		case entryMetaTransaction:
-			var event model.Transaction
+		case entryMetaEvent:
+			var event model.APMEvent
 			if err := item.Value(func(data []byte) error {
-				return rw.s.codec.DecodeTransaction(data, &event)
+				return rw.s.codec.DecodeEvent(data, &event)
 			}); err != nil {
 				return err
 			}
-			*out = append(*out, model.APMEvent{Transaction: &event})
-		case entryMetaSpan:
-			var event model.Span
-			if err := item.Value(func(data []byte) error {
-				return rw.s.codec.DecodeSpan(data, &event)
-			}); err != nil {
-				return err
-			}
-			*out = append(*out, model.APMEvent{Span: &event})
+			*out = append(*out, event)
 		default:
 			// Unknown entry meta: ignore.
 			continue
 		}
 	}
 	return nil
+}
+
+func getEventID(event *model.APMEvent) string {
+	switch {
+	case event.Transaction != nil:
+		return event.Transaction.ID
+	case event.Span != nil:
+		return event.Span.ID
+	}
+	return ""
+}
+
+func getTraceID(event *model.APMEvent) string {
+	switch {
+	case event.Transaction != nil:
+		return event.Transaction.TraceID
+	case event.Span != nil:
+		return event.Span.TraceID
+	}
+	return ""
 }

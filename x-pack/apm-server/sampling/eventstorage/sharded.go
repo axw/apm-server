@@ -56,14 +56,10 @@ func (s *ShardedReadWriter) ReadEvents(traceID string, out *model.Batch) error {
 	return s.getWriter(traceID).ReadEvents(traceID, out)
 }
 
-// WriteTransaction calls Writer.WriteTransaction, using a sharded, locked, Writer.
-func (s *ShardedReadWriter) WriteTransaction(tx *model.Transaction) error {
-	return s.getWriter(tx.TraceID).WriteTransaction(tx)
-}
-
-// WriteSpan calls Writer.WriteSpan, using a sharded, locked, Writer.
-func (s *ShardedReadWriter) WriteSpan(span *model.Span) error {
-	return s.getWriter(span.TraceID).WriteSpan(span)
+// WriteEvent calls Writer.WriteEvent, using a sharded, locked, Writer.
+func (s *ShardedReadWriter) WriteEvent(event *model.APMEvent) error {
+	traceID := getTraceID(event)
+	return s.getWriter(traceID).WriteEvent(event)
 }
 
 // WriteTraceSampled calls Writer.WriteTraceSampled, using a sharded, locked, Writer.
@@ -76,14 +72,10 @@ func (s *ShardedReadWriter) IsTraceSampled(traceID string) (bool, error) {
 	return s.getWriter(traceID).IsTraceSampled(traceID)
 }
 
-// DeleteTransaction calls Writer.DeleteTransaction, using a sharded, locked, Writer.
-func (s *ShardedReadWriter) DeleteTransaction(tx *model.Transaction) error {
-	return s.getWriter(tx.TraceID).DeleteTransaction(tx)
-}
-
-// DeleteSpan calls Writer.DeleteSpan, using a sharded, locked, Writer.
-func (s *ShardedReadWriter) DeleteSpan(span *model.Span) error {
-	return s.getWriter(span.TraceID).DeleteSpan(span)
+// DeleteEvent calls Writer.DeleteEvent, using a sharded, locked, Writer.
+func (s *ShardedReadWriter) DeleteEvent(event *model.APMEvent) error {
+	traceID := getTraceID(event)
+	return s.getWriter(traceID).DeleteEvent(event)
 }
 
 // getWriter returns an event storage writer for the given trace ID.
@@ -120,16 +112,10 @@ func (rw *lockedReadWriter) ReadEvents(traceID string, out *model.Batch) error {
 	return rw.rw.ReadEvents(traceID, out)
 }
 
-func (rw *lockedReadWriter) WriteTransaction(tx *model.Transaction) error {
+func (rw *lockedReadWriter) WriteEvent(event *model.APMEvent) error {
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
-	return rw.rw.WriteTransaction(tx)
-}
-
-func (rw *lockedReadWriter) WriteSpan(s *model.Span) error {
-	rw.mu.Lock()
-	defer rw.mu.Unlock()
-	return rw.rw.WriteSpan(s)
+	return rw.rw.WriteEvent(event)
 }
 
 func (rw *lockedReadWriter) WriteTraceSampled(traceID string, sampled bool) error {
@@ -144,14 +130,8 @@ func (rw *lockedReadWriter) IsTraceSampled(traceID string) (bool, error) {
 	return rw.rw.IsTraceSampled(traceID)
 }
 
-func (rw *lockedReadWriter) DeleteTransaction(tx *model.Transaction) error {
+func (rw *lockedReadWriter) DeleteEvent(event *model.APMEvent) error {
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
-	return rw.rw.DeleteTransaction(tx)
-}
-
-func (rw *lockedReadWriter) DeleteSpan(span *model.Span) error {
-	rw.mu.Lock()
-	defer rw.mu.Unlock()
-	return rw.rw.DeleteSpan(span)
+	return rw.rw.DeleteEvent(event)
 }
