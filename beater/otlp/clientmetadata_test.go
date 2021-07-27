@@ -35,27 +35,27 @@ func TestSetClientMetadata(t *testing.T) {
 
 	for _, test := range []struct {
 		ctx        context.Context
-		meta       model.Metadata
+		meta       model.APMEvent
 		expectedIP net.IP
 	}{{
 		ctx:        context.Background(),
-		meta:       model.Metadata{Client: model.Client{IP: ip1234}},
+		meta:       model.APMEvent{Client: model.Client{IP: ip1234}},
 		expectedIP: ip1234,
 	}, {
 		ctx: context.Background(),
-		meta: model.Metadata{
+		meta: model.APMEvent{
 			Agent:  model.Agent{Name: "iOS/swift"},
 			Client: model.Client{IP: ip1234},
 		},
 		expectedIP: ip1234,
 	}, {
 		ctx:  context.Background(),
-		meta: model.Metadata{Agent: model.Agent{Name: "iOS/swift"}},
+		meta: model.APMEvent{Agent: model.Agent{Name: "iOS/swift"}},
 	}, {
 		ctx: interceptors.ContextWithClientMetadata(context.Background(), interceptors.ClientMetadataValues{
 			SourceIP: ip5678,
 		}),
-		meta:       model.Metadata{Agent: model.Agent{Name: "iOS/swift"}},
+		meta:       model.APMEvent{Agent: model.Agent{Name: "iOS/swift"}},
 		expectedIP: ip5678,
 	}} {
 		metaCopy := test.meta

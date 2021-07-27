@@ -29,7 +29,7 @@ import (
 // user's device.
 //
 // Client metadata is extracted from ctx, injected by interceptors.ClientMetadata.
-func SetClientMetadata(ctx context.Context, meta *model.Metadata) error {
+func SetClientMetadata(ctx context.Context, meta *model.APMEvent) error {
 	if meta.Agent.Name != "iOS/swift" {
 		// This is not an event from an agent we would consider to be
 		// running on an end-user device.
