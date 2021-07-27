@@ -147,38 +147,38 @@ func (c *Consumer) convertResourceSpans(
 	logger *logp.Logger,
 	out *model.Batch,
 ) {
-	var metadata model.Metadata
+	var baseEvent model.APMEvent
 	var timeDelta time.Duration
 	resource := resourceSpans.Resource()
-	translateResourceMetadata(resource, &metadata)
+	translateResourceMetadata(resource, &baseEvent)
 	if exportTimestamp, ok := exportTimestamp(resource); ok {
 		timeDelta = receiveTimestamp.Sub(exportTimestamp)
 	}
 	instrumentationLibrarySpans := resourceSpans.InstrumentationLibrarySpans()
 	for i := 0; i < instrumentationLibrarySpans.Len(); i++ {
 		c.convertInstrumentationLibrarySpans(
-			instrumentationLibrarySpans.At(i), metadata, timeDelta, logger, out,
+			instrumentationLibrarySpans.At(i), baseEvent, timeDelta, logger, out,
 		)
 	}
 }
 
 func (c *Consumer) convertInstrumentationLibrarySpans(
 	in pdata.InstrumentationLibrarySpans,
-	metadata model.Metadata,
+	baseEvent model.APMEvent,
 	timeDelta time.Duration,
 	logger *logp.Logger,
 	out *model.Batch,
 ) {
 	otelSpans := in.Spans()
 	for i := 0; i < otelSpans.Len(); i++ {
-		c.convertSpan(otelSpans.At(i), in.InstrumentationLibrary(), metadata, timeDelta, logger, out)
+		c.convertSpan(otelSpans.At(i), in.InstrumentationLibrary(), baseEvent, timeDelta, logger, out)
 	}
 }
 
 func (c *Consumer) convertSpan(
 	otelSpan pdata.Span,
 	otelLibrary pdata.InstrumentationLibrary,
-	metadata model.Metadata,
+	baseEvent model.APMEvent,
 	timeDelta time.Duration,
 	logger *logp.Logger,
 	out *model.Batch,
@@ -200,18 +200,15 @@ func (c *Consumer) convertSpan(
 	}
 	timestamp := startTime.Add(timeDelta)
 
-	var transaction *model.Transaction
-	var span *model.Span
-
-	name := otelSpan.Name()
 	// Message consumption results in either a transaction or a span based
 	// on whether the consumption is active or passive. Otel spans
 	// currently do not have the metadata to make this distinction. For
 	// now, we assume that the majority of consumption is passive, and
 	// therefore start a transaction whenever span kind == consumer.
+	name := otelSpan.Name()
+	event := baseEvent
 	if root || otelSpan.Kind() == pdata.SpanKindServer || otelSpan.Kind() == pdata.SpanKindConsumer {
-		transaction = &model.Transaction{
-			Metadata:  metadata,
+		event.Transaction = &model.Transaction{
 			ID:        spanID,
 			ParentID:  parentID,
 			TraceID:   traceID,
@@ -221,11 +218,9 @@ func (c *Consumer) convertSpan(
 			Sampled:   true,
 			Outcome:   spanStatusOutcome(otelSpan.Status()),
 		}
-		translateTransaction(otelSpan, otelLibrary, metadata, &transactionBuilder{Transaction: transaction})
-		*out = append(*out, model.APMEvent{Transaction: transaction})
+		translateTransaction(otelSpan, otelLibrary, &event, &transactionBuilder{Transaction: event.Transaction})
 	} else {
-		span = &model.Span{
-			Metadata:  metadata,
+		event.Span = &model.Span{
 			ID:        spanID,
 			ParentID:  parentID,
 			TraceID:   traceID,
@@ -234,23 +229,23 @@ func (c *Consumer) convertSpan(
 			Name:      name,
 			Outcome:   spanStatusOutcome(otelSpan.Status()),
 		}
-		translateSpan(otelSpan, metadata, span)
-		*out = append(*out, model.APMEvent{Span: span})
+		translateSpan(otelSpan, &event, event.Span)
 	}
+	*out = append(*out, event)
 
 	events := otelSpan.Events()
 	for i := 0; i < events.Len(); i++ {
-		convertSpanEvent(logger, events.At(i), metadata, transaction, span, timeDelta, out)
+		convertSpanEvent(logger, events.At(i), event, timeDelta, out)
 	}
 }
 
 func translateTransaction(
 	span pdata.Span,
 	library pdata.InstrumentationLibrary,
-	metadata model.Metadata,
+	event *model.APMEvent,
 	tx *transactionBuilder,
 ) {
-	isJaeger := strings.HasPrefix(metadata.Agent.Name, "Jaeger")
+	isJaeger := strings.HasPrefix(event.Agent.Name, "Jaeger")
 	labels := make(common.MapStr)
 
 	var (
@@ -328,9 +323,9 @@ func translateTransaction(
 			case conventions.AttributeHTTPServerName:
 				httpHostName = stringval
 			case conventions.AttributeHTTPClientIP:
-				tx.Metadata.Client.IP = net.ParseIP(stringval)
+				event.Client.IP = net.ParseIP(stringval)
 			case conventions.AttributeHTTPUserAgent:
-				tx.Metadata.UserAgent.Original = stringval
+				event.UserAgent.Original = stringval
 			case "http.remote_addr":
 				// NOTE(axw) this is non-standard, sent by opentelemetry-go's othttp.
 				// It's semanticall equivalent to net.peer.ip+port. Standard attributes
@@ -356,15 +351,15 @@ func translateTransaction(
 			case conventions.AttributeNetHostName:
 				netHostName = stringval
 			case AttributeNetworkType:
-				tx.Metadata.Network.ConnectionType = stringval
+				event.Network.ConnectionType = stringval
 			case AttributeNetworkMCC:
-				tx.Metadata.Network.Carrier.MCC = stringval
+				event.Network.Carrier.MCC = stringval
 			case AttributeNetworkMNC:
-				tx.Metadata.Network.Carrier.MNC = stringval
+				event.Network.Carrier.MNC = stringval
 			case AttributeNetworkCarrierName:
-				tx.Metadata.Network.Carrier.Name = stringval
+				event.Network.Carrier.Name = stringval
 			case AttributeNetworkICC:
-				tx.Metadata.Network.Carrier.ICC = stringval
+				event.Network.Carrier.ICC = stringval
 
 			// messaging.*
 			case "message_bus.destination", conventions.AttributeMessagingDestination:
@@ -386,7 +381,7 @@ func translateTransaction(
 			case "type":
 				tx.Type = stringval
 			case conventions.AttributeServiceVersion:
-				tx.Metadata.Service.Version = stringval
+				event.Service.Version = stringval
 			case "component":
 				component = stringval
 				fallthrough
@@ -417,7 +412,7 @@ func translateTransaction(
 			if httpHost == "" {
 				httpHost = netHostName
 				if httpHost == "" {
-					httpHost = metadata.Host.Hostname
+					httpHost = event.Host.Hostname
 				}
 			}
 			if httpHost != "" && netHostPort > 0 {
@@ -441,10 +436,10 @@ func translateTransaction(
 	}
 
 	if netPeerIP != "" {
-		tx.Metadata.Client.IP = net.ParseIP(netPeerIP)
+		event.Client.IP = net.ParseIP(netPeerIP)
 	}
-	tx.Metadata.Client.Port = netPeerPort
-	tx.Metadata.Client.Domain = netPeerName
+	event.Client.Port = netPeerPort
+	event.Client.Domain = netPeerName
 
 	if samplerType != (pdata.AttributeValue{}) {
 		// The client has reported its sampling rate, so we can use it to extrapolate span metrics.
@@ -456,11 +451,14 @@ func translateTransaction(
 	if tx.Result == "" {
 		tx.Result = spanStatusResult(span.Status())
 	}
-	tx.setFramework(library.Name(), library.Version())
+	if name := library.Name(); name != "" {
+		event.Service.Framework.Name = name
+		event.Service.Framework.Version = library.Version()
+	}
 	tx.Labels = labels
 }
 
-func translateSpan(span pdata.Span, metadata model.Metadata, event *model.Span) {
+func translateSpan(span pdata.Span, metadata *model.APMEvent, event *model.Span) {
 	isJaeger := strings.HasPrefix(metadata.Agent.Name, "Jaeger")
 	labels := make(common.MapStr)
 
@@ -580,15 +578,15 @@ func translateSpan(span pdata.Span, metadata model.Metadata, event *model.Span) 
 					netPeerName = stringval
 				}
 			case AttributeNetworkType:
-				event.Metadata.Network.ConnectionType = stringval
+				metadata.Network.ConnectionType = stringval
 			case AttributeNetworkMCC:
-				event.Metadata.Network.Carrier.MCC = stringval
+				metadata.Network.Carrier.MCC = stringval
 			case AttributeNetworkMNC:
-				event.Metadata.Network.Carrier.MNC = stringval
+				metadata.Network.Carrier.MNC = stringval
 			case AttributeNetworkCarrierName:
-				event.Metadata.Network.Carrier.Name = stringval
+				metadata.Network.Carrier.Name = stringval
 			case AttributeNetworkICC:
-				event.Metadata.Network.Carrier.ICC = stringval
+				metadata.Network.Carrier.ICC = stringval
 
 			// messaging.*
 			case "message_bus.destination", conventions.AttributeMessagingDestination:
@@ -789,13 +787,12 @@ func parseSamplerAttributes(samplerType, samplerParam pdata.AttributeValue, repr
 func convertSpanEvent(
 	logger *logp.Logger,
 	event pdata.SpanEvent,
-	metadata model.Metadata,
-	transaction *model.Transaction, span *model.Span, // only one is non-nil
+	parent model.APMEvent, // either span or transaction
 	timeDelta time.Duration,
 	out *model.Batch,
 ) {
 	var e *model.Error
-	isJaeger := strings.HasPrefix(metadata.Agent.Name, "Jaeger")
+	isJaeger := strings.HasPrefix(parent.Agent.Name, "Jaeger")
 	if isJaeger {
 		e = convertJaegerErrorSpanEvent(logger, event)
 	} else {
@@ -837,17 +834,21 @@ func convertSpanEvent(
 		e = convertOpenTelemetryExceptionSpanEvent(
 			timestamp,
 			exceptionType, exceptionMessage, exceptionStacktrace,
-			exceptionEscaped, metadata.Service.Language.Name,
+			exceptionEscaped, parent.Service.Language.Name,
 		)
 	}
 	if e != nil {
-		if transaction != nil {
-			addTransactionCtxToErr(transaction, e)
+		event := parent
+		event.Error = e
+		if parent.Transaction != nil {
+			event.Transaction = nil
+			addTransactionCtxToErr(parent.Transaction, event.Error)
 		}
-		if span != nil {
-			addSpanCtxToErr(span, e)
+		if parent.Span != nil {
+			event.Span = nil
+			addSpanCtxToErr(parent.Span, event.Error)
 		}
-		*out = append(*out, model.APMEvent{Error: e})
+		*out = append(*out, event)
 	}
 }
 
@@ -909,7 +910,6 @@ func convertJaegerErrorSpanEvent(logger *logp.Logger, event pdata.SpanEvent) *mo
 }
 
 func addTransactionCtxToErr(transaction *model.Transaction, err *model.Error) {
-	err.Metadata = transaction.Metadata
 	err.TransactionID = transaction.ID
 	err.TraceID = transaction.TraceID
 	err.ParentID = transaction.ID
@@ -922,7 +922,6 @@ func addTransactionCtxToErr(transaction *model.Transaction, err *model.Error) {
 }
 
 func addSpanCtxToErr(span *model.Span, err *model.Error) {
-	err.Metadata = span.Metadata
 	err.TraceID = span.TraceID
 	err.ParentID = span.ID
 }

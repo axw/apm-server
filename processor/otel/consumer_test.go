@@ -120,7 +120,7 @@ func TestHTTPTransactionURL(t *testing.T) {
 	test := func(t *testing.T, expected *model.URL, attrs map[string]pdata.AttributeValue) {
 		t.Helper()
 		tx := transformTransactionWithAttributes(t, attrs)
-		assert.Equal(t, expected, tx.URL)
+		assert.Equal(t, expected, tx.Transaction.URL)
 	}
 
 	t.Run("scheme_host_target", func(t *testing.T) {
@@ -228,7 +228,7 @@ func TestHTTPSpanURL(t *testing.T) {
 	test := func(t *testing.T, expected string, attrs map[string]pdata.AttributeValue) {
 		t.Helper()
 		span := transformSpanWithAttributes(t, attrs)
-		assert.Equal(t, expected, span.URL)
+		assert.Equal(t, expected, span.Span.URL)
 	}
 
 	t.Run("host.url", func(t *testing.T) {
@@ -273,8 +273,8 @@ func TestHTTPSpanDestination(t *testing.T) {
 	test := func(t *testing.T, expectedDestination *model.Destination, expectedDestinationService *model.DestinationService, attrs map[string]pdata.AttributeValue) {
 		t.Helper()
 		span := transformSpanWithAttributes(t, attrs)
-		assert.Equal(t, expectedDestination, span.Destination)
-		assert.Equal(t, expectedDestinationService, span.DestinationService)
+		assert.Equal(t, expectedDestination, span.Span.Destination)
+		assert.Equal(t, expectedDestinationService, span.Span.DestinationService)
 	}
 
 	t.Run("url_default_port_specified", func(t *testing.T) {
@@ -352,10 +352,10 @@ func TestHTTPTransactionRequestSocketRemoteAddr(t *testing.T) {
 		attrs["http.method"] = pdata.NewAttributeValueString("POST")
 
 		tx := transformTransactionWithAttributes(t, attrs)
-		require.NotNil(t, tx.HTTP)
-		require.NotNil(t, tx.HTTP.Request)
-		require.NotNil(t, tx.HTTP.Request.Socket)
-		assert.Equal(t, expected, tx.HTTP.Request.Socket.RemoteAddress)
+		require.NotNil(t, tx.Transaction.HTTP)
+		require.NotNil(t, tx.Transaction.HTTP.Request)
+		require.NotNil(t, tx.Transaction.HTTP.Request.Socket)
+		assert.Equal(t, expected, tx.Transaction.HTTP.Request.Socket.RemoteAddress)
 	}
 
 	t.Run("net.peer.ip_port", func(t *testing.T) {
@@ -385,28 +385,28 @@ func TestHTTPTransactionFlavor(t *testing.T) {
 	tx := transformTransactionWithAttributes(t, map[string]pdata.AttributeValue{
 		"http.flavor": pdata.NewAttributeValueString("1.1"),
 	})
-	assert.Equal(t, "1.1", tx.HTTP.Version)
+	assert.Equal(t, "1.1", tx.Transaction.HTTP.Version)
 }
 
 func TestHTTPTransactionUserAgent(t *testing.T) {
 	tx := transformTransactionWithAttributes(t, map[string]pdata.AttributeValue{
 		"http.user_agent": pdata.NewAttributeValueString("Foo/bar (baz)"),
 	})
-	assert.Equal(t, model.UserAgent{Original: "Foo/bar (baz)"}, tx.Metadata.UserAgent)
+	assert.Equal(t, model.UserAgent{Original: "Foo/bar (baz)"}, tx.UserAgent)
 }
 
 func TestHTTPTransactionClientIP(t *testing.T) {
 	tx := transformTransactionWithAttributes(t, map[string]pdata.AttributeValue{
 		"http.client_ip": pdata.NewAttributeValueString("256.257.258.259"),
 	})
-	assert.Equal(t, net.ParseIP("256.257.258.259"), tx.Metadata.Client.IP)
+	assert.Equal(t, net.ParseIP("256.257.258.259"), tx.Client.IP)
 }
 
 func TestHTTPTransactionStatusCode(t *testing.T) {
 	tx := transformTransactionWithAttributes(t, map[string]pdata.AttributeValue{
 		"http.status_code": pdata.NewAttributeValueInt(200),
 	})
-	assert.Equal(t, 200, tx.HTTP.Response.StatusCode)
+	assert.Equal(t, 200, tx.Transaction.HTTP.Response.StatusCode)
 }
 
 func TestDatabaseSpan(t *testing.T) {
@@ -424,32 +424,32 @@ func TestDatabaseSpan(t *testing.T) {
 		"net.transport":        pdata.NewAttributeValueString("IP.TCP"),
 	})
 
-	assert.Equal(t, "db", span.Type)
-	assert.Equal(t, "mysql", span.Subtype)
-	assert.Equal(t, "", span.Action)
+	assert.Equal(t, "db", span.Span.Type)
+	assert.Equal(t, "mysql", span.Span.Subtype)
+	assert.Equal(t, "", span.Span.Action)
 
 	assert.Equal(t, &model.DB{
 		Instance:  "ShopDb",
 		Statement: "SELECT * FROM orders WHERE order_id = 'o4711'",
 		Type:      "mysql",
 		UserName:  "billing_user",
-	}, span.DB)
+	}, span.Span.DB)
 
 	assert.Equal(t, common.MapStr{
 		"db_connection_string": connectionString,
 		"net_transport":        "IP.TCP",
-	}, span.Labels)
+	}, span.Span.Labels)
 
 	assert.Equal(t, &model.Destination{
 		Address: "shopdb.example.com",
 		Port:    3306,
-	}, span.Destination)
+	}, span.Span.Destination)
 
 	assert.Equal(t, &model.DestinationService{
 		Type:     "db",
 		Name:     "mysql",
 		Resource: "mysql",
-	}, span.DestinationService)
+	}, span.Span.DestinationService)
 }
 
 func TestInstrumentationLibrary(t *testing.T) {
@@ -460,10 +460,10 @@ func TestInstrumentationLibrary(t *testing.T) {
 	otelSpan.SetTraceID(pdata.NewTraceID([16]byte{1}))
 	otelSpan.SetSpanID(pdata.NewSpanID([8]byte{2}))
 	events := transformTraces(t, traces)
-	tx := events[0].Transaction
+	tx := events[0]
 
-	assert.Equal(t, "library-name", tx.Metadata.Service.Framework.Name)
-	assert.Equal(t, "1.2.3", tx.Metadata.Service.Framework.Version)
+	assert.Equal(t, "library-name", tx.Service.Framework.Name)
+	assert.Equal(t, "1.2.3", tx.Service.Framework.Version)
 }
 
 func TestRPCTransaction(t *testing.T) {
@@ -476,14 +476,14 @@ func TestRPCTransaction(t *testing.T) {
 		"net.peer.ip":          pdata.NewAttributeValueString("10.20.30.40"),
 		"net.peer.port":        pdata.NewAttributeValueInt(123),
 	})
-	assert.Equal(t, "request", tx.Type)
-	assert.Equal(t, "Unavailable", tx.Result)
+	assert.Equal(t, "request", tx.Transaction.Type)
+	assert.Equal(t, "Unavailable", tx.Transaction.Result)
 	assert.Empty(t, tx.Labels)
 	assert.Equal(t, model.Client{
 		Domain: "peer_name",
 		IP:     net.ParseIP("10.20.30.40"),
 		Port:   123,
-	}, tx.Metadata.Client)
+	}, tx.Client)
 }
 
 func TestRPCSpan(t *testing.T) {
@@ -495,18 +495,18 @@ func TestRPCSpan(t *testing.T) {
 		"net.peer.ip":          pdata.NewAttributeValueString("10.20.30.40"),
 		"net.peer.port":        pdata.NewAttributeValueInt(123),
 	})
-	assert.Equal(t, "external", span.Type)
-	assert.Equal(t, "grpc", span.Subtype)
+	assert.Equal(t, "external", span.Span.Type)
+	assert.Equal(t, "grpc", span.Span.Subtype)
 	assert.Empty(t, span.Labels)
 	assert.Equal(t, &model.Destination{
 		Address: "10.20.30.40",
 		Port:    123,
-	}, span.Destination)
+	}, span.Span.Destination)
 	assert.Equal(t, &model.DestinationService{
 		Type:     "external",
 		Name:     "10.20.30.40:123",
 		Resource: "10.20.30.40:123",
-	}, span.DestinationService)
+	}, span.Span.DestinationService)
 }
 
 func TestMessagingTransaction(t *testing.T) {
@@ -519,11 +519,11 @@ func TestMessagingTransaction(t *testing.T) {
 		// as a transaction.
 		s.SetParentSpanID(pdata.NewSpanID([8]byte{3}))
 	})
-	assert.Equal(t, "messaging", tx.Type)
+	assert.Equal(t, "messaging", tx.Transaction.Type)
 	assert.Empty(t, tx.Labels)
 	assert.Equal(t, &model.Message{
 		QueueName: "myQueue",
-	}, tx.Message)
+	}, tx.Transaction.Message)
 }
 
 func TestMessagingSpan(t *testing.T) {
@@ -535,19 +535,19 @@ func TestMessagingSpan(t *testing.T) {
 	}, func(s pdata.Span) {
 		s.SetKind(pdata.SpanKindProducer)
 	})
-	assert.Equal(t, "messaging", span.Type)
-	assert.Equal(t, "kafka", span.Subtype)
-	assert.Equal(t, "send", span.Action)
+	assert.Equal(t, "messaging", span.Span.Type)
+	assert.Equal(t, "kafka", span.Span.Subtype)
+	assert.Equal(t, "send", span.Span.Action)
 	assert.Empty(t, span.Labels)
 	assert.Equal(t, &model.Destination{
 		Address: "10.20.30.40",
 		Port:    123,
-	}, span.Destination)
+	}, span.Span.Destination)
 	assert.Equal(t, &model.DestinationService{
 		Type:     "messaging",
 		Name:     "kafka",
 		Resource: "kafka/myTopic",
-	}, span.DestinationService)
+	}, span.Span.DestinationService)
 }
 
 func TestSpanNetworkAttributes(t *testing.T) {
@@ -570,8 +570,8 @@ func TestSpanNetworkAttributes(t *testing.T) {
 			ICC:  "UK",
 		},
 	}
-	assert.Equal(t, expected, tx.Metadata.Network)
-	assert.Equal(t, expected, span.Metadata.Network)
+	assert.Equal(t, expected, tx.Network)
+	assert.Equal(t, expected, span.Network)
 }
 
 func TestArrayLabels(t *testing.T) {
@@ -590,7 +590,7 @@ func TestArrayLabels(t *testing.T) {
 	assert.Equal(t, common.MapStr{
 		"bool_array":   []interface{}{false, true},
 		"string_array": []interface{}{"string1", "string2"},
-	}, tx.Labels)
+	}, tx.Transaction.Labels)
 
 	span := transformSpanWithAttributes(t, map[string]pdata.AttributeValue{
 		"string_array": stringArray,
@@ -599,7 +599,7 @@ func TestArrayLabels(t *testing.T) {
 	assert.Equal(t, common.MapStr{
 		"bool_array":   []interface{}{false, true},
 		"string_array": []interface{}{"string1", "string2"},
-	}, span.Labels)
+	}, span.Span.Labels)
 }
 
 func TestConsumeTracesExportTimestamp(t *testing.T) {
@@ -1051,8 +1051,8 @@ func TestJaegerServiceVersion(t *testing.T) {
 	require.NoError(t, (&otel.Consumer{Processor: recorder}).ConsumeTraces(context.Background(), traces))
 
 	batch := *batches[0]
-	assert.Equal(t, "process_tag_value", batch[0].Transaction.Metadata.Service.Version)
-	assert.Equal(t, "span_tag_value", batch[1].Transaction.Metadata.Service.Version)
+	assert.Equal(t, "process_tag_value", batch[0].Service.Version)
+	assert.Equal(t, "span_tag_value", batch[1].Service.Version)
 }
 
 func TestTracesLogging(t *testing.T) {
@@ -1200,7 +1200,7 @@ func jaegerKeyValue(k string, v interface{}) jaegermodel.KeyValue {
 	return kv
 }
 
-func transformTransactionWithAttributes(t *testing.T, attrs map[string]pdata.AttributeValue, configFns ...func(pdata.Span)) *model.Transaction {
+func transformTransactionWithAttributes(t *testing.T, attrs map[string]pdata.AttributeValue, configFns ...func(pdata.Span)) model.APMEvent {
 	traces, spans := newTracesSpans()
 	otelSpan := spans.Spans().AppendEmpty()
 	otelSpan.SetTraceID(pdata.NewTraceID([16]byte{1}))
@@ -1210,10 +1210,10 @@ func transformTransactionWithAttributes(t *testing.T, attrs map[string]pdata.Att
 	}
 	otelSpan.Attributes().InitFromMap(attrs)
 	events := transformTraces(t, traces)
-	return events[0].Transaction
+	return events[0]
 }
 
-func transformSpanWithAttributes(t *testing.T, attrs map[string]pdata.AttributeValue, configFns ...func(pdata.Span)) *model.Span {
+func transformSpanWithAttributes(t *testing.T, attrs map[string]pdata.AttributeValue, configFns ...func(pdata.Span)) model.APMEvent {
 	traces, spans := newTracesSpans()
 	otelSpan := spans.Spans().AppendEmpty()
 	otelSpan.SetTraceID(pdata.NewTraceID([16]byte{1}))
@@ -1224,10 +1224,10 @@ func transformSpanWithAttributes(t *testing.T, attrs map[string]pdata.AttributeV
 	}
 	otelSpan.Attributes().InitFromMap(attrs)
 	events := transformTraces(t, traces)
-	return events[0].Span
+	return events[0]
 }
 
-func transformTransactionSpanEvents(t *testing.T, language string, spanEvents ...pdata.SpanEvent) (*model.Transaction, []*model.Error) {
+func transformTransactionSpanEvents(t *testing.T, language string, spanEvents ...pdata.SpanEvent) (transaction model.APMEvent, errors []model.APMEvent) {
 	traces, spans := newTracesSpans()
 	traces.ResourceSpans().At(0).Resource().Attributes().InitFromMap(map[string]pdata.AttributeValue{
 		conventions.AttributeTelemetrySDKLanguage: pdata.NewAttributeValueString(language),
@@ -1241,11 +1241,9 @@ func transformTransactionSpanEvents(t *testing.T, language string, spanEvents ..
 	events := transformTraces(t, traces)
 	require.NotEmpty(t, events)
 
-	errors := make([]*model.Error, len(events)-1)
-	for i, event := range events[1:] {
-		errors[i] = event.Error
-	}
-	return events[0].Transaction, errors
+	errors = make([]model.APMEvent, len(events)-1)
+	copy(errors, events[1:])
+	return events[0], errors
 }
 
 func transformTraces(t *testing.T, traces pdata.Traces) model.Batch {

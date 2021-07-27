@@ -30,14 +30,6 @@ type transactionBuilder struct {
 	httpScheme string
 }
 
-func (tx *transactionBuilder) setFramework(name, version string) {
-	if name == "" {
-		return
-	}
-	tx.Metadata.Service.Framework.Name = name
-	tx.Metadata.Service.Framework.Version = version
-}
-
 func (tx *transactionBuilder) setHTTPMethod(method string) {
 	tx.ensureHTTPRequest()
 	tx.HTTP.Request.Method = method
