@@ -92,7 +92,12 @@ func (e *APMEvent) appendBeatEvent(ctx context.Context, out []beat.Event) []beat
 	fields.maybeSetMapStr("process", e.Process.fields())
 	fields.maybeSetMapStr("user", e.User.fields())
 	if client := e.Client.fields(); fields.maybeSetMapStr("client", client) {
-		fields.set("source", client)
+		// We copy client to source for transactions and errors.
+		if e.Transaction != nil || e.Error != nil {
+			// TODO(axw) once we are using Fleet for ingest pipeline
+			// management, move this to an ingest pipeline.
+			fields.set("source", client)
+		}
 	}
 	fields.maybeSetMapStr("user_agent", e.UserAgent.fields())
 	fields.maybeSetMapStr("container", e.Container.fields())
