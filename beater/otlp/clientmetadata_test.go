@@ -58,11 +58,11 @@ func TestSetClientMetadata(t *testing.T) {
 		meta:       model.APMEvent{Agent: model.Agent{Name: "iOS/swift"}},
 		expectedIP: ip5678,
 	}} {
-		metaCopy := test.meta
-		err := otlp.SetClientMetadata(test.ctx, &metaCopy)
+		batch := model.Batch{test.meta}
+		err := otlp.SetClientMetadata(test.ctx, &batch)
 		assert.NoError(t, err)
 
 		test.meta.Client.IP = test.expectedIP
-		assert.Equal(t, test.meta, metaCopy)
+		assert.Equal(t, test.meta, batch[0])
 	}
 }
