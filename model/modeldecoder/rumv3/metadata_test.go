@@ -32,29 +32,6 @@ import (
 	"github.com/elastic/beats/v7/libbeat/common"
 )
 
-/*
-func isEventField(key string) bool {
-	switch key {
-	case
-		return true
-	}
-	return false
-}
-*/
-
-/*
-func initializedInputMetadata(values *modeldecodertest.Values) (metadata, model.APMEvent) {
-	var input metadata
-	var out model.APMEvent
-	modeldecodertest.SetStructValues(&input, values)
-	mapToMetadataModel(&input, &out)
-	modeldecodertest.SetStructValues(&out, values, func(key string, field, value reflect.Value) bool {
-		return isUnmappedMetadataField(key) || isEventField(key)
-	})
-	return input, out
-}
-*/
-
 // initializedMetadata returns a model.APMEvent populated with default values
 // in the metadata-derived fields.
 func initializedMetadata() model.APMEvent {
