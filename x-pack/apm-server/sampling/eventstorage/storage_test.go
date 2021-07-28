@@ -46,7 +46,7 @@ func testWriteEvents(t *testing.T, numSpans int) {
 		TraceID: traceUUID.String(),
 		ID:      transactionUUID.String(),
 	}
-	assert.NoError(t, readWriter.WriteTransaction(transaction))
+	assert.NoError(t, readWriter.WriteEvent(&model.APMEvent{Transaction: transaction}))
 
 	var spanEvents []model.APMEvent
 	for i := 0; i < numSpans; i++ {
@@ -55,7 +55,7 @@ func testWriteEvents(t *testing.T, numSpans int) {
 			TraceID: traceUUID.String(),
 			ID:      spanUUID.String(),
 		}
-		assert.NoError(t, readWriter.WriteSpan(span))
+		assert.NoError(t, readWriter.WriteEvent(&model.APMEvent{Span: span}))
 		spanEvents = append(spanEvents, model.APMEvent{Span: span})
 	}
 	afterWrite := time.Now()
@@ -92,22 +92,12 @@ func testWriteEvents(t *testing.T, numSpans int) {
 				return !expiryTime.After(upperBound)
 			}, "expiry time %s is after %s", expiryTime, upperBound)
 
-			var value interface{}
-			switch meta := item.UserMeta(); meta {
-			case 'T':
-				tx := &model.Transaction{}
-				recorded = append(recorded, model.APMEvent{Transaction: tx})
-				value = tx
-			case 'S':
-				span := &model.Span{}
-				recorded = append(recorded, model.APMEvent{Span: span})
-				value = span
-			default:
-				t.Fatalf("invalid meta %q", meta)
-			}
+			var event model.APMEvent
+			require.Equal(t, "e", string(item.UserMeta()))
 			assert.NoError(t, item.Value(func(data []byte) error {
-				return json.Unmarshal(data, value)
+				return json.Unmarshal(data, &event)
 			}))
+			recorded = append(recorded, event)
 		}
 		return nil
 	}))
@@ -172,14 +162,14 @@ func TestReadEvents(t *testing.T) {
 	traceID := [...]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	require.NoError(t, db.Update(func(txn *badger.Txn) error {
 		key := append(traceID[:], ":12345678"...)
-		value := []byte(`{"name":"transaction"}`)
-		if err := txn.SetEntry(badger.NewEntry(key, value).WithMeta('T')); err != nil {
+		value := []byte(`{"transaction":{"name":"transaction"}}`)
+		if err := txn.SetEntry(badger.NewEntry(key, value).WithMeta('e')); err != nil {
 			return err
 		}
 
 		key = append(traceID[:], ":87654321"...)
-		value = []byte(`{"name":"span"}`)
-		if err := txn.SetEntry(badger.NewEntry(key, value).WithMeta('S')); err != nil {
+		value = []byte(`{"span":{"name":"span"}}`)
+		if err := txn.SetEntry(badger.NewEntry(key, value).WithMeta('e')); err != nil {
 			return err
 		}
 
@@ -187,7 +177,7 @@ func TestReadEvents(t *testing.T) {
 		// proceeding colon, causing it to be ignored.
 		key = append(traceID[:], "nocolon"...)
 		value = []byte(`not-json`)
-		if err := txn.SetEntry(badger.NewEntry(key, value).WithMeta('S')); err != nil {
+		if err := txn.SetEntry(badger.NewEntry(key, value).WithMeta('e')); err != nil {
 			return err
 		}
 
@@ -220,7 +210,7 @@ func TestReadEventsDecodeError(t *testing.T) {
 	require.NoError(t, db.Update(func(txn *badger.Txn) error {
 		key := append(traceID[:], ":12345678"...)
 		value := []byte(`wat`)
-		if err := txn.SetEntry(badger.NewEntry(key, value).WithMeta('T')); err != nil {
+		if err := txn.SetEntry(badger.NewEntry(key, value).WithMeta('e')); err != nil {
 			return err
 		}
 		return nil

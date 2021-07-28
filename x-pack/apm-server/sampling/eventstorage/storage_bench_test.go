@@ -34,7 +34,7 @@ func BenchmarkWriteTransaction(b *testing.B) {
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			if err := readWriter.WriteTransaction(transaction); err != nil {
+			if err := readWriter.WriteEvent(&model.APMEvent{Transaction: transaction}); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -72,7 +72,7 @@ func BenchmarkReadEvents(b *testing.B) {
 						TraceID: traceUUID.String(),
 						ID:      transactionUUID.String(),
 					}
-					if err := readWriter.WriteTransaction(transaction); err != nil {
+					if err := readWriter.WriteEvent(&model.APMEvent{Transaction: transaction}); err != nil {
 						b.Fatal(err)
 					}
 				}
@@ -156,7 +156,5 @@ func BenchmarkIsTraceSampled(b *testing.B) {
 
 type nopCodec struct{}
 
-func (nopCodec) DecodeSpan(data []byte, span *model.Span) error             { return nil }
-func (nopCodec) DecodeTransaction(data []byte, tx *model.Transaction) error { return nil }
-func (nopCodec) EncodeSpan(*model.Span) ([]byte, error)                     { return nil, nil }
-func (nopCodec) EncodeTransaction(*model.Transaction) ([]byte, error)       { return nil, nil }
+func (nopCodec) DecodeEvent(data []byte, event *model.APMEvent) error { return nil }
+func (nopCodec) EncodeEvent(*model.APMEvent) ([]byte, error)          { return nil, nil }

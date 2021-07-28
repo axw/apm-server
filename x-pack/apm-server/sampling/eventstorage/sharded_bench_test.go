@@ -25,7 +25,7 @@ func BenchmarkShardedWriteTransactionUncontended(b *testing.B) {
 		traceUUID := uuid.Must(uuid.NewV4())
 		transaction := &model.Transaction{TraceID: traceUUID.String(), ID: traceUUID.String()}
 		for pb.Next() {
-			if err := sharded.WriteTransaction(transaction); err != nil {
+			if err := sharded.WriteEvent(&model.APMEvent{Transaction: transaction}); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -47,7 +47,7 @@ func BenchmarkShardedWriteTransactionContended(b *testing.B) {
 		transactionUUID := uuid.Must(uuid.NewV4())
 		transaction := &model.Transaction{TraceID: traceUUID.String(), ID: transactionUUID.String()}
 		for pb.Next() {
-			if err := sharded.WriteTransaction(transaction); err != nil {
+			if err := sharded.WriteEvent(&model.APMEvent{Transaction: transaction}); err != nil {
 				b.Fatal(err)
 			}
 		}
