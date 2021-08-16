@@ -18,52 +18,38 @@
 package kibanatest
 
 import (
-	"context"
-	"io"
-	"io/ioutil"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"net/url"
+	"net/http/httptest"
+	"testing"
 
-	"github.com/pkg/errors"
-
-	"github.com/elastic/apm-server/convert"
+	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/kibana"
 
 	"github.com/elastic/beats/v7/libbeat/common"
+	libbeatkibana "github.com/elastic/beats/v7/libbeat/kibana"
 )
 
-// MockKibanaClient implements the kibana.Client interface for testing purposes
-type MockKibanaClient struct {
-	code      int
-	body      map[string]interface{}
-	v         common.Version
-	connected bool
-}
-
-// Send returns a mock http.Response based on parameters used to init the MockKibanaClient instance
-func (c *MockKibanaClient) Send(_ context.Context, method, extraPath string, params url.Values,
-	headers http.Header, body io.Reader) (*http.Response, error) {
-	resp := http.Response{StatusCode: c.code, Body: ioutil.NopCloser(convert.ToReader(c.body))}
-	if resp.StatusCode == http.StatusBadGateway {
-		return nil, errors.New("testerror")
+// MockKibana provides a kibana.Client which responds to Send requests with
+// the given response code and body, and reports the given version.
+func MockKibana(t testing.TB, respCode int, respBody map[string]interface{}, v common.Version) kibana.Client {
+	encodedBody, err := json.Marshal(respBody)
+	if err != nil {
+		panic(err)
 	}
-	return &resp, nil
-}
-
-// GetVersion returns a mock version based on parameters used to init the MockKibanaClient instance
-func (c *MockKibanaClient) GetVersion(context.Context) (common.Version, error) {
-	return c.v, nil
-}
-
-// SupportsVersion returns whether or not mock client is compatible with given version
-func (c *MockKibanaClient) SupportsVersion(_ context.Context, v *common.Version, _ bool) (bool, error) {
-	if !c.connected {
-		return false, errors.New("unable to retrieve connection to Kibana")
-	}
-	return v.LessThanOrEqual(true, &c.v), nil
-}
-
-// MockKibana provides a fake connection for unit tests
-func MockKibana(respCode int, respBody map[string]interface{}, v common.Version, connected bool) kibana.Client {
-	return &MockKibanaClient{code: respCode, body: respBody, v: v, connected: connected}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(fmt.Sprintf(`{"version":{"number":%q}}`, v.String())))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(respCode)
+		w.Write(encodedBody)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return kibana.NewConnectingClient(&config.KibanaConfig{
+		Enabled:      true,
+		ClientConfig: libbeatkibana.ClientConfig{Host: srv.URL},
+	})
 }

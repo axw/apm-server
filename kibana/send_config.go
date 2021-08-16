@@ -21,11 +21,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/go-ucfg"
@@ -56,12 +54,6 @@ func SendConfig(ctx context.Context, client Client, conf *ucfg.Config) error {
 		}
 		resp, err := client.Send(ctx, http.MethodPost, kibanaConfigUploadPath, nil, nil, bytes.NewReader(b))
 		if err != nil {
-			if errors.Is(err, errNotConnected) {
-				// Not connected to kibana, wait and try again.
-				time.Sleep(15 * time.Second)
-				continue
-			}
-
 			// Are there other kinds of recoverable errors?
 			return err
 		}

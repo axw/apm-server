@@ -15,141 +15,135 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package kibana
+package kibana_test
 
 import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/elastic/apm-server/beater/config"
+	"github.com/elastic/apm-server/kibana"
+	"github.com/elastic/apm-server/kibana/kibanatest"
 
 	"github.com/elastic/beats/v7/libbeat/common"
-	"github.com/elastic/beats/v7/libbeat/kibana"
-
-	"github.com/elastic/apm-server/convert"
+	libbeatkibana "github.com/elastic/beats/v7/libbeat/kibana"
 )
 
-func TestNewConnectingClientFrom(t *testing.T) {
-	c := NewConnectingClient(mockCfg)
-	require.NotNil(t, c)
-	assert.Nil(t, c.(*ConnectingClient).client)
-	assert.Equal(t, mockCfg, c.(*ConnectingClient).cfg)
-}
-
 func TestNewConnectingClientWithAPIKey(t *testing.T) {
-	cfg := &config.KibanaConfig{
+	requests := make(chan *http.Request)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case requests <- r:
+		}
+	}))
+	defer srv.Close()
+
+	// Creating a client will cause a request to be sent to query the Kibana version.
+	kibana.NewConnectingClient(&config.KibanaConfig{
 		Enabled: true,
 		APIKey:  "foo-id:bar-apikey",
-		ClientConfig: kibana.ClientConfig{
-			Host:          "localhost:5601",
-			Username:      "elastic",
-			Password:      "secret",
-			IgnoreVersion: true,
+		ClientConfig: libbeatkibana.ClientConfig{
+			Host:     srv.URL,
+			Username: "elastic",
+			Password: "secret",
 		},
+	})
+
+	select {
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for request")
+	case req := <-requests:
+		assert.Nil(t, req.URL.User) // no username/password
+		assert.Equal(t, "ApiKey Zm9vLWlkOmJhci1hcGlrZXk=", req.Header.Get("Authorization"))
 	}
-	conn := &ConnectingClient{cfg: cfg}
-	require.NotNil(t, conn)
-	err := conn.connect()
-	require.NoError(t, err)
-	client := conn.client
-	require.NotNil(t, client)
-	assert.Equal(t, "", client.Username)
-	assert.Equal(t, "", client.Password)
-	assert.Equal(t, "ApiKey Zm9vLWlkOmJhci1hcGlrZXk=", client.Headers.Get("Authorization"))
 }
 
 func TestConnectingClient_Send(t *testing.T) {
 	t.Run("Send", func(t *testing.T) {
-		c := mockClient()
+		c := newConnectingClient(t)
 		r, err := c.Send(context.Background(), http.MethodGet, "", nil, nil, nil)
 		require.NoError(t, err)
-		assert.Equal(t, mockBody, r.Body)
-		assert.Equal(t, mockStatus, r.StatusCode)
+		defer r.Body.Close()
+
+		body, err := ioutil.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.Equal(t, `{"response":"ok"}`, string(body))
+		assert.Equal(t, http.StatusTeapot, r.StatusCode)
 	})
 
-	t.Run("SendError", func(t *testing.T) {
-		c := NewConnectingClient(mockCfg)
-		r, err := c.Send(context.Background(), http.MethodGet, "", nil, nil, nil)
+	t.Run("SendContext", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		c := kibana.NewConnectingClient(mockCfg)
+		r, err := c.Send(ctx, http.MethodGet, "", nil, nil, nil)
 		require.Error(t, err)
-		assert.Equal(t, err, errNotConnected)
+		assert.Equal(t, context.DeadlineExceeded, err)
 		assert.Nil(t, r)
 	})
 }
 
 func TestConnectingClient_GetVersion(t *testing.T) {
 	t.Run("GetVersion", func(t *testing.T) {
-		c := mockClient()
+		c := newConnectingClient(t)
 		v, err := c.GetVersion(context.Background())
 		require.NoError(t, err)
-		assert.Equal(t, mockVersion, v)
+		assert.Equal(t, common.MustNewVersion("7.3.0"), &v)
 	})
 
-	t.Run("GetVersionError", func(t *testing.T) {
-		c := NewConnectingClient(mockCfg)
-		v, err := c.GetVersion(context.Background())
+	t.Run("GetVersionContext", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		c := kibana.NewConnectingClient(mockCfg)
+		v, err := c.GetVersion(ctx)
 		require.Error(t, err)
-		assert.Equal(t, err, errNotConnected)
+		assert.Equal(t, context.DeadlineExceeded, err)
 		assert.Equal(t, common.Version{}, v)
 	})
 }
 
 func TestConnectingClient_SupportsVersion(t *testing.T) {
 	t.Run("SupportsVersionTrue", func(t *testing.T) {
-		c := mockClient()
-		s, err := c.SupportsVersion(context.Background(), common.MustNewVersion("7.3.0"), false)
+		c := newConnectingClient(t)
+		s, err := c.SupportsVersion(context.Background(), common.MustNewVersion("7.3.0"))
 		require.NoError(t, err)
 		assert.True(t, s)
 	})
 	t.Run("SupportsVersionFalse", func(t *testing.T) {
-		c := mockClient()
-		s, err := c.SupportsVersion(context.Background(), common.MustNewVersion("7.4.0"), false)
+		c := newConnectingClient(t)
+		s, err := c.SupportsVersion(context.Background(), common.MustNewVersion("7.4.0"))
 		require.NoError(t, err)
 		assert.False(t, s)
 	})
 
-	t.Run("SupportsVersionError", func(t *testing.T) {
-		c := NewConnectingClient(mockCfg)
-		s, err := c.SupportsVersion(context.Background(), common.MustNewVersion("7.3.0"), false)
+	t.Run("SupportsVersionContext", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		c := kibana.NewConnectingClient(mockCfg)
+		s, err := c.SupportsVersion(ctx, common.MustNewVersion("7.3.0"))
 		require.Error(t, err)
-		assert.Equal(t, err, errNotConnected)
+		assert.Equal(t, context.DeadlineExceeded, err)
 		assert.False(t, s)
 	})
-}
-
-type rt struct {
-	resp *http.Response
 }
 
 var (
 	mockCfg = &config.KibanaConfig{
 		Enabled: true,
-		ClientConfig: kibana.ClientConfig{
+		ClientConfig: libbeatkibana.ClientConfig{
 			Host: "non-existing",
 		},
 	}
-	mockBody    = ioutil.NopCloser(convert.ToReader(`{"response": "ok"}`))
-	mockStatus  = http.StatusOK
-	mockVersion = *common.MustNewVersion("7.3.0")
 )
 
-// RoundTrip implements the Round Tripper interface
-func (rt rt) RoundTrip(r *http.Request) (*http.Response, error) {
-	return rt.resp, nil
-}
-func mockClient() *ConnectingClient {
-	return &ConnectingClient{client: &kibana.Client{
-		Connection: kibana.Connection{
-			HTTP: &http.Client{
-				Transport: rt{resp: &http.Response{
-					StatusCode: mockStatus,
-					Body:       mockBody}},
-			},
-			Version: mockVersion,
-		},
-	}}
+func newConnectingClient(t testing.TB) kibana.Client {
+	version := common.MustNewVersion("7.3.0")
+	return kibanatest.MockKibana(t, http.StatusTeapot, map[string]interface{}{"response": "ok"}, *version)
 }

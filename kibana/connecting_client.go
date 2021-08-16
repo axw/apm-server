@@ -20,7 +20,6 @@ package kibana
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -45,8 +44,6 @@ const (
 	maxBackoff  = 30 * time.Second
 )
 
-var errNotConnected = errors.New("unable to retrieve connection to Kibana")
-
 // Client provides an interface for Kibana Clients
 type Client interface {
 	// Send tries to send request to Kibana and returns unparsed response
@@ -54,14 +51,16 @@ type Client interface {
 	// GetVersion returns Kibana version or an error
 	GetVersion(context.Context) (common.Version, error)
 	// SupportsVersion compares given version to version of connected Kibana instance
-	SupportsVersion(context.Context, *common.Version, bool) (bool, error)
+	SupportsVersion(context.Context, *common.Version) (bool, error)
 }
 
 // ConnectingClient implements Client interface
 type ConnectingClient struct {
-	m      sync.RWMutex
-	client *kibana.Client
-	cfg    *config.KibanaConfig
+	cfg *config.KibanaConfig
+
+	mu      sync.Mutex
+	waiters []chan *kibana.Client
+	client  *kibana.Client
 }
 
 // NewConnectingClient returns instance of ConnectingClient and starts a background routine trying to connect
@@ -82,89 +81,105 @@ func NewConnectingClient(cfg *config.KibanaConfig) Client {
 		}
 		log.Info("Successfully obtained connection to Kibana.")
 	}()
-
 	return c
 }
 
-// Send tries to send a request to Kibana via established connection and returns unparsed response
-// If no connection is established an error is returned
-func (c *ConnectingClient) Send(ctx context.Context, method, extraPath string, params url.Values,
-	headers http.Header, body io.Reader) (*http.Response, error) {
-	c.m.RLock()
-	defer c.m.RUnlock()
-	if c.client == nil {
-		return nil, errNotConnected
+// Send tries to send a request to Kibana via established connection and returns unparsed response.
+func (c *ConnectingClient) Send(
+	ctx context.Context,
+	method, extraPath string,
+	params url.Values,
+	headers http.Header,
+	body io.Reader,
+) (*http.Response, error) {
+	client, err := c.waitClient(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return c.client.SendWithContext(ctx, method, extraPath, params, headers, body)
+	return client.SendWithContext(ctx, method, extraPath, params, headers, body)
 }
 
-// GetVersion returns Kibana version or an error
-// If no connection is established an error is returned
+// GetVersion returns Kibana version or an error.
 func (c *ConnectingClient) GetVersion(ctx context.Context) (common.Version, error) {
 	span, _ := apm.StartSpan(ctx, "GetVersion", "app")
 	defer span.End()
-	c.m.RLock()
-	defer c.m.RUnlock()
-	if c.client == nil {
-		return common.Version{}, errNotConnected
+	client, err := c.waitClient(ctx)
+	if err != nil {
+		return common.Version{}, err
 	}
-	return c.client.GetVersion(), nil
+	return client.GetVersion(), nil
 }
 
-// SupportsVersion checks if connected Kibana instance is compatible to given version
-// If no connection is established an error is returned
-func (c *ConnectingClient) SupportsVersion(ctx context.Context, v *common.Version, retry bool) (bool, error) {
+// SupportsVersion checks if connected Kibana instance is compatible to given version.
+func (c *ConnectingClient) SupportsVersion(ctx context.Context, v *common.Version) (bool, error) {
 	span, ctx := apm.StartSpan(ctx, "SupportsVersion", "app")
 	defer span.End()
 	log := logp.NewLogger(logs.Kibana)
-	c.m.RLock()
-	if c.client == nil && !retry {
-		c.m.RUnlock()
-		return false, errNotConnected
+
+	for i := 0; i < 2; i++ {
+		client, err := c.waitClient(ctx)
+		if err != nil {
+			return false, err
+		}
+		if v.LessThanOrEqual(false, &client.Version) {
+			return true, nil
+		}
+		// Reconnect in case Kibana has been upgraded since we last connected and cached its version.
+		if err := c.connect(); err != nil {
+			log.Errorf("failed to obtain connection to Kibana: %s", err.Error())
+			return false, err
+		}
 	}
-	upToDate := c.client != nil && v.LessThanOrEqual(false, &c.client.Version)
-	c.m.RUnlock()
-	if !retry || upToDate {
-		return upToDate, nil
+	return false, nil
+}
+
+func (c *ConnectingClient) waitClient(ctx context.Context) (*kibana.Client, error) {
+	c.mu.Lock()
+	if c.client != nil {
+		c.mu.Unlock()
+		return c.client, nil
 	}
-	client, err := kibana.NewClientWithConfig(c.clientConfig())
-	if err != nil {
-		log.Errorf("failed to obtain connection to Kibana: %s", err.Error())
-		return upToDate, err
+	ch := make(chan *kibana.Client, 1)
+	c.waiters = append(c.waiters, ch)
+	c.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case client := <-ch:
+		return client, nil
 	}
-	client.HTTP = apmhttp.WrapClient(client.HTTP)
-	c.m.Lock()
-	c.client = client
-	c.m.Unlock()
-	return c.SupportsVersion(ctx, v, false)
 }
 
 func (c *ConnectingClient) connect() error {
-	if c.client != nil {
-		return nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.client = nil
+
+	clientConfig := kibana.DefaultClientConfig()
+	if c.cfg != nil {
+		clientConfig = c.cfg.ClientConfig
+		if c.cfg.APIKey != "" {
+			headers := make(map[string]string, len(clientConfig.Headers))
+			for k, v := range clientConfig.Headers {
+				headers[k] = v
+			}
+			headers["Authorization"] = "ApiKey " + base64.StdEncoding.EncodeToString([]byte(c.cfg.APIKey))
+			clientConfig.Headers = headers
+			clientConfig.Username = ""
+			clientConfig.Password = ""
+		}
 	}
-	c.m.Lock()
-	defer c.m.Unlock()
-	if c.client != nil {
-		return nil
-	}
-	client, err := kibana.NewClientWithConfig(c.clientConfig())
+
+	client, err := kibana.NewClientWithConfig(&clientConfig)
 	if err != nil {
 		return err
 	}
-	if c.cfg.APIKey != "" {
-		client.Headers["Authorization"] = []string{"ApiKey " + base64.StdEncoding.EncodeToString([]byte(c.cfg.APIKey))}
-		client.Username = ""
-		client.Password = ""
-	}
 	client.HTTP = apmhttp.WrapClient(client.HTTP)
-	c.client = client
-	return nil
-}
 
-func (c *ConnectingClient) clientConfig() *kibana.ClientConfig {
-	if c != nil && c.cfg != nil {
-		return &c.cfg.ClientConfig
+	c.client = client
+	for _, waiter := range c.waiters {
+		waiter <- client
 	}
+	c.waiters = c.waiters[:0]
 	return nil
 }

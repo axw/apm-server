@@ -120,7 +120,7 @@ func (f *KibanaFetcher) validate(ctx context.Context) *ValidationError {
 			err:     errMsgKibanaDisabled,
 		}
 	}
-	if supported, err := f.client.SupportsVersion(ctx, KibanaMinVersion, true); !supported {
+	if supported, err := f.client.SupportsVersion(ctx, KibanaMinVersion); !supported {
 		if err != nil {
 			return &ValidationError{
 				keyword: ErrMsgNoKibanaConnection,
