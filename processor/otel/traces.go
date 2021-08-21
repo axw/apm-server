@@ -209,11 +209,11 @@ func (c *Consumer) convertSpan(
 	event.Timestamp = startTime.Add(timeDelta)
 	event.Trace.ID = otelSpan.TraceID().HexString()
 	event.Event.Outcome = spanStatusOutcome(otelSpan.Status())
+	event.Parent.ID = parentID
 	if root || otelSpan.Kind() == pdata.SpanKindServer || otelSpan.Kind() == pdata.SpanKindConsumer {
 		event.Processor = model.TransactionProcessor
 		event.Transaction = &model.Transaction{
 			ID:       spanID,
-			ParentID: parentID,
 			Duration: durationMillis,
 			Name:     name,
 			Sampled:  true,
@@ -223,7 +223,6 @@ func (c *Consumer) convertSpan(
 		event.Processor = model.SpanProcessor
 		event.Span = &model.Span{
 			ID:       spanID,
-			ParentID: parentID,
 			Duration: durationMillis,
 			Name:     name,
 		}
@@ -876,17 +875,12 @@ func convertSpanEvent(
 	}
 	if e != nil {
 		event := parent
+		event.Transaction = nil
+		event.Span = nil
 		event.Processor = model.ErrorProcessor
 		event.Error = e
 		event.Timestamp = spanEvent.Timestamp().AsTime().Add(timeDelta)
-		if parent.Transaction != nil {
-			event.Transaction = nil
-			addTransactionCtxToErr(parent.Transaction, event.Error)
-		}
-		if parent.Span != nil {
-			event.Span = nil
-			addSpanCtxToErr(parent.Span, event.Error)
-		}
+		setErrorContext(&event, parent)
 		*out = append(*out, event)
 	}
 }
@@ -946,17 +940,19 @@ func convertJaegerErrorSpanEvent(logger *logp.Logger, event pdata.SpanEvent) *mo
 	return e
 }
 
-func addTransactionCtxToErr(transaction *model.Transaction, err *model.Error) {
-	err.TransactionID = transaction.ID
-	err.ParentID = transaction.ID
-	err.HTTP = transaction.HTTP
-	err.Custom = transaction.Custom
-	err.TransactionSampled = &transaction.Sampled
-	err.TransactionType = transaction.Type
-}
-
-func addSpanCtxToErr(span *model.Span, err *model.Error) {
-	err.ParentID = span.ID
+func setErrorContext(out *model.APMEvent, parent model.APMEvent) {
+	out.Trace.ID = parent.Trace.ID
+	if parent.Transaction != nil {
+		out.Error.TransactionID = parent.Transaction.ID
+		out.Error.HTTP = parent.Transaction.HTTP
+		out.Error.Custom = parent.Transaction.Custom
+		out.Error.TransactionSampled = &parent.Transaction.Sampled
+		out.Error.TransactionType = parent.Transaction.Type
+		out.Parent.ID = parent.Transaction.ID
+	}
+	if parent.Span != nil {
+		out.Parent.ID = parent.Span.ID
+	}
 }
 
 func replaceDots(s string) string {

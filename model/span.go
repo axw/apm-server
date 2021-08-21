@@ -31,8 +31,6 @@ var (
 type Span struct {
 	ID            string
 	TransactionID string
-	ParentID      string
-	ChildIDs      []string
 
 	Message    *Message
 	Name       string
@@ -125,17 +123,9 @@ func (c *Composite) fields() common.MapStr {
 
 func (e *Span) fields(apmEvent *APMEvent) common.MapStr {
 	var fields mapStr
-	var transaction, parent mapStr
+	var transaction mapStr
 	if transaction.maybeSetString("id", e.TransactionID) {
 		fields.set("transaction", common.MapStr(transaction))
-	}
-	if parent.maybeSetString("id", e.ParentID) {
-		fields.set("parent", common.MapStr(parent))
-	}
-	if len(e.ChildIDs) > 0 {
-		var child mapStr
-		child.set("id", e.ChildIDs)
-		fields.set("child", common.MapStr(child))
 	}
 	if e.Experimental != nil {
 		fields.set("experimental", e.Experimental)
@@ -166,8 +156,6 @@ func (e *Span) fields(apmEvent *APMEvent) common.MapStr {
 	if destinationServiceFields := e.DestinationService.fields(); len(destinationServiceFields) > 0 {
 		common.MapStr(span).Put("destination.service", destinationServiceFields)
 	}
-	// TODO(axw) we should be using a merged service object, combining
-	// the stream metadata and event-specific service info.
 	if st := e.Stacktrace.transform(); len(st) > 0 {
 		span.set("stacktrace", st)
 	}

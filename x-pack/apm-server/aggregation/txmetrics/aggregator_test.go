@@ -445,7 +445,7 @@ func TestAggregationFields(t *testing.T) {
 				Name:   input.Transaction.Name,
 				Type:   input.Transaction.Type,
 				Result: input.Transaction.Result,
-				Root:   input.Transaction.ParentID == "",
+				Root:   input.Parent.ID == "",
 			},
 			Samples: map[string]model.MetricsetSample{
 				"transaction.duration.histogram": {
@@ -479,10 +479,10 @@ func TestAggregationFields(t *testing.T) {
 			addExpectedCount(2)
 		}
 
-		// ParentID only impacts aggregation as far as grouping root and
+		// Parent.ID only impacts aggregation as far as grouping root and
 		// non-root traces.
 		for _, value := range []string{"something", "anything"} {
-			input.Transaction.ParentID = value
+			input.Parent.ID = value
 			assert.Zero(t, agg.AggregateTransaction(input))
 			assert.Zero(t, agg.AggregateTransaction(input))
 		}

@@ -339,7 +339,7 @@ func (a *Aggregator) updateTransactionMetrics(key transactionAggregationKey, has
 
 func (a *Aggregator) makeTransactionAggregationKey(event model.APMEvent) transactionAggregationKey {
 	return transactionAggregationKey{
-		traceRoot:         event.Transaction.ParentID == "",
+		traceRoot:         event.Parent.ID == "",
 		transactionName:   event.Transaction.Name,
 		transactionResult: event.Transaction.Result,
 		transactionType:   event.Transaction.Type,

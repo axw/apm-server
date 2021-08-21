@@ -33,8 +33,7 @@ var (
 )
 
 type Transaction struct {
-	ID       string
-	ParentID string
+	ID string
 
 	Type           string
 	Name           string
@@ -64,9 +63,6 @@ type SpanCount struct {
 
 func (e *Transaction) fields() common.MapStr {
 	var fields mapStr
-	var parent mapStr
-	parent.maybeSetString("id", e.ParentID)
-	fields.maybeSetMapStr("parent", common.MapStr(parent))
 	if e.HTTP != nil {
 		fields.maybeSetMapStr("http", e.HTTP.transactionTopLevelFields())
 	}
@@ -96,7 +92,6 @@ func (e *Transaction) fields() common.MapStr {
 	}
 	transaction.set("sampled", e.Sampled)
 	fields.set("transaction", common.MapStr(transaction))
-
 	return common.MapStr(fields)
 }
 

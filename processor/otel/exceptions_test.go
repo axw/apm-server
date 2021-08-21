@@ -116,8 +116,8 @@ Caused by: LowLevelException
 		Timestamp: timestamp,
 		Processor: model.ErrorProcessor,
 		Trace:     transactionEvent.Trace,
+		Parent:    model.Parent{ID: transactionEvent.Transaction.ID},
 		Error: &model.Error{
-			ParentID:           transactionEvent.Transaction.ID,
 			TransactionID:      transactionEvent.Transaction.ID,
 			TransactionType:    transactionEvent.Transaction.Type,
 			TransactionSampled: newBool(true),
@@ -164,8 +164,8 @@ Caused by: LowLevelException
 		Timestamp: timestamp,
 		Processor: model.ErrorProcessor,
 		Trace:     transactionEvent.Trace,
+		Parent:    model.Parent{ID: transactionEvent.Transaction.ID},
 		Error: &model.Error{
-			ParentID:           transactionEvent.Transaction.ID,
 			TransactionID:      transactionEvent.Transaction.ID,
 			TransactionType:    transactionEvent.Transaction.Type,
 			TransactionSampled: newBool(true),
@@ -321,8 +321,8 @@ func TestEncodeSpanEventsNonJavaExceptions(t *testing.T) {
 		Timestamp: timestamp,
 		Processor: model.ErrorProcessor,
 		Trace:     transactionEvent.Trace,
+		Parent:    model.Parent{ID: transactionEvent.Transaction.ID},
 		Error: &model.Error{
-			ParentID:           transactionEvent.Transaction.ID,
 			TransactionID:      transactionEvent.Transaction.ID,
 			TransactionType:    transactionEvent.Transaction.Type,
 			TransactionSampled: newBool(true),

@@ -179,9 +179,9 @@ func DecodeNestedTransaction(d decoder.Decoder, input *modeldecoder.Input, batch
 	spans := (*batch)[offset:]
 	for i, s := range root.Transaction.Spans {
 		if s.ParentIndex.IsSet() && s.ParentIndex.Val >= 0 && s.ParentIndex.Val < len(spans) {
-			spans[i].Span.ParentID = spans[s.ParentIndex.Val].Span.ID
+			spans[i].Parent.ID = spans[s.ParentIndex.Val].Span.ID
 		} else {
-			spans[i].Span.ParentID = spans[i].Span.TransactionID
+			spans[i].Parent.ID = spans[i].Span.TransactionID
 		}
 	}
 	return nil
@@ -272,7 +272,7 @@ func mapToErrorModel(from *errorEvent, event *model.APMEvent) {
 		out.Log = &log
 	}
 	if from.ParentID.IsSet() {
-		out.ParentID = from.ParentID.Val
+		event.Parent.ID = from.ParentID.Val
 	}
 	if !from.Timestamp.Val.IsZero() {
 		event.Timestamp = from.Timestamp.Val
@@ -773,7 +773,7 @@ func mapToTransactionModel(from *transaction, event *model.APMEvent) {
 		}
 	}
 	if from.ParentID.IsSet() {
-		out.ParentID = from.ParentID.Val
+		event.Parent.ID = from.ParentID.Val
 	}
 	if from.Result.IsSet() {
 		out.Result = from.Result.Val

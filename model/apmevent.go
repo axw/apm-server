@@ -55,6 +55,8 @@ type APMEvent struct {
 	URL         URL
 	Processor   Processor
 	Trace       Trace
+	Parent      Parent
+	Child       Child
 
 	// Timestamp holds the event timestamp.
 	//
@@ -135,6 +137,8 @@ func (e *APMEvent) BeatEvent(ctx context.Context) beat.Event {
 	fields.maybeSetMapStr("event", e.Event.fields())
 	fields.maybeSetMapStr("url", e.URL.fields())
 	fields.maybeSetMapStr("session", e.Session.fields())
+	fields.maybeSetMapStr("parent", e.Parent.fields())
+	fields.maybeSetMapStr("child", e.Child.fields())
 	fields.maybeSetMapStr("processor", e.Processor.fields())
 	fields.maybeSetMapStr("trace", e.Trace.fields())
 	fields.maybeSetString("message", e.Message)

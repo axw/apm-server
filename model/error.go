@@ -33,7 +33,6 @@ const (
 type Error struct {
 	ID            string
 	TransactionID string
-	ParentID      string
 
 	GroupingKey string
 	Culprit     string
@@ -85,10 +84,6 @@ func (e *Error) fields() common.MapStr {
 	transaction.maybeSetString("type", e.TransactionType)
 	transaction.maybeSetBool("sampled", e.TransactionSampled)
 	fields.maybeSetMapStr("transaction", common.MapStr(transaction))
-
-	var parent mapStr
-	parent.maybeSetString("id", e.ParentID)
-	fields.maybeSetMapStr("parent", common.MapStr(parent))
 
 	var errorFields mapStr
 	errorFields.maybeSetString("id", e.ID)

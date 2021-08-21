@@ -329,7 +329,7 @@ func mapToErrorModel(from *errorEvent, config modeldecoder.Config, event *model.
 		out.Log = &log
 	}
 	if from.ParentID.IsSet() {
-		out.ParentID = from.ParentID.Val
+		event.Parent.ID = from.ParentID.Val
 	}
 	if !from.Timestamp.Val.IsZero() {
 		event.Timestamp = from.Timestamp.Val
@@ -765,8 +765,8 @@ func mapToSpanModel(from *span, config modeldecoder.Config, event *model.APMEven
 		out.Composite = &composite
 	}
 	if len(from.ChildIDs) > 0 {
-		out.ChildIDs = make([]string, len(from.ChildIDs))
-		copy(out.ChildIDs, from.ChildIDs)
+		event.Child.ID = make([]string, len(from.ChildIDs))
+		copy(event.Child.ID, from.ChildIDs)
 	}
 	if from.Context.Database.IsSet() {
 		db := model.DB{}
@@ -905,7 +905,7 @@ func mapToSpanModel(from *span, config modeldecoder.Config, event *model.APMEven
 		}
 	}
 	if from.ParentID.IsSet() {
-		out.ParentID = from.ParentID.Val
+		event.Parent.ID = from.ParentID.Val
 	}
 	if from.SampleRate.IsSet() && from.SampleRate.Val > 0 {
 		out.RepresentativeCount = 1 / from.SampleRate.Val
@@ -1097,7 +1097,7 @@ func mapToTransactionModel(from *transaction, config modeldecoder.Config, event 
 		}
 	}
 	if from.ParentID.IsSet() {
-		out.ParentID = from.ParentID.Val
+		event.Parent.ID = from.ParentID.Val
 	}
 	if from.Result.IsSet() {
 		out.Result = from.Result.Val
