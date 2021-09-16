@@ -2,9 +2,8 @@
 name: Label checks
 on:
   pull_request:
-    branches:
-      - master
-      - main
+    types: [opened, labeled, unlabeled]
+    branches: [main, master]
 
 jobs:
   check_labels:
@@ -17,4 +16,4 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Check labels
-        run: cd ./.github/workflows/check_labels/main.go && go run .
+        run: cd ./.github/workflows/check_labels && go run .
