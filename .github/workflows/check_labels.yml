@@ -1,0 +1,15 @@
+---
+name: Label checks
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  check_labels:
+    #name: Require backport label
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.labels.backport*.name }}
+    steps:
+      - run: exit 1
