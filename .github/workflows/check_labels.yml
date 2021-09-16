@@ -17,4 +17,4 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Check labels
-        run: cd ./.github/actions/check_labels/main.go && go run .
+        run: cd ./.github/workflows/check_labels/main.go && go run .
