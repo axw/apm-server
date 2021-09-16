@@ -1,0 +1,4 @@
+name: Check labels
+runs:
+  using: docker
+  image: Dockerfile
