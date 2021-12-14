@@ -28,7 +28,9 @@ import (
 )
 
 const (
-	tailSamplingStorageDir = "tail_sampling"
+	// TODO(axw) we would have a single event value log.
+	tailSamplingStorageDir     = "tail_sampling"
+	breakdownMetricsStorageDir = "breakdown"
 )
 
 var (
@@ -38,9 +40,10 @@ var (
 	// will hopefully disappear in the future, when agents no longer send unsampled transactions.
 	samplingMonitoringRegistry = monitoring.Default.GetRegistry("apm-server.sampling")
 
-	// badgerDB holds the badger database to use when tail-based sampling is configured.
+	// badgerDB holds badger databases, keyed by storage directory, to use when tail-based
+	// sampling or breakdown metrics aggregation are configured.
 	badgerMu sync.Mutex
-	badgerDB *badger.DB
+	badgerDB map[string]*badger.DB
 )
 
 type namedProcessor struct {
@@ -105,7 +108,7 @@ func newTailSamplingProcessor(args beater.ServerParams) (*sampling.Processor, er
 	}
 
 	storageDir := paths.Resolve(paths.Data, tailSamplingStorageDir)
-	badgerDB, err = getBadgerDB(storageDir)
+	badgerDB, err := getBadgerDB(storageDir)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get Badger database")
 	}
@@ -152,14 +155,15 @@ func newTailSamplingProcessor(args beater.ServerParams) (*sampling.Processor, er
 func getBadgerDB(storageDir string) (*badger.DB, error) {
 	badgerMu.Lock()
 	defer badgerMu.Unlock()
-	if badgerDB == nil {
-		db, err := eventstorage.OpenBadger(storageDir, -1)
-		if err != nil {
-			return nil, err
-		}
-		badgerDB = db
+	if db := badgerDB[storageDir]; db != nil {
+		return db, nil
 	}
-	return badgerDB, nil
+	db, err := eventstorage.OpenBadger(storageDir, -1)
+	if err != nil {
+		return nil, err
+	}
+	badgerDB[storageDir] = db
+	return db, nil
 }
 
 // runServerWithProcessors runs the APM Server and the given list of processors.
@@ -217,15 +221,17 @@ func wrapRunServer(runServer beater.RunServerFunc) beater.RunServerFunc {
 	}
 }
 
-// closeBadger is called at process exit time to close the badger.DB opened
-// by the tail-based sampling processor constructor, if any. This is never
-// called concurrently with opening badger.DB/accessing the badgerDB global,
-// so it does not need to hold badgerMu.
+// closeBadger is called at process exit time to close the badger.DB(s) opened
+// by getBadgerDB calls, if any. This is never called concurrently with opening
+// badger.DB/accessing the badgerDB global, so it does not need to hold badgerMu.
 func closeBadger() error {
-	if badgerDB != nil {
-		return badgerDB.Close()
+	var result error
+	for _, db := range badgerDB {
+		if err := db.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
 	}
-	return nil
+	return result
 }
 
 func Main() error {
