@@ -24,6 +24,8 @@ const (
 
 // AggregatorConfig holds configuration for creating an Aggregator.
 type AggregatorConfig struct {
+	TraceEventsReader TraceEventsReader
+
 	// BatchProcessor is a model.BatchProcessor for asynchronously
 	// processing metrics documents.
 	BatchProcessor model.BatchProcessor
@@ -53,6 +55,9 @@ type AggregatorConfig struct {
 
 // Validate validates the aggregator config.
 func (config AggregatorConfig) Validate() error {
+	if config.TraceEventsReader == nil {
+		return errors.New("TraceEventsReader unspecified")
+	}
 	if config.BatchProcessor == nil {
 		return errors.New("BatchProcessor unspecified")
 	}
@@ -93,9 +98,9 @@ type Aggregator struct {
 }
 
 type traceEvents struct {
-	transactions []*model.APMEvent
-	spans        map[string]*model.APMEvent
-	childSpans   map[string][]string
+	//transactions []*model.APMEvent
+	//spans        map[string]*model.APMEvent
+	//childSpans map[string][]string
 }
 
 // NewAggregator returns a new Aggregator with the given config.
@@ -202,120 +207,134 @@ func (a *Aggregator) ProcessBatch(ctx context.Context, b *model.Batch) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, event := range *b {
-		event := event
-		switch event.Processor {
-		case model.SpanProcessor:
-			a.processSpan(&event)
-		case model.TransactionProcessor:
-			a.processTransaction(&event)
+		if event.Processor != model.TransactionProcessor {
+			continue
 		}
+		if event.Transaction.RepresentativeCount == 0 {
+			// RepresentativeCount is zero when the sample rate is unknown.
+			// We cannot calculate accurate metrics without the sample rate,
+			// so we don't calculate any at all in this case.
+			continue
+		}
+		a.processTransaction(event.Trace.ID, event.Transaction.ID)
 	}
 	return nil
 }
 
-func (a *Aggregator) processSpan(event *model.APMEvent) {
-	if event.Span.RepresentativeCount <= 0 {
-		// RepresentativeCount is zero when the sample rate is unknown.
-		// We cannot calculate accurate metrics without the sample rate,
-		// so we don't calculate any at all in this case.
-		return
-	}
-	trace := a.getTrace(event)
-	trace.spans[event.Span.ID] = event
-	if event.Parent.ID != "" {
-		trace.childSpans[event.Parent.ID] = append(trace.childSpans[event.Parent.ID], event.Span.ID)
-	} else if len(event.Child.ID) != 0 {
-		trace.childSpans[event.Span.ID] = append(trace.childSpans[event.Span.ID], event.Child.ID...)
-	}
-}
-
-func (a *Aggregator) processTransaction(event *model.APMEvent) {
-	if event.Transaction.RepresentativeCount == 0 {
-		// RepresentativeCount is zero when the sample rate is unknown.
-		// We cannot calculate accurate metrics without the sample rate,
-		// so we don't calculate any at all in this case.
-		return
-	}
-	trace := a.getTrace(event)
-	trace.transactions = append(trace.transactions, event)
-}
-
-func (a *Aggregator) getTrace(event *model.APMEvent) *traceEvents {
-	traceID := event.Trace.ID
-	trace, ok := a.traces[traceID]
-	if !ok {
-		trace = &traceEvents{
-			spans:      make(map[string]*model.APMEvent),
-			childSpans: make(map[string][]string),
+func (a *Aggregator) processTransaction(traceID, transactionID string) {
+	// After config.Duration elapses, or when the aggregator is stopped,
+	// process all of the accumulated trace events as a single unit.
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		timer := time.NewTimer(a.config.Duration)
+		select {
+		case <-timer.C:
+		case <-a.stopping:
+			timer.Stop()
 		}
-		a.traces[traceID] = trace
-
-		// After config.Duration elapses, or when the aggregator is stopped,
-		// process all of the accumulated trace events as a single unit.
-		a.wg.Add(1)
-		go func() {
-			defer a.wg.Done()
-
-			timer := time.NewTimer(a.config.Duration)
-			select {
-			case <-timer.C:
-			case <-a.stopping:
-				timer.Stop()
-			}
-
-			a.mu.Lock()
-			defer a.mu.Unlock()
-			delete(a.traces, traceID)
-
-			// Aggregate each transactions and its reachable spans.
-			for _, tx := range trace.transactions {
-				a.aggregateSelfTime(trace, tx, tx)
-			}
-		}()
-	}
-	return trace
+		if err := a.aggregateTransaction(traceID, transactionID); err != nil {
+			// TODO: proper error message
+			a.config.Logger.Error(err)
+		}
+	}()
 }
 
-func (a *Aggregator) aggregateSelfTime(
-	trace *traceEvents,
-	transaction *model.APMEvent,
-	event *model.APMEvent,
-) {
+func (a *Aggregator) aggregateTransaction(traceID, transactionID string) error {
+	// TODO(axw) recycle batches?
+	var events model.Batch
+	if err := a.config.TraceEventsReader.ReadTraceEvents(traceID, &events); err != nil {
+		return err
+	}
+
+	graphNodes := make(map[string]*graphNode)
+	for i := range events {
+		event := &events[i]
+		switch event.Processor {
+		case model.TransactionProcessor:
+			graphNodes[event.Transaction.ID] = &graphNode{APMEvent: event}
+		case model.SpanProcessor:
+			graphNodes[event.Span.ID] = &graphNode{APMEvent: event}
+		}
+	}
+	for _, graphNode := range graphNodes {
+		if graphNode.Processor != model.SpanProcessor {
+			continue
+		}
+		if graphNode.Parent.ID != "" {
+			if parent, ok := graphNodes[graphNode.Parent.ID]; ok {
+				parent.children = append(parent.children, graphNode)
+			}
+		} else {
+			for _, childID := range graphNode.Child.ID {
+				if child, ok := graphNodes[childID]; ok {
+					graphNode.children = append(graphNode.children, child)
+				}
+			}
+		}
+	}
+	for _, graphNode := range graphNodes {
+		sort.Slice(graphNode.children, func(i, j int) bool {
+			ci := graphNode.children[i]
+			cj := graphNode.children[j]
+			if ci.Timestamp.Before(cj.Timestamp) {
+				return true
+			}
+			return ci.Timestamp.Equal(cj.Timestamp) && ci.Event.Duration < cj.Event.Duration
+		})
+	}
+	/*
+		sort.Slice(childIDs, func(i, j int) bool {
+			ci := trace.spans[childIDs[i]]
+			cj := trace.spans[childIDs[j]]
+			if ci.Timestamp.Before(cj.Timestamp) {
+				return true
+			}
+			return ci.Timestamp.Equal(cj.Timestamp) && ci.Event.Duration < cj.Event.Duration
+		})
+	*/
+
+	// Aggregate each transactions and its reachable spans.
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, graphNode := range graphNodes {
+		if graphNode.Processor != model.TransactionProcessor {
+			continue
+		}
+		a.aggregateSelfTime(graphNode.APMEvent, graphNode)
+	}
+	return nil
+}
+
+type graphNode struct {
+	*model.APMEvent
+	children []*graphNode
+}
+
+func (a *Aggregator) aggregateSelfTime(transaction *model.APMEvent, node *graphNode) {
 	// For composite spans we use the composite sum duration, which is the sum of
 	// pre-aggregated spans and excludes time gaps that are counted in the reported
 	// span duration. For non-composite spans we just use the reported span duration.
 	spanCount := 1
-	spanDuration := event.Event.Duration
-	var spanID string
+	spanDuration := node.Event.Duration
 	var spanType, spanSubtype string
-	if event.Processor == model.SpanProcessor {
-		spanID = event.Span.ID
-		spanType = event.Span.Type
-		spanSubtype = event.Span.Subtype
-		if event.Span.Composite != nil {
-			spanCount = event.Span.Composite.Count
-			spanDuration = time.Duration(event.Span.Composite.Sum * float64(time.Millisecond))
+	if node.Processor == model.SpanProcessor {
+		spanType = node.Span.Type
+		spanSubtype = node.Span.Subtype
+		if node.Span.Composite != nil {
+			spanCount = node.Span.Composite.Count
+			spanDuration = time.Duration(node.Span.Composite.Sum * float64(time.Millisecond))
 		}
 	} else {
-		spanID = event.Transaction.ID
 		spanType = "app"
 	}
 
-	// Calculate self_time by subtracting time overlapping with children.
-	childIDs := trace.childSpans[spanID]
-	sort.Slice(childIDs, func(i, j int) bool {
-		ci := trace.spans[childIDs[i]]
-		cj := trace.spans[childIDs[j]]
-		if ci.Timestamp.Before(cj.Timestamp) {
-			return true
-		}
-		return ci.Timestamp.Equal(cj.Timestamp) && ci.Event.Duration < cj.Event.Duration
-	})
-	start := event.Timestamp
-	end := event.Timestamp.Add(spanDuration)
-	for _, childID := range childIDs {
-		child := trace.spans[childID]
-		a.aggregateSelfTime(trace, transaction, child)
+	// Calculate self_time by subtracting time overlapping with children. Children
+	// are already sorted by timestamp.
+	start := node.Timestamp
+	end := node.Timestamp.Add(spanDuration)
+	for _, child := range node.children {
+		a.aggregateSelfTime(transaction, child)
 
 		childStart := child.Timestamp
 		childDuration := child.Event.Duration

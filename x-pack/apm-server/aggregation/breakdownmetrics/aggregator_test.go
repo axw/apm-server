@@ -7,6 +7,8 @@ package breakdownmetrics_test
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"sort"
 	"testing"
 	"time"
@@ -16,10 +18,15 @@ import (
 
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/breakdownmetrics"
+	"github.com/elastic/apm-server/x-pack/apm-server/sampling/eventstorage"
 )
 
 func TestNewAggregatorConfigInvalid(t *testing.T) {
 	report := makeErrBatchProcessor(nil)
+
+	var traceEventsReader struct {
+		breakdownmetrics.TraceEventsReader
+	}
 
 	type test struct {
 		config breakdownmetrics.AggregatorConfig
@@ -28,23 +35,31 @@ func TestNewAggregatorConfigInvalid(t *testing.T) {
 
 	for _, test := range []test{{
 		config: breakdownmetrics.AggregatorConfig{},
-		err:    "BatchProcessor unspecified",
+		err:    "TraceEventsReader unspecified",
 	}, {
 		config: breakdownmetrics.AggregatorConfig{
-			BatchProcessor: report,
+			TraceEventsReader: &traceEventsReader,
+		},
+		err: "BatchProcessor unspecified",
+	}, {
+		config: breakdownmetrics.AggregatorConfig{
+			TraceEventsReader: &traceEventsReader,
+			BatchProcessor:    report,
 		},
 		err: "MaxGroups unspecified or negative",
 	}, {
 		config: breakdownmetrics.AggregatorConfig{
-			BatchProcessor: report,
-			MaxGroups:      1,
+			TraceEventsReader: &traceEventsReader,
+			BatchProcessor:    report,
+			MaxGroups:         1,
 		},
 		err: "Duration unspecified or negative",
 	}, {
 		config: breakdownmetrics.AggregatorConfig{
-			BatchProcessor: report,
-			MaxGroups:      1,
-			Duration:       time.Second,
+			TraceEventsReader: &traceEventsReader,
+			BatchProcessor:    report,
+			MaxGroups:         1,
+			Duration:          time.Second,
 		},
 		err: "Interval unspecified or negative",
 	}} {
@@ -56,24 +71,26 @@ func TestNewAggregatorConfigInvalid(t *testing.T) {
 }
 
 func TestAggregator(t *testing.T) {
+	t0 := time.Unix(0, 0)
+	tx := makeTransaction("trace_id", "transaction_id", "transaction_type", "transaction_name", t0, 30*time.Second)
+	span1 := makeSpan("trace_id", "span1_id", "transaction_id", "app", "", t0.Add(10*time.Second), 10*time.Second)
+	span2 := makeSpan("trace_id", "span2_id", "span1_id", "db", "mysql", t0.Add(15*time.Second), 10*time.Second)
+
+	var traceEventsReader traceEventsReaderFunc = func(traceID string, out *model.Batch) error {
+		*out = append(*out, tx, span1, span2)
+		return nil
+	}
+
 	batches := make(chan model.Batch, 1)
 	agg, err := breakdownmetrics.NewAggregator(breakdownmetrics.AggregatorConfig{
-		BatchProcessor: makeChanBatchProcessor(batches),
-		Duration:       time.Millisecond,
-		Interval:       time.Millisecond,
-		MaxGroups:      1000,
+		TraceEventsReader: traceEventsReader,
+		BatchProcessor:    makeChanBatchProcessor(batches),
+		Duration:          time.Millisecond,
+		Interval:          time.Millisecond,
+		MaxGroups:         1000,
 	})
 	require.NoError(t, err)
 
-	traceID := "trace_id"
-	transactionID := "transaction_id"
-	span1ID := "span1_id"
-	span2ID := "span2_id"
-	t0 := time.Unix(0, 0)
-
-	tx := makeTransaction(traceID, transactionID, "transaction_type", "transaction_name", t0, 30*time.Second)
-	span1 := makeSpan(traceID, span1ID, transactionID, "app", "", t0.Add(10*time.Second), 10*time.Second)
-	span2 := makeSpan(traceID, span2ID, span1ID, "db", "mysql", t0.Add(15*time.Second), 10*time.Second)
 	err = agg.ProcessBatch(context.Background(), &model.Batch{tx, span1, span2})
 	require.NoError(t, err)
 
@@ -125,24 +142,58 @@ func TestAggregator(t *testing.T) {
 }
 
 func BenchmarkAggregator(b *testing.B) {
+	tempdir, err := ioutil.TempDir("", "breakdownmetrics")
+	require.NoError(b, err)
+	b.Cleanup(func() { os.RemoveAll(tempdir) })
+
+	badgerDB, err := eventstorage.OpenBadger(tempdir, 0)
+	require.NoError(b, err)
+	b.Cleanup(func() { badgerDB.Close() })
+
+	t0 := time.Unix(0, 0)
+	makeBatch := func(traceID string) model.Batch {
+		tx := makeTransaction(traceID, "transaction_id", "transaction_type", "transaction_name", t0, 30*time.Second)
+		span1 := makeSpan(traceID, "span1_id", "transaction_id", "app", "", t0.Add(10*time.Second), 10*time.Second)
+		span2 := makeSpan(traceID, "span2_id", "span1_id", "db", "mysql", t0.Add(15*time.Second), 10*time.Second)
+		return model.Batch{tx, span1, span2}
+	}
+
+	storage := eventstorage.New(badgerDB, eventstorage.JSONCodec{}, time.Minute)
+	readWriter := storage.NewReadWriter()
+	for i := 0; i < b.N; i++ {
+		traceID := fmt.Sprintf("trace_%d", i)
+		for _, event := range makeBatch(traceID) {
+			var id string
+			if event.Processor == model.TransactionProcessor {
+				id = event.Transaction.ID
+			} else {
+				id = event.Span.ID
+			}
+			if err := readWriter.WriteTraceEvent(traceID, id, &event); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	b.ResetTimer()
+
 	agg, err := breakdownmetrics.NewAggregator(breakdownmetrics.AggregatorConfig{
-		BatchProcessor: makeErrBatchProcessor(nil),
-		Duration:       time.Millisecond,
-		Interval:       time.Minute,
-		MaxGroups:      1000,
+		TraceEventsReader: readWriter,
+		BatchProcessor:    makeErrBatchProcessor(nil),
+		Duration:          time.Millisecond,
+		Interval:          time.Minute,
+		MaxGroups:         1000,
 	})
 	require.NoError(b, err)
 
 	go agg.Run()
 	defer agg.Stop(context.Background())
 
-	t0 := time.Unix(0, 0)
 	for i := 0; i < b.N; i++ {
 		traceID := fmt.Sprintf("trace_%d", i)
-		tx := makeTransaction(traceID, "transaction_id", "transaction_type", "transaction_name", t0, 30*time.Second)
-		span1 := makeSpan(traceID, "span1_id", "transaction_id", "app", "", t0.Add(10*time.Second), 10*time.Second)
-		span2 := makeSpan(traceID, "span2_id", "span1_id", "db", "mysql", t0.Add(15*time.Second), 10*time.Second)
-		_ = agg.ProcessBatch(context.Background(), &model.Batch{tx, span1, span2})
+		batch := makeBatch(traceID)
+		if err := agg.ProcessBatch(context.Background(), &batch); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -218,4 +269,10 @@ func batchMetricsets(t testing.TB, batch model.Batch) []model.APMEvent {
 		metricsets = append(metricsets, event)
 	}
 	return metricsets
+}
+
+type traceEventsReaderFunc func(traceID string, out *model.Batch) error
+
+func (f traceEventsReaderFunc) ReadTraceEvents(traceID string, out *model.Batch) error {
+	return f(traceID, out)
 }
