@@ -159,7 +159,7 @@ func BenchmarkAggregator(b *testing.B) {
 	}
 
 	storage := eventstorage.New(badgerDB, eventstorage.JSONCodec{}, time.Minute)
-	readWriter := storage.NewReadWriter()
+	readWriter := storage.NewShardedReadWriter()
 	for i := 0; i < b.N; i++ {
 		traceID := fmt.Sprintf("trace_%d", i)
 		for _, event := range makeBatch(traceID) {
@@ -183,7 +183,7 @@ func BenchmarkAggregator(b *testing.B) {
 		TraceEventsReader: readWriter,
 		BatchProcessor:    makeErrBatchProcessor(nil),
 		Duration:          time.Millisecond,
-		Interval:          time.Minute,
+		Interval:          time.Millisecond,
 		MaxGroups:         1000,
 	})
 	require.NoError(b, err)
