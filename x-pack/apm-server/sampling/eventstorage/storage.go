@@ -168,6 +168,9 @@ func (rw *ReadWriter) DeleteTraceEvent(traceID, id string) error {
 // over uncommitted writes, where it will sort keys for each new iterator.
 func (rw *ReadWriter) ReadTraceEvents(traceID string, out *model.Batch) error {
 	opts := badger.DefaultIteratorOptions
+	// Prefetching is recommended for long-running iterations, which we do not
+	// perform. Disabling prefetch to avoid unnecessary overhead.
+	opts.PrefetchValues = false
 	rw.readKeyBuf = append(append(rw.readKeyBuf[:0], traceID...), ':')
 	opts.Prefix = rw.readKeyBuf
 

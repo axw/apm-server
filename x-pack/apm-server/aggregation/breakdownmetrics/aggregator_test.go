@@ -174,6 +174,9 @@ func BenchmarkAggregator(b *testing.B) {
 			}
 		}
 	}
+	if err := readWriter.Flush(); err != nil {
+		b.Fatal(err)
+	}
 	b.ResetTimer()
 
 	agg, err := breakdownmetrics.NewAggregator(breakdownmetrics.AggregatorConfig{

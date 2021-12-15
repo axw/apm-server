@@ -83,24 +83,9 @@ type Aggregator struct {
 	stopping chan struct{}
 	stopped  chan struct{}
 
-	// TODO(axw) don't store all events in memory. Can we store them
-	// in Badger? e.g.
-	//
-	// - individual events, keyed by trace ID + span/transaction ID
-	// - mapping from events to child span IDs
-	//
-	// Then we just need to keep the per-trace timers in memory.
-
 	mu      sync.Mutex
 	wg      sync.WaitGroup
-	traces  map[string]*traceEvents
 	metrics map[aggregationKey]spanMetrics
-}
-
-type traceEvents struct {
-	//transactions []*model.APMEvent
-	//spans        map[string]*model.APMEvent
-	//childSpans map[string][]string
 }
 
 // NewAggregator returns a new Aggregator with the given config.
@@ -115,7 +100,6 @@ func NewAggregator(config AggregatorConfig) (*Aggregator, error) {
 		config:   config,
 		stopping: make(chan struct{}),
 		stopped:  make(chan struct{}),
-		traces:   make(map[string]*traceEvents),
 		metrics:  make(map[aggregationKey]spanMetrics),
 	}, nil
 }
@@ -283,16 +267,6 @@ func (a *Aggregator) aggregateTransaction(traceID, transactionID string) error {
 			return ci.Timestamp.Equal(cj.Timestamp) && ci.Event.Duration < cj.Event.Duration
 		})
 	}
-	/*
-		sort.Slice(childIDs, func(i, j int) bool {
-			ci := trace.spans[childIDs[i]]
-			cj := trace.spans[childIDs[j]]
-			if ci.Timestamp.Before(cj.Timestamp) {
-				return true
-			}
-			return ci.Timestamp.Equal(cj.Timestamp) && ci.Event.Duration < cj.Event.Duration
-		})
-	*/
 
 	// Aggregate each transactions and its reachable spans.
 	a.mu.Lock()
