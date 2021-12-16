@@ -18,6 +18,7 @@ import (
 
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/breakdownmetrics"
+	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/breakdownmetrics/deadlinestorage"
 	"github.com/elastic/apm-server/x-pack/apm-server/sampling/eventstorage"
 )
 
@@ -26,6 +27,10 @@ func TestNewAggregatorConfigInvalid(t *testing.T) {
 
 	var traceEventsReader struct {
 		breakdownmetrics.TraceEventsReader
+	}
+
+	var deadlineStorage struct {
+		breakdownmetrics.DeadlineStorage
 	}
 
 	type test struct {
@@ -40,16 +45,24 @@ func TestNewAggregatorConfigInvalid(t *testing.T) {
 		config: breakdownmetrics.AggregatorConfig{
 			TraceEventsReader: &traceEventsReader,
 		},
+		err: "DeadlineStorage unspecified",
+	}, {
+		config: breakdownmetrics.AggregatorConfig{
+			TraceEventsReader: &traceEventsReader,
+			DeadlineStorage:   &deadlineStorage,
+		},
 		err: "BatchProcessor unspecified",
 	}, {
 		config: breakdownmetrics.AggregatorConfig{
 			TraceEventsReader: &traceEventsReader,
+			DeadlineStorage:   &deadlineStorage,
 			BatchProcessor:    report,
 		},
 		err: "MaxGroups unspecified or negative",
 	}, {
 		config: breakdownmetrics.AggregatorConfig{
 			TraceEventsReader: &traceEventsReader,
+			DeadlineStorage:   &deadlineStorage,
 			BatchProcessor:    report,
 			MaxGroups:         1,
 		},
@@ -57,6 +70,7 @@ func TestNewAggregatorConfigInvalid(t *testing.T) {
 	}, {
 		config: breakdownmetrics.AggregatorConfig{
 			TraceEventsReader: &traceEventsReader,
+			DeadlineStorage:   &deadlineStorage,
 			BatchProcessor:    report,
 			MaxGroups:         1,
 			Duration:          time.Second,
@@ -84,6 +98,7 @@ func TestAggregator(t *testing.T) {
 	batches := make(chan model.Batch, 1)
 	agg, err := breakdownmetrics.NewAggregator(breakdownmetrics.AggregatorConfig{
 		TraceEventsReader: traceEventsReader,
+		DeadlineStorage:   make(channelDeadlineStorage),
 		BatchProcessor:    makeChanBatchProcessor(batches),
 		Duration:          time.Millisecond,
 		Interval:          time.Millisecond,
@@ -91,14 +106,12 @@ func TestAggregator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = agg.ProcessBatch(context.Background(), &model.Batch{tx, span1, span2})
-	require.NoError(t, err)
-
-	// Start the aggregator after processing to ensure metrics are aggregated deterministically.
-	//
-	// Batches are processed as a unit, so there is no risk of partial metrics being published.
 	go agg.Run()
 	defer agg.Stop(context.Background())
+
+	// Batches are processed as a unit, so there is no risk of partial metrics being published.
+	err = agg.ProcessBatch(context.Background(), &model.Batch{tx, span1, span2})
+	require.NoError(t, err)
 
 	batch := expectBatch(t, batches)
 	metricsets := batchMetricsets(t, batch)
@@ -142,13 +155,19 @@ func TestAggregator(t *testing.T) {
 }
 
 func BenchmarkAggregator(b *testing.B) {
-	tempdir, err := ioutil.TempDir("", "breakdownmetrics")
+	eventStorageTempdir, err := ioutil.TempDir("", "breakdownmetrics")
 	require.NoError(b, err)
-	b.Cleanup(func() { os.RemoveAll(tempdir) })
+	b.Cleanup(func() { os.RemoveAll(eventStorageTempdir) })
+	eventStorageBadgerDB, err := eventstorage.OpenBadger(eventStorageTempdir, 0)
+	require.NoError(b, err)
+	b.Cleanup(func() { eventStorageBadgerDB.Close() })
 
-	badgerDB, err := eventstorage.OpenBadger(tempdir, 0)
+	deadlineStorageTempdir, err := ioutil.TempDir("", "breakdownmetrics")
 	require.NoError(b, err)
-	b.Cleanup(func() { badgerDB.Close() })
+	b.Cleanup(func() { os.RemoveAll(deadlineStorageTempdir) })
+	deadlineStorageBadgerDB, err := eventstorage.OpenBadger(deadlineStorageTempdir, 0)
+	require.NoError(b, err)
+	b.Cleanup(func() { deadlineStorageBadgerDB.Close() })
 
 	t0 := time.Unix(0, 0)
 	makeBatch := func(traceID string) model.Batch {
@@ -158,7 +177,7 @@ func BenchmarkAggregator(b *testing.B) {
 		return model.Batch{tx, span1, span2}
 	}
 
-	storage := eventstorage.New(badgerDB, eventstorage.JSONCodec{}, time.Minute)
+	storage := eventstorage.New(eventStorageBadgerDB, eventstorage.JSONCodec{}, time.Minute)
 	readWriter := storage.NewShardedReadWriter()
 	for i := 0; i < b.N; i++ {
 		traceID := fmt.Sprintf("trace_%d", i)
@@ -179,9 +198,11 @@ func BenchmarkAggregator(b *testing.B) {
 	}
 	b.ResetTimer()
 
+	batches := make(chan model.Batch, b.N)
 	agg, err := breakdownmetrics.NewAggregator(breakdownmetrics.AggregatorConfig{
 		TraceEventsReader: readWriter,
-		BatchProcessor:    makeErrBatchProcessor(nil),
+		DeadlineStorage:   deadlinestorage.New(deadlineStorageBadgerDB),
+		BatchProcessor:    makeChanBatchProcessor(batches),
 		Duration:          time.Millisecond,
 		Interval:          time.Millisecond,
 		MaxGroups:         1000,
@@ -197,6 +218,20 @@ func BenchmarkAggregator(b *testing.B) {
 		if err := agg.ProcessBatch(context.Background(), &batch); err != nil {
 			b.Fatal(err)
 		}
+	}
+
+	for {
+		batch := expectBatch(b, batches)
+		metricsets := batchMetricsets(b, batch)
+		if n := len(metricsets); n != 2 {
+			b.Fatalf("expected 2 metricsets, got %d", n)
+		}
+		for _, ms := range metricsets {
+			switch ms.Span.Subtype {
+			case "app": // TODO
+			}
+		}
+		break
 	}
 }
 
@@ -252,13 +287,13 @@ func makeChanBatchProcessor(ch chan<- model.Batch) model.BatchProcessor {
 	})
 }
 
-func expectBatch(t *testing.T, ch <-chan model.Batch) model.Batch {
-	t.Helper()
+func expectBatch(tb testing.TB, ch <-chan model.Batch) model.Batch {
+	tb.Helper()
 	select {
 	case batch := <-ch:
 		return batch
 	case <-time.After(time.Second * 5):
-		t.Fatal("expected publish")
+		tb.Fatal("expected publish")
 	}
 	panic("unreachable")
 }
@@ -278,4 +313,31 @@ type traceEventsReaderFunc func(traceID string, out *model.Batch) error
 
 func (f traceEventsReaderFunc) ReadTraceEvents(traceID string, out *model.Batch) error {
 	return f(traceID, out)
+}
+
+type channelDeadlineStorage chan deadlinestorage.TraceDeadline
+
+func (c channelDeadlineStorage) Flush() error {
+	return nil
+}
+
+func (c channelDeadlineStorage) WriteTraceDeadline(traceID string, deadline time.Time) error {
+	c <- deadlinestorage.TraceDeadline{TraceID: traceID, Deadline: deadline}
+	return nil
+}
+
+func (c channelDeadlineStorage) ReadTraceDeadlines(ctx context.Context, checkInterval time.Duration, out chan<- deadlinestorage.TraceDeadline) error {
+	for {
+		var deadline deadlinestorage.TraceDeadline
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case deadline = <-c:
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case out <- deadline:
+		}
+	}
 }

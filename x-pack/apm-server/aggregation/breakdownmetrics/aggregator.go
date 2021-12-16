@@ -12,10 +12,13 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/elastic/beats/v7/libbeat/logp"
 
 	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/apm-server/model"
-	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/breakdownmetrics/deadlinestorage"
 )
 
 const (
@@ -25,6 +28,7 @@ const (
 // AggregatorConfig holds configuration for creating an Aggregator.
 type AggregatorConfig struct {
 	TraceEventsReader TraceEventsReader
+	DeadlineStorage   DeadlineStorage
 
 	// BatchProcessor is a model.BatchProcessor for asynchronously
 	// processing metrics documents.
@@ -58,6 +62,9 @@ func (config AggregatorConfig) Validate() error {
 	if config.TraceEventsReader == nil {
 		return errors.New("TraceEventsReader unspecified")
 	}
+	if config.DeadlineStorage == nil {
+		return errors.New("DeadlineStorage unspecified")
+	}
 	if config.BatchProcessor == nil {
 		return errors.New("BatchProcessor unspecified")
 	}
@@ -83,8 +90,10 @@ type Aggregator struct {
 	stopping chan struct{}
 	stopped  chan struct{}
 
+	traces chan string
+	wg     sync.WaitGroup
+
 	mu      sync.Mutex
-	wg      sync.WaitGroup
 	metrics map[aggregationKey]spanMetrics
 }
 
@@ -100,6 +109,7 @@ func NewAggregator(config AggregatorConfig) (*Aggregator, error) {
 		config:   config,
 		stopping: make(chan struct{}),
 		stopped:  make(chan struct{}),
+		traces:   make(chan string),
 		metrics:  make(map[aggregationKey]spanMetrics),
 	}, nil
 }
@@ -119,21 +129,87 @@ func (a *Aggregator) Run() error {
 			close(a.stopped)
 		}
 	}()
-	var stop bool
-	for !stop {
-		select {
-		case <-a.stopping:
-			stop = true
-			a.wg.Wait()
-		case <-ticker.C:
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		flushTicker := time.NewTicker(time.Second) // TODO(axw) make configurable?
+		defer flushTicker.Stop()
+		defer a.config.DeadlineStorage.Flush()
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-a.stopped:
+				return nil
+			case <-flushTicker.C:
+				if err := a.config.DeadlineStorage.Flush(); err != nil {
+					return err
+				}
+			case traceID := <-a.traces:
+				deadline := time.Now().Add(a.config.Duration)
+				if err := a.config.DeadlineStorage.WriteTraceDeadline(traceID, deadline); err != nil {
+					return err
+				}
+			}
 		}
-		if err := a.publish(context.Background()); err != nil {
-			a.config.Logger.With(logp.Error(err)).Warnf(
-				"publishing span metrics failed: %s", err,
-			)
+	})
+	deadlines := make(chan deadlinestorage.TraceDeadline)
+	g.Go(func() error {
+		defer close(deadlines)
+		return a.config.DeadlineStorage.ReadTraceDeadlines(ctx, time.Millisecond, deadlines)
+	})
+	g.Go(func() error {
+		timer := time.NewTimer(0)
+		if !timer.Stop() {
+			<-timer.C
 		}
-	}
-	return nil
+		for {
+			var deadline deadlinestorage.TraceDeadline
+			var ok bool
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case deadline, ok = <-deadlines:
+				if !ok {
+					return nil
+				}
+				timer.Reset(time.Until(deadline.Deadline))
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-timer.C:
+				// After config.Duration elapses, process all of the
+				// accumulated trace events as a single unit.
+				//
+				// TODO(axw) consider starting another goroutine,
+				// with a concurrency limit.
+				if err := a.aggregateTrace(deadline.TraceID); err != nil {
+					return err
+				}
+			}
+		}
+	})
+	g.Go(func() error {
+		var stop bool
+		for !stop {
+			select {
+			case <-a.stopping:
+				stop = true
+			case <-ticker.C:
+			}
+			if err := a.publish(context.Background()); err != nil {
+				a.config.Logger.With(logp.Error(err)).Warnf(
+					"publishing span metrics failed: %s", err,
+				)
+			}
+		}
+		cancel() // stop other goroutines
+		return nil
+	})
+	return g.Wait()
 }
 
 // Stop stops the Aggregator if it is running, waiting for it to flush any
@@ -206,25 +282,13 @@ func (a *Aggregator) ProcessBatch(ctx context.Context, b *model.Batch) error {
 }
 
 func (a *Aggregator) processTransaction(traceID, transactionID string) {
-	// After config.Duration elapses, or when the aggregator is stopped,
-	// process all of the accumulated trace events as a single unit.
-	a.wg.Add(1)
-	go func() {
-		defer a.wg.Done()
-		timer := time.NewTimer(a.config.Duration)
-		select {
-		case <-timer.C:
-		case <-a.stopping:
-			timer.Stop()
-		}
-		if err := a.aggregateTransaction(traceID, transactionID); err != nil {
-			// TODO: proper error message
-			a.config.Logger.Error(err)
-		}
-	}()
+	select {
+	case <-a.stopping:
+	case a.traces <- traceID:
+	}
 }
 
-func (a *Aggregator) aggregateTransaction(traceID, transactionID string) error {
+func (a *Aggregator) aggregateTrace(traceID string) error {
 	// TODO(axw) recycle batches?
 	var events model.Batch
 	if err := a.config.TraceEventsReader.ReadTraceEvents(traceID, &events); err != nil {

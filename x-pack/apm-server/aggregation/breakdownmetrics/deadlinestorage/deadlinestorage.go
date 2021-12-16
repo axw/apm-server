@@ -1,4 +1,4 @@
-package breakdownmetrics
+package deadlinestorage
 
 import (
 	"context"
@@ -22,8 +22,8 @@ type DeadlineStorage struct {
 	deadlineSeq int
 }
 
-func NewDeadlineStorage(db *badger.DB) *DeadlineStorage {
-	return &DeadlineStorage{db: db, txn: db.NewTransaction(true)}
+func New(db *badger.DB) *DeadlineStorage {
+	return &DeadlineStorage{db: db}
 }
 
 // Flush flushes any uncommitted writes.
@@ -62,6 +62,9 @@ func (s *DeadlineStorage) WriteTraceDeadline(traceID string, deadline time.Time)
 
 	untilDeadline := time.Until(deadline)
 	entry := badger.NewEntry(key[:], []byte(traceID)).WithTTL(untilDeadline + deadlineTTL)
+	if s.txn == nil {
+		s.txn = s.db.NewTransaction(true)
+	}
 	err := s.txn.SetEntry(entry)
 	if err != badger.ErrTxnTooBig {
 		return err
@@ -88,20 +91,21 @@ func (s *DeadlineStorage) ReadTraceDeadlines(ctx context.Context, checkInterval 
 		}
 	}()
 
+	var txn *badger.Txn
 	for {
 		if iter == nil {
-			s.mu.RLock()
-			if s.txn != nil {
-				iter = s.txn.NewIterator(badger.DefaultIteratorOptions)
+			if err := s.Flush(); err != nil {
+				return err
 			}
-			s.mu.RUnlock()
-			if iter != nil {
-				iter.Seek(keyBuf)
-			}
+			txn = s.db.NewTransaction(false)
+			iter = txn.NewIterator(badger.DefaultIteratorOptions)
+			iter.Seek(keyBuf)
 		}
 		if iter != nil && !iter.Valid() {
 			iter.Close()
+			txn.Discard()
 			iter = nil
+			txn = nil
 
 			// Increment key, so we resume iteration at the next entry.
 			//
@@ -125,8 +129,7 @@ func (s *DeadlineStorage) ReadTraceDeadlines(ctx context.Context, checkInterval 
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(checkInterval):
-				out <- traceDeadline
+			case out <- traceDeadline:
 			}
 			iter.Next()
 		} else {

@@ -1,4 +1,4 @@
-package breakdownmetrics_test
+package deadlinestorage_test
 
 import (
 	"context"
@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/breakdownmetrics"
+	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/breakdownmetrics/deadlinestorage"
 	"github.com/elastic/apm-server/x-pack/apm-server/sampling/eventstorage"
 )
 
 func TestTraceDeadlines(t *testing.T) {
-	tempdir, err := ioutil.TempDir("", "breakdownmetrics")
+	tempdir, err := ioutil.TempDir("", "deadlinestorage")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(tempdir) })
 
@@ -24,7 +24,7 @@ func TestTraceDeadlines(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { badgerDB.Close() })
 
-	storage := breakdownmetrics.NewDeadlineStorage(badgerDB)
+	storage := deadlinestorage.New(badgerDB)
 	defer func() {
 		err := storage.Flush()
 		assert.NoError(t, err)
@@ -32,7 +32,7 @@ func TestTraceDeadlines(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	deadlines := make(chan breakdownmetrics.TraceDeadline)
+	deadlines := make(chan deadlinestorage.TraceDeadline)
 	go func() {
 		defer close(deadlines)
 		err = storage.ReadTraceDeadlines(ctx, time.Millisecond, deadlines)
@@ -49,4 +49,5 @@ func TestTraceDeadlines(t *testing.T) {
 	for deadline := range deadlines {
 		fmt.Println(deadline)
 	}
+	fmt.Println("??")
 }
