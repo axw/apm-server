@@ -158,6 +158,7 @@ func (a *Aggregator) Run() error {
 	deadlines := make(chan deadlinestorage.TraceDeadline)
 	g.Go(func() error {
 		defer close(deadlines)
+		// TODO(axw) make check timeout configurable? Should be longer anyway.
 		return a.config.DeadlineStorage.ReadTraceDeadlines(ctx, time.Millisecond, deadlines)
 	})
 	g.Go(func() error {

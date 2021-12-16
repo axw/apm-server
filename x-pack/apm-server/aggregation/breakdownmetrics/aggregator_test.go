@@ -220,18 +220,16 @@ func BenchmarkAggregator(b *testing.B) {
 		}
 	}
 
-	for {
+	var total int
+	for total < 2*b.N {
 		batch := expectBatch(b, batches)
 		metricsets := batchMetricsets(b, batch)
 		if n := len(metricsets); n != 2 {
 			b.Fatalf("expected 2 metricsets, got %d", n)
 		}
 		for _, ms := range metricsets {
-			switch ms.Span.Subtype {
-			case "app": // TODO
-			}
+			total += ms.Span.SelfTime.Count
 		}
-		break
 	}
 }
 
