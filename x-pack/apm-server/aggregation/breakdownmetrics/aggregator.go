@@ -18,7 +18,6 @@ import (
 
 	logs "github.com/elastic/apm-server/log"
 	"github.com/elastic/apm-server/model"
-	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/breakdownmetrics/deadlinestorage"
 )
 
 const (
@@ -28,7 +27,6 @@ const (
 // AggregatorConfig holds configuration for creating an Aggregator.
 type AggregatorConfig struct {
 	TraceEventsReader TraceEventsReader
-	DeadlineStorage   DeadlineStorage
 
 	// BatchProcessor is a model.BatchProcessor for asynchronously
 	// processing metrics documents.
@@ -61,9 +59,6 @@ type AggregatorConfig struct {
 func (config AggregatorConfig) Validate() error {
 	if config.TraceEventsReader == nil {
 		return errors.New("TraceEventsReader unspecified")
-	}
-	if config.DeadlineStorage == nil {
-		return errors.New("DeadlineStorage unspecified")
 	}
 	if config.BatchProcessor == nil {
 		return errors.New("BatchProcessor unspecified")
@@ -132,64 +127,21 @@ func (a *Aggregator) Run() error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	sem := make(chan struct{}, 1000)
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		flushTicker := time.NewTicker(time.Second) // TODO(axw) make configurable?
-		defer flushTicker.Stop()
-		defer a.config.DeadlineStorage.Flush()
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-a.stopped:
 				return nil
-			case <-flushTicker.C:
-				if err := a.config.DeadlineStorage.Flush(); err != nil {
-					return err
-				}
 			case traceID := <-a.traces:
-				deadline := time.Now().Add(a.config.Duration)
-				if err := a.config.DeadlineStorage.WriteTraceDeadline(traceID, deadline); err != nil {
-					return err
-				}
-			}
-		}
-	})
-	deadlines := make(chan deadlinestorage.TraceDeadline)
-	g.Go(func() error {
-		defer close(deadlines)
-		// TODO(axw) make check timeout configurable? Should be longer anyway.
-		return a.config.DeadlineStorage.ReadTraceDeadlines(ctx, time.Millisecond, deadlines)
-	})
-	g.Go(func() error {
-		timer := time.NewTimer(0)
-		if !timer.Stop() {
-			<-timer.C
-		}
-		for {
-			var deadline deadlinestorage.TraceDeadline
-			var ok bool
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case deadline, ok = <-deadlines:
-				if !ok {
-					return nil
-				}
-				timer.Reset(time.Until(deadline.Deadline))
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-timer.C:
-				// After config.Duration elapses, process all of the
-				// accumulated trace events as a single unit.
-				//
-				// TODO(axw) consider starting another goroutine,
-				// with a concurrency limit.
-				if err := a.aggregateTrace(deadline.TraceID); err != nil {
-					return err
-				}
+				sem <- struct{}{}
+				g.Go(func() error {
+					defer func() { <-sem }()
+					return a.aggregateTrace(traceID)
+				})
 			}
 		}
 	})
@@ -265,8 +217,6 @@ func (a *Aggregator) ProcessBatch(ctx context.Context, b *model.Batch) error {
 	// accumulate breakdown metrics. Or, we could just drop all breakdown
 	// metrics sent by agents? Will that work for RUM? IIRC it produces
 	// breakdowns for spans that are never reported (TLS, Connect, etc.)
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	for _, event := range *b {
 		if event.Processor != model.TransactionProcessor {
 			continue

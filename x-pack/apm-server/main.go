@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/dgraph-io/badger/v2"
 	"github.com/hashicorp/go-multierror"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/elastic/apm-server/beater"
 	"github.com/elastic/apm-server/model"
+	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/breakdownmetrics"
 	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/spanmetrics"
 	"github.com/elastic/apm-server/x-pack/apm-server/aggregation/txmetrics"
 	"github.com/elastic/apm-server/x-pack/apm-server/cmd"
@@ -43,7 +45,7 @@ var (
 	// badgerDB holds badger databases, keyed by storage directory, to use when tail-based
 	// sampling or breakdown metrics aggregation are configured.
 	badgerMu sync.Mutex
-	badgerDB map[string]*badger.DB
+	badgerDB = make(map[string]*badger.DB)
 )
 
 type namedProcessor struct {
@@ -87,6 +89,7 @@ func newProcessors(args beater.ServerParams) ([]namedProcessor, error) {
 		return nil, errors.Wrapf(err, "error creating %s", spanName)
 	}
 	processors = append(processors, namedProcessor{name: spanName, processor: spanAggregator})
+
 	if args.Config.Sampling.Tail.Enabled {
 		const name = "tail sampler"
 		sampler, err := newTailSamplingProcessor(args)
@@ -97,7 +100,78 @@ func newProcessors(args beater.ServerParams) ([]namedProcessor, error) {
 		monitoring.NewFunc(samplingMonitoringRegistry, "tail", sampler.CollectMonitoring, monitoring.Report)
 		processors = append(processors, namedProcessor{name: name, processor: sampler})
 	}
+
+	// XXX event storage should likely be shared by multiple other processors,
+	// not dedicated to breakdown metrics. This is just for proof of concept.
+	if true {
+		storageDir := paths.Resolve(paths.Data, breakdownMetricsStorageDir)
+		badgerDB, err := getBadgerDB(storageDir)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get Badger database")
+		}
+		storage := eventstorage.New(badgerDB, eventstorage.JSONCodec{}, 5*time.Minute)
+		readWriter := storage.NewShardedReadWriter()
+		ctx, cancel := context.WithCancel(context.Background())
+		processors = append(processors, namedProcessor{
+			name: "event writer",
+			processor: &eventWriterProcessor{
+				rw:     readWriter,
+				ctx:    ctx,
+				cancel: cancel,
+			},
+		})
+		aggregator, err := breakdownmetrics.NewAggregator(breakdownmetrics.AggregatorConfig{
+			TraceEventsReader: readWriter,
+			BatchProcessor:    args.BatchProcessor,
+			MaxGroups:         1000,
+			Duration:          10 * time.Second,
+			Interval:          time.Second,
+		})
+		if err != nil {
+			return nil, err
+		}
+		processors = append(processors, namedProcessor{
+			name:      "breakdown metrics aggregation",
+			processor: aggregator,
+		})
+	}
+
 	return processors, nil
+}
+
+type eventWriterProcessor struct {
+	rw     *eventstorage.ShardedReadWriter
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func (p *eventWriterProcessor) Run() error {
+	<-p.ctx.Done()
+	p.rw.Close()
+	return nil
+}
+
+func (p *eventWriterProcessor) Stop(context.Context) error {
+	p.cancel()
+	return nil
+}
+
+func (p *eventWriterProcessor) ProcessBatch(ctx context.Context, batch *model.Batch) error {
+	for _, event := range *batch {
+		var id string
+		switch event.Processor {
+		case model.TransactionProcessor:
+			id = event.Transaction.ID
+		case model.SpanProcessor:
+			id = event.Span.ID
+		default:
+			continue
+		}
+		if err := p.rw.WriteTraceEvent(event.Trace.ID, id, &event); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func newTailSamplingProcessor(args beater.ServerParams) (*sampling.Processor, error) {

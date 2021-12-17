@@ -174,7 +174,7 @@ func BenchmarkAggregator(b *testing.B) {
 		tx := makeTransaction(traceID, "transaction_id", "transaction_type", "transaction_name", t0, 30*time.Second)
 		span1 := makeSpan(traceID, "span1_id", "transaction_id", "app", "", t0.Add(10*time.Second), 10*time.Second)
 		span2 := makeSpan(traceID, "span2_id", "span1_id", "db", "mysql", t0.Add(15*time.Second), 10*time.Second)
-		return model.Batch{tx, span1, span2}
+		return model.Batch{span1, span2, tx}
 	}
 
 	storage := eventstorage.New(eventStorageBadgerDB, eventstorage.JSONCodec{}, time.Minute)
