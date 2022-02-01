@@ -73,9 +73,11 @@ func init() {
 // integration package if it is installed, and finally installs the integration pacakge.
 // After InitFleet returns successfully, the IntegrationPackage var will be initialised.
 func InitFleet() error {
+	fmt.Println("Setup")
 	if err := Fleet.Setup(); err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("get policies...")
 	agentPolicies, err := Fleet.AgentPolicies("ingest-agent-policies.description:" + agentPolicyDescription)
 	if err != nil {
 		return err
@@ -84,9 +86,11 @@ func InitFleet() error {
 	for i, agentPolicy := range agentPolicies {
 		ids[i] = agentPolicy.ID
 	}
+	fmt.Println("destroying policies...")
 	if err := DestroyAgentPolicy(ids...); err != nil {
 		return fmt.Errorf("failed to destroy agent policy: %w", err)
 	}
+	fmt.Println("destroyed policies...")
 
 	packages, err := Fleet.ListPackages()
 	if err != nil {
@@ -115,6 +119,7 @@ func InitFleet() error {
 	if IntegrationPackage == nil {
 		return errors.New("could not find package 'apm'")
 	}
+	fmt.Println(IntegrationPackage.Name, IntegrationPackage.Version)
 	return Fleet.InstallPackage(IntegrationPackage.Name, IntegrationPackage.Version)
 }
 

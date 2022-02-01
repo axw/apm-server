@@ -215,12 +215,8 @@ func (s *Server) start(tls bool) error {
 }
 
 func (s *Server) initTLS() (serverCertPath, serverKeyPath, caCertPath string, _ error) {
-	repoRoot, err := getRepoRoot()
-	if err != nil {
-		panic(err)
-	}
-
 	// Load a self-signed server certificate for testing TLS encryption.
+	repoRoot := RepoRoot()
 	serverCertPath = filepath.Join(repoRoot, "systemtest", "apmservertest", "cert.pem")
 	serverKeyPath = filepath.Join(repoRoot, "systemtest", "apmservertest", "key.pem")
 	serverCertBytes, err := ioutil.ReadFile(serverCertPath)

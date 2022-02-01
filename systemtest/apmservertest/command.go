@@ -171,10 +171,7 @@ func BuildServerBinary(goos string) (string, error) {
 		return binary, nil
 	}
 
-	repoRoot, err := getRepoRoot()
-	if err != nil {
-		return "", err
-	}
+	repoRoot := RepoRoot()
 	abspath := filepath.Join(repoRoot, reldir, "apm-server"+suffix)
 
 	log.Println("Building apm-server...")
@@ -191,20 +188,21 @@ func BuildServerBinary(goos string) (string, error) {
 	return abspath, nil
 }
 
-func getRepoRoot() (string, error) {
+// RepoRoot returns the apm-server repository root directory.
+func RepoRoot() string {
 	repoRootMu.Lock()
 	defer repoRootMu.Unlock()
 	if repoRoot != "" {
-		return repoRoot, nil
+		return repoRoot
 	}
 
 	// Build apm-server binary in the repo root.
 	output, err := exec.Command("go", "list", "-m", "-f={{.Dir}}/..").Output()
 	if err != nil {
-		return "", err
+		panic(err)
 	}
 	repoRoot = filepath.Clean(strings.TrimSpace(string(output)))
-	return repoRoot, nil
+	return repoRoot
 }
 
 var (
