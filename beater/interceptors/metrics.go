@@ -60,6 +60,8 @@ func Metrics(
 
 		m[request.IDRequestCount].Inc()
 		defer m[request.IDResponseCount].Inc()
+		m[request.IDRequestInflightCount].Inc()
+		defer m[request.IDRequestInflightCount].Dec()
 
 		resp, err := handler(ctx, req)
 

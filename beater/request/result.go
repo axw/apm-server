@@ -32,6 +32,8 @@ const (
 
 	// IDRequestCount identifies all requests
 	IDRequestCount ResultID = "request.count"
+	// IDRequestInflightCount identifies all in-flight requests
+	IDRequestInflightCount ResultID = "request.inflight.count"
 	// IDResponseCount identifies all responses
 	IDResponseCount ResultID = "response.count"
 	// IDResponseErrorsCount identifies all non successful responses
@@ -104,7 +106,9 @@ var (
 	}
 
 	// DefaultResultIDs is a list of the default result IDs used by the package.
-	DefaultResultIDs = []ResultID{IDRequestCount, IDResponseCount, IDResponseErrorsCount, IDResponseValidCount}
+	DefaultResultIDs = []ResultID{
+		IDRequestCount, IDRequestInflightCount, IDResponseCount, IDResponseErrorsCount, IDResponseValidCount,
+	}
 )
 
 // ResultID unique string identifying a requests Result
@@ -126,13 +130,18 @@ type Result struct {
 	Stacktrace string
 }
 
-// DefaultMonitoringMapForRegistry returns map matching resultIDs to monitoring counters for given registry.
-func DefaultMonitoringMapForRegistry(r *monitoring.Registry) map[ResultID]*monitoring.Int {
+// AllResultIDs returns all possible ResultID values.
+func AllResultIDs() []ResultID {
 	ids := append(DefaultResultIDs, IDUnset)
 	for id := range MapResultIDToStatus {
 		ids = append(ids, id)
 	}
-	return MonitoringMapForRegistry(r, ids)
+	return ids
+}
+
+// DefaultMonitoringMapForRegistry returns map matching resultIDs to monitoring counters for given registry.
+func DefaultMonitoringMapForRegistry(r *monitoring.Registry) map[ResultID]*monitoring.Int {
+	return MonitoringMapForRegistry(r, AllResultIDs())
 }
 
 // MonitoringMapForRegistry returns map matching resultIDs to monitoring counters for given registry and keys

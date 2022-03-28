@@ -99,3 +99,29 @@ func TestMonitoringHandler(t *testing.T) {
 			mockMonitoringNil)
 	})
 }
+
+func TestMonitoringInflight(t *testing.T) {
+	const N = 100
+	req := make(chan int64, N)
+	req <- 1
+
+	var checkInflight func(c *request.Context)
+	beatertest.ClearRegistry(mockMonitoring)
+	wrapped := Apply(MonitoringMiddleware(mockMonitoring), func(c *request.Context) {
+		checkInflight(c)
+	})
+
+	checkInflight = func(c *request.Context) {
+		n := <-req
+		assert.Equal(t, n, mockMonitoring[request.IDRequestInflightCount].Get())
+		if n < N {
+			req <- n + 1
+			context, _ := beatertest.DefaultContextWithResponseRecorder()
+			wrapped(context)
+		}
+	}
+
+	context, _ := beatertest.DefaultContextWithResponseRecorder()
+	wrapped(context)
+	assert.Equal(t, int64(0), mockMonitoring[request.IDRequestInflightCount].Get())
+}

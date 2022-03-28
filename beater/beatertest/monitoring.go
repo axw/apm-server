@@ -35,7 +35,7 @@ func CompareMonitoringInt(
 	m map[request.ResultID]*monitoring.Int,
 ) (bool, string) {
 	var result string
-	for _, id := range AllRequestResultIDs() {
+	for _, id := range request.AllResultIDs() {
 		monitoringIntVal := int64(0)
 		monitoringInt := m[id]
 		if monitoringInt != nil {
@@ -50,15 +50,6 @@ func CompareMonitoringInt(
 		}
 	}
 	return len(result) == 0, result
-}
-
-// AllRequestResultIDs returns all registered request.ResultIDs (needs to be manually maintained)
-func AllRequestResultIDs() []request.ResultID {
-	var ids []request.ResultID
-	for k := range request.MapResultIDToStatus {
-		ids = append(ids, k)
-	}
-	return ids
 }
 
 // ClearRegistry sets all counters to 0 and removes all registered counters from the registry

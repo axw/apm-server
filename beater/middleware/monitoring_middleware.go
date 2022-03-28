@@ -29,24 +29,27 @@ import (
 // about request processing. As input parameter it takes a map capable of mapping a request.ResultID to a counter.
 func MonitoringMiddleware(m map[request.ResultID]*monitoring.Int) Middleware {
 	return func(h request.Handler) (request.Handler, error) {
-		inc := func(id request.ResultID) {
+		add := func(id request.ResultID, n int64) {
 			if counter, ok := m[id]; ok {
-				counter.Inc()
+				counter.Add(n)
 			}
 		}
+
 		return func(c *request.Context) {
-			inc(request.IDRequestCount)
+			add(request.IDRequestCount, 1)
+			add(request.IDRequestInflightCount, 1)
+			defer add(request.IDRequestInflightCount, -1)
 
 			h(c)
 
-			inc(request.IDResponseCount)
+			add(request.IDResponseCount, 1)
 			if c.Result.StatusCode >= http.StatusBadRequest {
-				inc(request.IDResponseErrorsCount)
+				add(request.IDResponseErrorsCount, 1)
 			} else {
-				inc(request.IDResponseValidCount)
+				add(request.IDResponseValidCount, 1)
 			}
 
-			inc(c.Result.ID)
+			add(c.Result.ID, 1)
 		}, nil
 
 	}
