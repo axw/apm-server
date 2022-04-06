@@ -20,6 +20,7 @@ package fleettest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -267,6 +268,31 @@ func (c *Client) DeletePackage(name, version string) error {
 	return consumeResponse(resp, nil)
 }
 
+// PackagePolicies returns information about the package policies matching the given
+// KQL query.
+func (c *Client) PackagePolicies(kuery string) ([]PackagePolicy, error) {
+	u, err := url.Parse(c.fleetURL + "/package_policies")
+	if err != nil {
+		return nil, err
+	}
+	query := u.Query()
+	query.Add("kuery", kuery)
+	u.RawQuery = query.Encode()
+
+	resp, err := http.Get(u.String())
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Items []PackagePolicy `json:"items"`
+	}
+	if err := consumeResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return result.Items, nil
+}
+
 // PackagePolicy returns information about the package policy with the given ID.
 func (c *Client) PackagePolicy(id string) (*PackagePolicy, error) {
 	resp, err := http.Get(c.fleetURL + "/package_policies/" + id)
@@ -290,6 +316,29 @@ func (c *Client) CreatePackagePolicy(p *PackagePolicy) error {
 		return err
 	}
 	req := c.newFleetRequest("POST", "/package_policies", &body)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return consumeResponse(resp, nil)
+}
+
+// UpdatePackagePolicy updates an integration package policy.
+func (c *Client) UpdatePackagePolicy(p *PackagePolicy) error {
+	if p.ID == "" {
+		return errors.New("package policy ID unspecified")
+	}
+	packagePolicyID := p.ID
+	pCopy := *p
+	pCopy.ID = ""
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&pCopy); err != nil {
+		return err
+	}
+
+	req := c.newFleetRequest("PUT", "/package_policies/"+packagePolicyID, &body)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
