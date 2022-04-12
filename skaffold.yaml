@@ -1,0 +1,42 @@
+apiVersion: skaffold/v2beta28
+kind: Config
+metadata:
+  name: apm-server
+build:
+  artifacts:
+  - image: apm-backend
+    context: .
+    docker:
+      dockerfile: cmd/apm-backend/Dockerfile
+  - image: apm-txmetrics
+    context: .
+    docker:
+      dockerfile: cmd/apm-txmetrics/Dockerfile
+  - image: apm-destmetrics
+    context: .
+    docker:
+      dockerfile: cmd/apm-destmetrics/Dockerfile
+  - image: apm-frontend
+    context: .
+    docker:
+      dockerfile: cmd/apm-frontend/Dockerfile
+  local:
+    useBuildkit: true
+deploy:
+  kubectl:
+    manifests:
+    #- https://download.elastic.co/downloads/eck/2.1.0/crds.yaml
+    #- https://download.elastic.co/downloads/eck/2.1.0/operator.yaml
+    #- kafka.yml
+    - apm-k8s.yml
+portForward:
+- resourceType: service
+  resourceName: apm-frontend
+  namespace: default
+  port: 8200
+  localPort: 8200
+- resourceType: service
+  resourceName: kibana-kb-http
+  namespace: default
+  port: 5601
+  localPort: 5601

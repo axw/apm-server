@@ -19,6 +19,7 @@ package beater
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -39,6 +40,7 @@ import (
 	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/interceptors"
 	"github.com/elastic/apm-server/beater/jaeger"
+	"github.com/elastic/apm-server/beater/kafkaconsumer"
 	"github.com/elastic/apm-server/beater/otlp"
 	"github.com/elastic/apm-server/beater/ratelimit"
 	"github.com/elastic/apm-server/elasticsearch"
@@ -115,8 +117,9 @@ type server struct {
 	cfg                   *config.Config
 	agentcfgFetchReporter agentcfg.Reporter
 
-	httpServer *httpServer
-	grpcServer *grpc.Server
+	httpServer    *httpServer
+	grpcServer    *grpc.Server
+	kafkaConsumer *kafkaconsumer.Consumer
 }
 
 func newServer(args ServerParams, listener net.Listener) (server, error) {
@@ -175,11 +178,23 @@ func newServer(args ServerParams, listener net.Listener) (server, error) {
 		return server{}, err
 	}
 
+	var kafkaConsumer *kafkaconsumer.Consumer
+	if args.Config.Kafka != nil {
+		kafkaConsumer = kafkaconsumer.New(kafkaconsumer.Config{
+			Brokers: args.Config.Kafka.Brokers,
+			BatchProcessor: model.ProcessBatchFunc(func(ctx context.Context, batch *model.Batch) error {
+				ctx = auth.ContextWithAuthorizer(ctx, kafkaAuthorizer{})
+				return batchProcessor.ProcessBatch(ctx, batch)
+			}),
+		})
+	}
+
 	return server{
 		logger:                args.Logger,
 		cfg:                   args.Config,
 		httpServer:            httpServer,
 		grpcServer:            grpcServer,
+		kafkaConsumer:         kafkaConsumer,
 		agentcfgFetchReporter: agentcfgFetchReporter,
 	}, nil
 }
@@ -239,8 +254,15 @@ func (s server) run(ctx context.Context) error {
 	g.Go(func() error {
 		return s.grpcServer.Serve(s.httpServer.grpcListener)
 	})
+	if s.kafkaConsumer != nil {
+		g.Go(func() error { return s.kafkaConsumer.Consume(ctx) })
+	}
+
 	g.Go(func() error {
 		<-ctx.Done()
+		if s.kafkaConsumer != nil {
+			_ = s.kafkaConsumer.Close() // TODO check error?
+		}
 		s.grpcServer.GracefulStop()
 		s.httpServer.stop()
 		return nil
@@ -249,4 +271,13 @@ func (s server) run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+type kafkaAuthorizer struct{}
+
+func (kafkaAuthorizer) Authorize(ctx context.Context, a auth.Action, r auth.Resource) error {
+	if a == auth.ActionEventIngest {
+		return nil
+	}
+	return fmt.Errorf("action %q for resource %q not permitted for Kafka input", a, r)
 }

@@ -1,3 +1,7 @@
 build
 apm-server
 Dockerfile
+**/*.swp
+eck.yml
+kafka.yml
+apm-k8s.yml

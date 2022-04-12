@@ -70,6 +70,7 @@ type Config struct {
 	DataStreams               DataStreamsConfig       `config:"data_streams"`
 	DefaultServiceEnvironment string                  `config:"default_service_environment"`
 	JavaAttacherConfig        JavaAttacherConfig      `config:"java_attacher"`
+	Kafka                     *KafkaConfig            `config:"kafka"`
 
 	AgentConfigs []AgentConfig `config:"agent_config"`
 

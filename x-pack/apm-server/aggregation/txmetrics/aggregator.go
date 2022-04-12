@@ -5,9 +5,11 @@
 package txmetrics
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"strings"
 	"sync"
@@ -221,7 +223,7 @@ func (a *Aggregator) publish(ctx context.Context) error {
 	for hash, entries := range a.inactive.m {
 		for _, entry := range entries {
 			totalCount, counts, values := entry.transactionMetrics.histogramBuckets()
-			batch = append(batch, makeMetricset(entry.transactionAggregationKey, hash, totalCount, counts, values))
+			batch = append(batch, makeMetricset(entry.TransactionAggregationKey, hash, totalCount, counts, values))
 		}
 		delete(a.inactive.m, hash)
 	}
@@ -260,7 +262,7 @@ func (a *Aggregator) AggregateTransaction(event model.APMEvent) model.APMEvent {
 		return model.APMEvent{}
 	}
 
-	key := a.makeTransactionAggregationKey(event, a.config.MetricsInterval)
+	key := MakeTransactionAggregationKey(event, a.config.MetricsInterval)
 	hash := key.hash()
 	count := transactionCount(event.Transaction)
 	if a.updateTransactionMetrics(key, hash, event.Transaction.RepresentativeCount, event.Event.Duration) {
@@ -279,7 +281,7 @@ unique transaction names.`[1:],
 	return makeMetricset(key, hash, counts[0], counts, values)
 }
 
-func (a *Aggregator) updateTransactionMetrics(key transactionAggregationKey, hash uint64, count float64, duration time.Duration) bool {
+func (a *Aggregator) updateTransactionMetrics(key TransactionAggregationKey, hash uint64, count float64, duration time.Duration) bool {
 	if duration < minDuration {
 		duration = minDuration
 	} else if duration > maxDuration {
@@ -296,7 +298,7 @@ func (a *Aggregator) updateTransactionMetrics(key transactionAggregationKey, has
 	var offset int
 	if ok {
 		for offset = range entries {
-			if entries[offset].transactionAggregationKey == key {
+			if entries[offset].TransactionAggregationKey == key {
 				entries[offset].recordDuration(duration, count)
 				return true
 			}
@@ -308,7 +310,7 @@ func (a *Aggregator) updateTransactionMetrics(key transactionAggregationKey, has
 	entries, ok = m.m[hash]
 	if ok {
 		for i := range entries[offset:] {
-			if entries[offset+i].transactionAggregationKey == key {
+			if entries[offset+i].TransactionAggregationKey == key {
 				m.mu.Unlock()
 				entries[offset+i].recordDuration(duration, count)
 				return true
@@ -319,7 +321,7 @@ func (a *Aggregator) updateTransactionMetrics(key transactionAggregationKey, has
 		return false
 	}
 	entry := &m.space[m.entries]
-	entry.transactionAggregationKey = key
+	entry.TransactionAggregationKey = key
 	if entry.transactionMetrics.histogram == nil {
 		entry.transactionMetrics.histogram = hdrhistogram.New(
 			minDuration.Microseconds(),
@@ -336,8 +338,12 @@ func (a *Aggregator) updateTransactionMetrics(key transactionAggregationKey, has
 	return true
 }
 
-func (a *Aggregator) makeTransactionAggregationKey(event model.APMEvent, interval time.Duration) transactionAggregationKey {
-	return transactionAggregationKey{
+// MakeTransactionAggregationKey returns an object which can be used for
+// hashing and comparison, to group aggregations.
+//
+// TODO(axw) move this somewhere more central, outside of x-pack code.
+func MakeTransactionAggregationKey(event model.APMEvent, interval time.Duration) TransactionAggregationKey {
+	return TransactionAggregationKey{
 		// Group metrics by time interval.
 		timestamp: event.Timestamp.Truncate(interval),
 
@@ -383,7 +389,7 @@ func (a *Aggregator) makeTransactionAggregationKey(event model.APMEvent, interva
 
 // makeMetricset makes a metricset event from key, counts, and values, with timestamp ts.
 func makeMetricset(
-	key transactionAggregationKey, hash uint64, totalCount int64, counts []int64, values []float64,
+	key TransactionAggregationKey, hash uint64, totalCount int64, counts []int64, values []float64,
 ) model.APMEvent {
 	// Record a timeseries instance ID, which should be uniquely identify the aggregation key.
 	var timeseriesInstanceID strings.Builder
@@ -474,11 +480,13 @@ func newMetrics(maxGroups int) *metrics {
 
 type metricsMapEntry struct {
 	transactionMetrics
-	transactionAggregationKey
+	TransactionAggregationKey
 }
 
+// TransactionAggregationKey is a comparable type for use in transaction grouping.
+//
 // NOTE(axw) the dimensions should be kept in sync with docs/metricset-indices.asciidoc.
-type transactionAggregationKey struct {
+type TransactionAggregationKey struct {
 	timestamp              time.Time
 	faasColdstart          *bool
 	faasID                 string
@@ -514,48 +522,54 @@ type transactionAggregationKey struct {
 	traceRoot              bool
 }
 
-func (k *transactionAggregationKey) hash() uint64 {
+func (k *TransactionAggregationKey) hash() uint64 {
 	var h xxhash.Digest
+	k.WriteTo(&h)
+	return h.Sum64()
+}
+
+func (k *TransactionAggregationKey) WriteTo(w io.Writer) (n int64, err error) {
 	var buf [8]byte
+	bw := bufio.NewWriter(w)
 	binary.LittleEndian.PutUint64(buf[:], uint64(k.timestamp.UnixNano()))
-	h.Write(buf[:])
+	bw.Write(buf[:])
 	if k.traceRoot {
-		h.WriteString("1")
+		bw.WriteString("1")
 	}
 	if k.faasColdstart != nil && *k.faasColdstart {
-		h.WriteString("1")
+		bw.WriteString("1")
 	}
-	h.WriteString(k.agentName)
-	h.WriteString(k.containerID)
-	h.WriteString(k.hostname)
-	h.WriteString(k.hostOSPlatform)
-	h.WriteString(k.kubernetesPodName)
-	h.WriteString(k.cloudProvider)
-	h.WriteString(k.cloudRegion)
-	h.WriteString(k.cloudAvailabilityZone)
-	h.WriteString(k.cloudServiceName)
-	h.WriteString(k.cloudAccountID)
-	h.WriteString(k.cloudAccountName)
-	h.WriteString(k.cloudMachineType)
-	h.WriteString(k.cloudProjectID)
-	h.WriteString(k.cloudProjectName)
-	h.WriteString(k.serviceEnvironment)
-	h.WriteString(k.serviceName)
-	h.WriteString(k.serviceVersion)
-	h.WriteString(k.serviceNodeName)
-	h.WriteString(k.serviceRuntimeName)
-	h.WriteString(k.serviceRuntimeVersion)
-	h.WriteString(k.serviceLanguageName)
-	h.WriteString(k.serviceLanguageVersion)
-	h.WriteString(k.transactionName)
-	h.WriteString(k.transactionResult)
-	h.WriteString(k.transactionType)
-	h.WriteString(k.eventOutcome)
-	h.WriteString(k.faasID)
-	h.WriteString(k.faasTriggerType)
-	h.WriteString(k.faasName)
-	h.WriteString(k.faasVersion)
-	return h.Sum64()
+	bw.WriteString(k.agentName)
+	bw.WriteString(k.containerID)
+	bw.WriteString(k.hostname)
+	bw.WriteString(k.hostOSPlatform)
+	bw.WriteString(k.kubernetesPodName)
+	bw.WriteString(k.cloudProvider)
+	bw.WriteString(k.cloudRegion)
+	bw.WriteString(k.cloudAvailabilityZone)
+	bw.WriteString(k.cloudServiceName)
+	bw.WriteString(k.cloudAccountID)
+	bw.WriteString(k.cloudAccountName)
+	bw.WriteString(k.cloudMachineType)
+	bw.WriteString(k.cloudProjectID)
+	bw.WriteString(k.cloudProjectName)
+	bw.WriteString(k.serviceEnvironment)
+	bw.WriteString(k.serviceName)
+	bw.WriteString(k.serviceVersion)
+	bw.WriteString(k.serviceNodeName)
+	bw.WriteString(k.serviceRuntimeName)
+	bw.WriteString(k.serviceRuntimeVersion)
+	bw.WriteString(k.serviceLanguageName)
+	bw.WriteString(k.serviceLanguageVersion)
+	bw.WriteString(k.transactionName)
+	bw.WriteString(k.transactionResult)
+	bw.WriteString(k.transactionType)
+	bw.WriteString(k.eventOutcome)
+	bw.WriteString(k.faasID)
+	bw.WriteString(k.faasTriggerType)
+	bw.WriteString(k.faasName)
+	bw.WriteString(k.faasVersion)
+	return int64(bw.Buffered()), bw.Flush()
 }
 
 type transactionMetrics struct {
