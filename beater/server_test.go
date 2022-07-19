@@ -61,7 +61,7 @@ import (
 
 	"github.com/elastic/apm-server/beater/api"
 	"github.com/elastic/apm-server/beater/config"
-	"github.com/elastic/apm-server/elasticsearch"
+	"github.com/elastic/apm-server/internal/elasticsearch"
 )
 
 type m map[string]interface{}

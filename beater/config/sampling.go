@@ -23,8 +23,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/apm-server/elasticsearch"
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/elasticsearch"
+	"github.com/elastic/apm-server/internal/logs"
 	"github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 )

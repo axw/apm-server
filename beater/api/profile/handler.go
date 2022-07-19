@@ -30,11 +30,11 @@ import (
 
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
-	"github.com/elastic/apm-server/decoder"
+	"github.com/elastic/apm-server/internal/decoder"
+	"github.com/elastic/apm-server/internal/publish"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modeldecoder"
 	v2 "github.com/elastic/apm-server/model/modeldecoder/v2"
-	"github.com/elastic/apm-server/publish"
 )
 
 var (

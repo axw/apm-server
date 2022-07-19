@@ -28,7 +28,7 @@ import (
 
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/logs"
 )
 
 // LogMiddleware returns a middleware taking care of logging processing a request in the middleware and the request handler

@@ -30,8 +30,8 @@ import (
 
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/apm-server/elasticsearch"
-	"github.com/elastic/apm-server/kibana"
+	"github.com/elastic/apm-server/internal/elasticsearch"
+	"github.com/elastic/apm-server/internal/kibana"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 )
 

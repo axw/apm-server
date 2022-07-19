@@ -28,15 +28,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/apm-server/agentcfg"
 	"github.com/elastic/apm-server/approvaltest"
 	"github.com/elastic/apm-server/beater/auth"
 	"github.com/elastic/apm-server/beater/beatertest"
 	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/ratelimit"
 	"github.com/elastic/apm-server/beater/request"
+	"github.com/elastic/apm-server/internal/agentcfg"
+	"github.com/elastic/apm-server/internal/sourcemap"
 	"github.com/elastic/apm-server/model"
-	"github.com/elastic/apm-server/sourcemap"
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/elastic-agent-libs/monitoring"
 )

@@ -17,7 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/logs"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/x-pack/apm-server/sampling/eventstorage"
 	"github.com/elastic/apm-server/x-pack/apm-server/sampling/pubsub"

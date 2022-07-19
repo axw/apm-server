@@ -26,7 +26,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/apm-server/decoder"
+	"github.com/elastic/apm-server/internal/decoder"
 )
 
 // DecodeData decodes input from the io.Reader into the given output

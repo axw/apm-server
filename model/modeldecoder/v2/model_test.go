@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/apm-server/decoder"
+	"github.com/elastic/apm-server/internal/decoder"
 	"github.com/elastic/apm-server/model/modeldecoder/modeldecodertest"
 	"github.com/elastic/apm-server/model/modeldecoder/nullable"
 	"github.com/elastic/elastic-agent-libs/mapstr"

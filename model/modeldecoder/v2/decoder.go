@@ -29,13 +29,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/elastic/apm-server/decoder"
+	"github.com/elastic/apm-server/internal/decoder"
 	"github.com/elastic/apm-server/internal/netutil"
+	otel_processor "github.com/elastic/apm-server/internal/processor/otel"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modeldecoder"
 	"github.com/elastic/apm-server/model/modeldecoder/modeldecoderutil"
 	"github.com/elastic/apm-server/model/modeldecoder/nullable"
-	otel_processor "github.com/elastic/apm-server/processor/otel"
 
 	"go.opentelemetry.io/collector/model/pdata"
 )

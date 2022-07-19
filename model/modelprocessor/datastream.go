@@ -21,7 +21,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/elastic/apm-server/datastreams"
+	"github.com/elastic/apm-server/internal/datastreams"
 	"github.com/elastic/apm-server/model"
 )
 

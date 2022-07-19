@@ -35,10 +35,10 @@ import (
 	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
+	"github.com/elastic/apm-server/internal/processor/stream"
+	"github.com/elastic/apm-server/internal/publish"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modelprocessor"
-	"github.com/elastic/apm-server/processor/stream"
-	"github.com/elastic/apm-server/publish"
 )
 
 func TestIntakeHandler(t *testing.T) {

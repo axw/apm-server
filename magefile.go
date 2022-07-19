@@ -32,8 +32,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/elastic/beats/v7/dev-tools/mage"
-
-	"github.com/elastic/apm-server/beater/config"
 )
 
 func init() {
@@ -82,34 +80,6 @@ func Build() error {
 // Clean cleans all generated files and build artifacts.
 func Clean() error {
 	return mage.Clean()
-}
-
-// Config generates apm-server.yml and apm-server.docker.yml.
-func Config() error {
-	if err := mage.Config(mage.ShortConfigType, shortConfigFileParams(), "."); err != nil {
-		return err
-	}
-	return mage.Config(mage.DockerConfigType, dockerConfigFileParams(), ".")
-}
-
-func shortConfigFileParams() mage.ConfigFileParams {
-	return mage.ConfigFileParams{
-		Short: mage.ConfigParams{Template: mage.OSSBeatDir("_meta/beat.yml")},
-		ExtraVars: map[string]interface{}{
-			"elasticsearch_hostport": "localhost:9200",
-			"listen_hostport":        "localhost:" + config.DefaultPort,
-		},
-	}
-}
-
-func dockerConfigFileParams() mage.ConfigFileParams {
-	return mage.ConfigFileParams{
-		Docker: mage.ConfigParams{Template: mage.OSSBeatDir("_meta/beat.yml")},
-		ExtraVars: map[string]interface{}{
-			"elasticsearch_hostport": "elasticsearch:9200",
-			"listen_hostport":        "0.0.0.0:" + config.DefaultPort,
-		},
-	}
 }
 
 func keepPackages(types []string) map[mage.PackageType]struct{} {
@@ -165,12 +135,6 @@ func Version() error {
 	return nil
 }
 
-// Update updates the generated files.
-func Update() error {
-	mg.Deps(Config)
-	return nil
-}
-
 // Use RACE_DETECTOR=true to enable the race detector.
 func GoTestUnit(ctx context.Context) error {
 	return mage.GoTest(ctx, mage.DefaultGoTestUnitArgs())
@@ -209,7 +173,6 @@ func customizePackaging() {
 			args.Spec.Files["java-attacher.jar"] = mage.PackageFile{Mode: 0750, Source: "build/java-attacher.jar", Owner: mage.BeatUser}
 
 		case mage.Docker:
-			args.Spec.ExtraVars["expose_ports"] = config.DefaultPort
 			args.Spec.ExtraVars["repository"] = "docker.elastic.co/apm"
 			args.Spec.Files["java-attacher.jar"] = mage.PackageFile{Mode: 0750, Source: "build/java-attacher.jar", Owner: mage.BeatUser}
 

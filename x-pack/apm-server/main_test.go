@@ -22,7 +22,7 @@ import (
 
 	"github.com/elastic/apm-server/beater"
 	"github.com/elastic/apm-server/beater/config"
-	"github.com/elastic/apm-server/elasticsearch"
+	"github.com/elastic/apm-server/internal/elasticsearch"
 	"github.com/elastic/apm-server/model/modelprocessor"
 )
 

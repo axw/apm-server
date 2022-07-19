@@ -25,11 +25,11 @@ import (
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/apm-server/agentcfg"
 	"github.com/elastic/apm-server/beater/api"
 	"github.com/elastic/apm-server/beater/auth"
 	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/ratelimit"
+	"github.com/elastic/apm-server/internal/agentcfg"
 	"github.com/elastic/apm-server/model"
 )
 

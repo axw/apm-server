@@ -31,7 +31,6 @@ import (
 	"github.com/elastic/elastic-agent-libs/logp"
 	"github.com/elastic/elastic-agent-libs/monitoring"
 
-	"github.com/elastic/apm-server/agentcfg"
 	"github.com/elastic/apm-server/beater/api/config/agent"
 	"github.com/elastic/apm-server/beater/api/intake"
 	"github.com/elastic/apm-server/beater/api/profile"
@@ -42,11 +41,12 @@ import (
 	"github.com/elastic/apm-server/beater/otlp"
 	"github.com/elastic/apm-server/beater/ratelimit"
 	"github.com/elastic/apm-server/beater/request"
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/agentcfg"
+	"github.com/elastic/apm-server/internal/logs"
+	"github.com/elastic/apm-server/internal/processor/stream"
+	"github.com/elastic/apm-server/internal/sourcemap"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modelprocessor"
-	"github.com/elastic/apm-server/processor/stream"
-	"github.com/elastic/apm-server/sourcemap"
 )
 
 const (

@@ -27,7 +27,7 @@ import (
 	"github.com/elastic/elastic-agent-libs/logp"
 	"github.com/elastic/elastic-agent-libs/transport/tlscommon"
 
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/logs"
 )
 
 const (

@@ -38,8 +38,8 @@ import (
 	"github.com/elastic/elastic-agent-libs/logp"
 	"github.com/elastic/elastic-agent-libs/mapstr"
 
-	"github.com/elastic/apm-server/elasticsearch"
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/elasticsearch"
+	"github.com/elastic/apm-server/internal/logs"
 	"github.com/elastic/apm-server/model"
 )
 

@@ -38,7 +38,7 @@ import (
 
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
-	"github.com/elastic/apm-server/publish"
+	"github.com/elastic/apm-server/internal/publish"
 )
 
 const pprofContentType = `application/x-protobuf; messageType="perftools.profiles.Profile"`

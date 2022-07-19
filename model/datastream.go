@@ -17,7 +17,7 @@
 
 package model
 
-import "github.com/elastic/apm-server/datastreams"
+import "github.com/elastic/apm-server/internal/datastreams"
 
 // DataStream identifies the data stream to which an event will be written.
 type DataStream struct {

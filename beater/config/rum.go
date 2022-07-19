@@ -26,7 +26,7 @@ import (
 	"github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/apm-server/elasticsearch"
+	"github.com/elastic/apm-server/internal/elasticsearch"
 )
 
 const (

@@ -33,7 +33,7 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8/esutil"
 
-	"github.com/elastic/apm-server/elasticsearch"
+	"github.com/elastic/apm-server/internal/elasticsearch"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modelindexer"
 )

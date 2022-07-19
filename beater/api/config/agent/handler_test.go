@@ -36,13 +36,13 @@ import (
 	libkibana "github.com/elastic/elastic-agent-libs/kibana"
 	"github.com/elastic/elastic-agent-libs/version"
 
-	"github.com/elastic/apm-server/agentcfg"
 	"github.com/elastic/apm-server/beater/auth"
 	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
-	"github.com/elastic/apm-server/kibana"
-	"github.com/elastic/apm-server/kibana/kibanatest"
+	"github.com/elastic/apm-server/internal/agentcfg"
+	"github.com/elastic/apm-server/internal/kibana"
+	"github.com/elastic/apm-server/internal/kibana/kibanatest"
 )
 
 type m map[string]interface{}

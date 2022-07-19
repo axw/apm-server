@@ -31,10 +31,10 @@ import (
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/ratelimit"
 	"github.com/elastic/apm-server/beater/request"
-	"github.com/elastic/apm-server/decoder"
+	"github.com/elastic/apm-server/internal/decoder"
+	"github.com/elastic/apm-server/internal/processor/stream"
+	"github.com/elastic/apm-server/internal/publish"
 	"github.com/elastic/apm-server/model"
-	"github.com/elastic/apm-server/processor/stream"
-	"github.com/elastic/apm-server/publish"
 )
 
 const (

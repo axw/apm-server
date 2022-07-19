@@ -39,7 +39,7 @@ import (
 	"github.com/elastic/apm-server/beater/headers"
 
 	"github.com/elastic/apm-server/beater/auth"
-	es "github.com/elastic/apm-server/elasticsearch"
+	es "github.com/elastic/apm-server/internal/elasticsearch"
 )
 
 func genApikeyCmd(settings instance.Settings) *cobra.Command {

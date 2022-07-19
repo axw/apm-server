@@ -52,14 +52,14 @@ import (
 
 	"github.com/elastic/apm-server/beater/config"
 	javaattacher "github.com/elastic/apm-server/beater/java_attacher"
-	"github.com/elastic/apm-server/elasticsearch"
-	"github.com/elastic/apm-server/kibana"
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/elasticsearch"
+	"github.com/elastic/apm-server/internal/kibana"
+	"github.com/elastic/apm-server/internal/logs"
+	"github.com/elastic/apm-server/internal/publish"
+	"github.com/elastic/apm-server/internal/sourcemap"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modelindexer"
 	"github.com/elastic/apm-server/model/modelprocessor"
-	"github.com/elastic/apm-server/publish"
-	"github.com/elastic/apm-server/sourcemap"
 )
 
 // CreatorParams holds parameters for creating beat.Beaters.

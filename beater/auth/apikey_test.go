@@ -30,7 +30,7 @@ import (
 
 	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/headers"
-	"github.com/elastic/apm-server/elasticsearch"
+	"github.com/elastic/apm-server/internal/elasticsearch"
 )
 
 func TestAPIKeyAuthorizer(t *testing.T) {

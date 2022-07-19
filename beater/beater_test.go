@@ -42,7 +42,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/elastic/apm-server/beater/config"
-	"github.com/elastic/apm-server/elasticsearch"
+	"github.com/elastic/apm-server/internal/elasticsearch"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modelindexer/modelindexertest"
 	"github.com/elastic/beats/v7/libbeat/beat"

@@ -36,7 +36,7 @@ import (
 	"github.com/elastic/apm-server/beater/beatertest"
 	"github.com/elastic/apm-server/beater/headers"
 	"github.com/elastic/apm-server/beater/request"
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/logs"
 )
 
 func TestLogMiddleware(t *testing.T) {

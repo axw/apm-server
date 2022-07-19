@@ -31,7 +31,7 @@ import (
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/apm-server/idxmgmt"
+	"github.com/elastic/apm-server/internal/idxmgmt"
 )
 
 const (

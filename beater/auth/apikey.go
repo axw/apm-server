@@ -28,7 +28,7 @@ import (
 
 	"github.com/patrickmn/go-cache"
 
-	es "github.com/elastic/apm-server/elasticsearch"
+	es "github.com/elastic/apm-server/internal/elasticsearch"
 )
 
 const cleanupInterval = 60 * time.Second

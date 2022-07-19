@@ -28,8 +28,8 @@ import (
 
 	"github.com/elastic/apm-server/beater/auth"
 	"github.com/elastic/apm-server/beater/headers"
+	"github.com/elastic/apm-server/internal/logs"
 	"github.com/elastic/apm-server/internal/netutil"
-	logs "github.com/elastic/apm-server/log"
 )
 
 const (

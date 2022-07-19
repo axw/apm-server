@@ -33,13 +33,13 @@ import (
 	"github.com/elastic/elastic-agent-libs/logp"
 	"github.com/elastic/elastic-agent-libs/monitoring"
 
-	"github.com/elastic/apm-server/agentcfg"
 	"github.com/elastic/apm-server/beater/auth"
 	"github.com/elastic/apm-server/beater/config"
 	"github.com/elastic/apm-server/beater/interceptors"
 	"github.com/elastic/apm-server/beater/request"
+	"github.com/elastic/apm-server/internal/agentcfg"
+	"github.com/elastic/apm-server/internal/processor/otel"
 	"github.com/elastic/apm-server/model"
-	"github.com/elastic/apm-server/processor/otel"
 )
 
 var (

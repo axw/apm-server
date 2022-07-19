@@ -4,7 +4,9 @@ GOROOT?=$(shell $(GITROOT)/script/run_with_go_ver go env GOROOT)
 GO:=$(GOROOT)/bin/go
 export PATH:=$(GOROOT)/bin:$(PATH)
 
-GOOSBUILD:=$(GITROOT)/build/$(shell $(GO) env GOOS)
+GOOS?=$(shell $(GO) env GOOS)
+GOARCH?=$(shell $(GO) env GOARCH)
+GOOSBUILD:=$(GITROOT)/build/$(GOOS)
 APPROVALS=$(GOOSBUILD)/approvals
 GENPACKAGE=$(GOOSBUILD)/genpackage
 GOIMPORTS=$(GOOSBUILD)/goimports

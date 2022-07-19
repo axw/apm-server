@@ -89,12 +89,7 @@ bench:
 ##############################################################################
 
 update: go-generate add-headers build-package notice $(MAGE)
-	@$(MAGE) update
 	@go mod download all # make sure go.sum is complete
-
-config: apm-server.yml apm-server.docker.yml
-apm-server.yml apm-server.docker.yml: $(MAGE) magefile.go _meta/beat.yml
-	@$(MAGE) config
 
 .PHONY: go-generate
 go-generate:
@@ -220,6 +215,45 @@ $(PYTHON_BIN): $(PYTHON_BIN)/activate
 $(PYTHON_BIN)/activate: $(MAGE) script/requirements.txt
 	@$(MAGE) pythonEnv
 	@touch $@
+
+##############################################################################
+# Packaging: Docker image, tarball, zip, deb, rpm.
+##############################################################################
+
+export DOCKER_BUILDKIT=1
+
+DOCKER_BUILD_ARGS= \
+  --build-arg BUILD_DATE=$(shell date --rfc-3339=seconds | tr ' ' T) \
+  --build-arg VERSION=$(APM_SERVER_VERSION) \
+  --build-arg VCS_REF=$(shell git rev-parse HEAD)
+
+ifeq ($(SNAPSHOT),true)
+QUALIFIED_VERSION:=$(APM_SERVER_VERSION)-SNAPSHOT
+else
+QUALIFIED_VERSION:=$(APM_SERVER_VERSION)
+endif
+
+DOCKER_REPO:=docker.elastic.co/apm
+DOCKER_IMAGE_TAG:=$(DOCKER_REPO)/apm-server:$(QUALIFIED_VERSION)
+DOCKER_UBI8_IMAGE_TAG:=$(DOCKER_REPO)/apm-server-ubi8:$(QUALIFIED_VERSION)
+DOCKER_IMAGE_TARGZ:=build/distributions/apm-server-$(QUALIFIED_VERSION)-linux-$(GOARCH).docker.tar.gz
+DOCKER_UBI8_IMAGE_TARGZ:=build/distributions/apm-server-ubi8-$(QUALIFIED_VERSION)-linux-$(GOARCH).docker.tar.gz
+
+.PHONY: $(DOCKER_IMAGE_TARGZ)
+$(DOCKER_IMAGE_TARGZ):
+	docker build --build-arg="$(DOCKER_BUILD_ARGS)" -t $(DOCKER_IMAGE_TAG) -f packaging/docker/Dockerfile .
+	docker save -o $@ $(DOCKER_IMAGE_TAG)
+
+.PHONY: $(DOCKER_UBI8_IMAGE_TARGZ)
+$(DOCKER_UBI8_IMAGE_TARGZ): DOCKER_BUILD_ARGS += --build-arg BASE_IMAGE=docker.elastic.co/ubi8/ubi-minimal
+$(DOCKER_UBI8_IMAGE_TARGZ):
+	docker build $(DOCKER_BUILD_ARGS) -t $(DOCKER_UBI8_IMAGE_TAG) -f packaging/docker/Dockerfile .
+	docker save -o $@ $(DOCKER_UBI8_IMAGE_TAG)
+
+#TODO(axw) target for creating IronBank DoD build context
+
+docker: $(DOCKER_IMAGE_TARGZ)
+docker-ubi8: $(DOCKER_UBI8_IMAGE_TARGZ)
 
 ##############################################################################
 # Release manager.

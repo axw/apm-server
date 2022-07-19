@@ -21,7 +21,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/elastic/go-elasticsearch/v8/esutil"
 
-	logs "github.com/elastic/apm-server/log"
+	"github.com/elastic/apm-server/internal/logs"
 	"github.com/elastic/apm-server/model"
 	"github.com/elastic/apm-server/model/modelindexer"
 )

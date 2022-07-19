@@ -28,7 +28,7 @@ import (
 	"github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/transport/tlscommon"
 
-	"github.com/elastic/apm-server/elasticsearch"
+	"github.com/elastic/apm-server/internal/elasticsearch"
 )
 
 var testdataCertificateConfig = tlscommon.CertificateConfig{

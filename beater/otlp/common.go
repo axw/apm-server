@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/elastic/apm-server/beater/request"
-	"github.com/elastic/apm-server/processor/otel"
+	"github.com/elastic/apm-server/internal/processor/otel"
 	"github.com/elastic/elastic-agent-libs/monitoring"
 )
 
