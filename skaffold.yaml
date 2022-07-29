@@ -1,0 +1,52 @@
+apiVersion: skaffold/v2beta28
+kind: Config
+metadata:
+  name: apm-server
+build:
+  local:
+    useBuildkit: true
+  artifacts:
+  - image: apm-server
+    # NOTE(axw) we're using custom instead of docker,
+    # as Skaffold has trouble parsing dependencies from
+    # our Dockerfile.
+    custom:
+      buildCommand: |
+        export DOCKER_BUILDKIT=1
+        docker build -t $IMAGE -f packaging/docker/Dockerfile .
+      dependencies:
+        paths:
+          - ./internal
+          - ./x-pack
+          - ./packaging/docker
+  - image: kibana
+    context: .
+    docker:
+      dockerfile: testing/docker/kibana/Dockerfile
+
+deploy:
+  kubectl:
+    manifests:
+    #- https://download.elastic.co/downloads/eck/2.3.0/crds.yaml
+    #- https://download.elastic.co/downloads/eck/2.3.0/operator.yaml
+    - kubernetes.yaml
+
+resourceSelector:
+  allow:
+    - groupKind: "Elasticsearch.elasticsearch.k8s.elastic.co"
+      image: [".*"]
+      labels: [".*"]
+    - groupKind: "Kibana.kibana.k8s.elastic.co"
+      image: [".*"]
+      labels: [".*"]
+
+portForward:
+  - resourceType: service
+    resourceName: apm-server
+    port: 8200
+  - resourceType: service
+    resourceName: elasticsearch-es-http
+    port: 9200
+  - resourceType: service
+    resourceName: kibana-kb-http
+    port: 5601
