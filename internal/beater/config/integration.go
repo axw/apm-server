@@ -41,12 +41,6 @@ func NewIntegrationConfig(rootConfig *config.C) (*IntegrationConfig, error) {
 
 // IntegrationConfig that comes from Elastic Agent
 type IntegrationConfig struct {
-	ID         string      `config:"id"`
-	Name       string      `config:"name"`
-	Revision   int         `config:"revision"`
-	Type       string      `config:"type"`
-	UseOutput  string      `config:"use_output"`
-	Meta       *Meta       `config:"meta"`
 	DataStream *DataStream `config:"data_stream"`
 	APMServer  *config.C   `config:"apm-server"`
 	Fleet      Fleet       `config:"fleet"`
@@ -54,15 +48,6 @@ type IntegrationConfig struct {
 
 type DataStream struct {
 	Namespace string `config:"namespace"`
-}
-
-type Meta struct {
-	Package *Package `config:"package"`
-}
-
-type Package struct {
-	Name    string `config:"name"`
-	Version string `config:"version"`
 }
 
 type Fleet struct {

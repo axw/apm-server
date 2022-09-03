@@ -155,7 +155,7 @@ func (b *Beat) init() error {
 	logp.Info("Beat ID: %v", b.Info.ID)
 
 	// Initialize central config manager.
-	b.Manager, err = management.Factory(b.Config.Management)(b.Config.Management, reload.Register, b.Beat.Info.ID)
+	b.Manager, err = management.Factory(b.Config.Management)(b.Config.Management, reload.RegisterV2, b.Beat.Info.ID)
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func (b *Beat) createBeater(beatCreator beat.Creator) (beat.Beater, error) {
 	b.Publisher = publisher
 
 	// TODO(axw) pass registry into BeatParams, for testing purposes.
-	reload.Register.MustRegister("output", b.makeOutputReloader(publisher.OutputReloader()))
+	reload.RegisterV2.MustRegister("output", b.makeOutputReloader(publisher.OutputReloader()))
 
 	return beatCreator(&b.Beat, b.Config.APMServer)
 }

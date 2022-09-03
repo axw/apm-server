@@ -17,6 +17,11 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/elastic/beats/v7/libbeat/common/reload"
+	"github.com/elastic/beats/v7/x-pack/libbeat/management"
+	"github.com/elastic/elastic-agent-client/v7/pkg/client"
+	"github.com/elastic/elastic-agent-client/v7/pkg/proto"
+	"github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 	"github.com/elastic/elastic-agent-libs/monitoring"
 	"github.com/elastic/elastic-agent-libs/paths"
@@ -51,6 +56,23 @@ var (
 	storageMu sync.Mutex
 	storage   *eventstorage.ShardedReadWriter
 )
+
+func init() {
+	management.ConfigTransform.SetTransform(
+		func(unit *proto.UnitExpectedConfig, agentInfo *client.AgentInfo) ([]*reload.ConfigWithMeta, error) {
+			logger := logp.NewLogger("")
+			logger.Infof(
+				"received input %s from elastic-agent %s (%s)",
+				unit.Id, agentInfo.ID, agentInfo.Version,
+			)
+			cfg, err := config.NewConfigFrom(unit.GetSource().AsMap())
+			if err != nil {
+				return nil, err
+			}
+			return []*reload.ConfigWithMeta{{Config: cfg}}, nil
+		},
+	)
+}
 
 type namedProcessor struct {
 	processor

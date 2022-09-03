@@ -233,7 +233,7 @@ func (bt *beater) run(ctx context.Context, cancelContext context.CancelFunc, b *
 	})
 	if b.Manager != nil && b.Manager.Enabled() {
 		// Managed by Agent: register input and output reloaders to reconfigure the server.
-		reload.Register.MustRegisterList("inputs", &reloader)
+		reload.RegisterV2.MustRegisterInput(&reloader)
 		g.Go(func() error {
 			return bt.outputConfigReloader.serve(
 				ctx, reload.ReloadableFunc(reloader.reloadOutput),

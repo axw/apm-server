@@ -454,13 +454,13 @@ func TestServerConfigReload(t *testing.T) {
 		t.Skip("skipping server test")
 	}
 
-	// The beater has no way of unregistering itself from reload.Register,
+	// The beater has no way of unregistering itself from reload.RegisterV2,
 	// so we create a fresh registry and replace it after the test.
-	oldRegister := reload.Register
+	oldRegister := reload.RegisterV2
 	defer func() {
-		reload.Register = oldRegister
+		reload.RegisterV2 = oldRegister
 	}()
-	reload.Register = reload.NewRegistry()
+	reload.RegisterV2 = reload.NewRegistry()
 
 	cfg := agentconfig.MustNewConfigFrom(map[string]interface{}{
 		// Set an invalid host to illustrate that the static config
@@ -480,7 +480,7 @@ func TestServerConfigReload(t *testing.T) {
 	var reloadable reload.ReloadableList
 	for {
 		// The Reloader is not registered until after the beat has started running.
-		reloadable = reload.Register.GetReloadableList("inputs")
+		reloadable = reload.RegisterV2.GetInputList()
 		if reloadable != nil {
 			break
 		}
@@ -556,13 +556,13 @@ func TestServerOutputConfigReload(t *testing.T) {
 		t.Skip("skipping server test")
 	}
 
-	// The beater has no way of unregistering itself from reload.Register,
+	// The beater has no way of unregistering itself from reload.RegisterV2,
 	// so we create a fresh registry and replace it after the test.
-	oldRegister := reload.Register
+	oldRegister := reload.RegisterV2
 	defer func() {
-		reload.Register = oldRegister
+		reload.RegisterV2 = oldRegister
 	}()
-	reload.Register = reload.NewRegistry()
+	reload.RegisterV2 = reload.NewRegistry()
 
 	apmBeat, cfg := newBeat(t, nil, nil, nil)
 	apmBeat.Manager = &mockManager{enabled: true}
@@ -588,7 +588,7 @@ func TestServerOutputConfigReload(t *testing.T) {
 	var reloadable reload.ReloadableList
 	for {
 		// The Reloader is not registered until after the beat has started running.
-		reloadable = reload.Register.GetReloadableList("inputs")
+		reloadable = reload.RegisterV2.GetInputList()
 		if reloadable != nil {
 			break
 		}
@@ -875,13 +875,13 @@ func TestServerElasticsearchOutput(t *testing.T) {
 	defer srv.Close()
 	defer close(done)
 
-	// The beater has no way of unregistering itself from reload.Register,
+	// The beater has no way of unregistering itself from reload.RegisterV2,
 	// so we create a fresh registry and replace it after the test.
-	oldRegister := reload.Register
+	oldRegister := reload.RegisterV2
 	defer func() {
-		reload.Register = oldRegister
+		reload.RegisterV2 = oldRegister
 	}()
-	reload.Register = reload.NewRegistry()
+	reload.RegisterV2 = reload.NewRegistry()
 
 	// Pre-create the libbeat registry with some variables that should not
 	// be reported, as we define our own libbeat metrics registry.
@@ -914,7 +914,7 @@ func TestServerElasticsearchOutput(t *testing.T) {
 	var reloadable reload.ReloadableList
 	for {
 		// The Reloader is not registered until after the beat has started running.
-		reloadable = reload.Register.GetReloadableList("inputs")
+		reloadable = reload.RegisterV2.GetInputList()
 		if reloadable != nil {
 			break
 		}
