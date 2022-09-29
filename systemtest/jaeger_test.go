@@ -74,7 +74,7 @@ func testJaegerGRPC(t *testing.T, srv *apmservertest.Server, addr string, dialOp
 		estest.TermQuery{Field: "processor.event", Value: "transaction"},
 	}})
 
-	// TODO(axw) check document contents. We currently do this in beater/jaeger.
+	// TODO(axw) check document contents. We currently do this in apmserver/jaeger.
 }
 
 func TestJaegerGRPCSampling(t *testing.T) {

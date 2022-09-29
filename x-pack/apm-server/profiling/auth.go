@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/elastic/apm-server/internal/beater/auth"
-	"github.com/elastic/apm-server/internal/beater/headers"
+	"github.com/elastic/apm-server/internal/apmserver/auth"
+	"github.com/elastic/apm-server/internal/apmserver/headers"
 )
 
 // AuthenticateUnaryCall implements the interceptors.UnaryAuthenticator

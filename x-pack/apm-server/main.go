@@ -19,7 +19,7 @@ import (
 	"github.com/elastic/elastic-agent-libs/monitoring"
 	"github.com/elastic/elastic-agent-libs/paths"
 
-	"github.com/elastic/apm-server/internal/beater"
+	"github.com/elastic/apm-server/internal/apmserver"
 	"github.com/elastic/apm-server/internal/elasticsearch"
 	"github.com/elastic/apm-server/internal/model"
 	"github.com/elastic/apm-server/internal/model/modelprocessor"
@@ -63,7 +63,7 @@ type processor interface {
 
 // newProcessors returns a list of processors which will process
 // events in sequential order, prior to the events being published.
-func newProcessors(args beater.ServerParams) ([]namedProcessor, error) {
+func newProcessors(args apmserver.ServerParams) ([]namedProcessor, error) {
 	processors := make([]namedProcessor, 0, 3)
 	const txName = "transaction metrics aggregation"
 	args.Logger.Infof("creating %s with config: %+v", txName, args.Config.Aggregation.Transactions)
@@ -119,7 +119,7 @@ func newProcessors(args beater.ServerParams) ([]namedProcessor, error) {
 	return processors, nil
 }
 
-func newTailSamplingProcessor(args beater.ServerParams) (*sampling.Processor, error) {
+func newTailSamplingProcessor(args apmserver.ServerParams) (*sampling.Processor, error) {
 	tailSamplingConfig := args.Config.Sampling.Tail
 	es, err := args.NewElasticsearchClient(tailSamplingConfig.ESConfig)
 	if err != nil {
@@ -202,7 +202,7 @@ func getStorage(db *badger.DB) *eventstorage.ShardedReadWriter {
 //
 // newProcessors returns a list of processors which will process events in
 // sequential order, prior to the events being published.
-func runServerWithProcessors(ctx context.Context, runServer beater.RunServerFunc, args beater.ServerParams, processors ...namedProcessor) error {
+func runServerWithProcessors(ctx context.Context, runServer apmserver.RunServerFunc, args apmserver.ServerParams, processors ...namedProcessor) error {
 	if len(processors) == 0 {
 		return runServer(ctx, args)
 	}
@@ -239,7 +239,7 @@ func runServerWithProcessors(ctx context.Context, runServer beater.RunServerFunc
 	return g.Wait()
 }
 
-func newProfilingCollector(args beater.ServerParams) (*profiling.ElasticCollector, func(context.Context) error, error) {
+func newProfilingCollector(args apmserver.ServerParams) (*profiling.ElasticCollector, func(context.Context) error, error) {
 	// Elasticsearch should default to 100 MB for the http.max_content_length configuration,
 	// so we flush the buffer when at 16 MiB or every 4 seconds.
 	// This should reduce the lock contention between multiple workers trying to write or flush
@@ -285,10 +285,10 @@ func newProfilingCollector(args beater.ServerParams) (*profiling.ElasticCollecto
 	return profilingCollector, cleanup, nil
 }
 
-func wrapServer(args beater.ServerParams, runServer beater.RunServerFunc) (beater.ServerParams, beater.RunServerFunc, error) {
+func wrapServer(args apmserver.ServerParams, runServer apmserver.RunServerFunc) (apmserver.ServerParams, apmserver.RunServerFunc, error) {
 	processors, err := newProcessors(args)
 	if err != nil {
-		return beater.ServerParams{}, nil, err
+		return apmserver.ServerParams{}, nil, err
 	}
 
 	// Add the processors to the chain.
@@ -299,7 +299,7 @@ func wrapServer(args beater.ServerParams, runServer beater.RunServerFunc) (beate
 	processorChain[len(processors)] = args.BatchProcessor
 	args.BatchProcessor = processorChain
 
-	wrappedRunServer := func(ctx context.Context, args beater.ServerParams) error {
+	wrappedRunServer := func(ctx context.Context, args apmserver.ServerParams) error {
 		if args.Config.Profiling.Enabled {
 			profilingCollector, cleanup, err := newProfilingCollector(args)
 			if err != nil {
@@ -348,7 +348,7 @@ func cleanup() (result error) {
 
 func Main() error {
 	rootCmd := newXPackRootCommand(
-		beater.NewCreator(beater.CreatorParams{
+		apmserver.NewCreator(apmserver.CreatorParams{
 			WrapServer: wrapServer,
 		}),
 	)

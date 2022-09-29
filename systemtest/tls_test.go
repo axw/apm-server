@@ -100,7 +100,7 @@ func TestTLSClientAuth(t *testing.T) {
 	logs := srv.Logs.Iterator()
 	defer logs.Close()
 	for entry := range logs.C() {
-		if entry.Logger != "beater.http" || entry.Level != zapcore.ErrorLevel {
+		if entry.Logger != "apmserver.http" || entry.Level != zapcore.ErrorLevel {
 			continue
 		}
 		assert.Equal(t, "http/server.go", entry.File)

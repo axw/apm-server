@@ -7,7 +7,7 @@ package profiling
 import (
 	"github.com/elastic/elastic-agent-libs/monitoring"
 
-	"github.com/elastic/apm-server/internal/beater/request"
+	"github.com/elastic/apm-server/internal/apmserver/request"
 )
 
 var (

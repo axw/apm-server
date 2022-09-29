@@ -20,13 +20,13 @@ package main
 import (
 	"os"
 
+	"github.com/elastic/apm-server/internal/apmserver"
 	"github.com/elastic/apm-server/internal/beatcmd"
-	"github.com/elastic/apm-server/internal/beater"
 )
 
 func main() {
 	rootCmd := beatcmd.NewRootCommand(beatcmd.BeatParams{
-		Create: beater.NewCreator(beater.CreatorParams{}),
+		Create: apmserver.NewCreator(apmserver.CreatorParams{}),
 	})
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

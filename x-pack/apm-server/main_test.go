@@ -20,8 +20,8 @@ import (
 	"github.com/elastic/elastic-agent-libs/monitoring"
 	"github.com/elastic/elastic-agent-libs/paths"
 
-	"github.com/elastic/apm-server/internal/beater"
-	"github.com/elastic/apm-server/internal/beater/config"
+	"github.com/elastic/apm-server/internal/apmserver"
+	"github.com/elastic/apm-server/internal/apmserver/config"
 	"github.com/elastic/apm-server/internal/elasticsearch"
 	"github.com/elastic/apm-server/internal/model/modelprocessor"
 )
@@ -44,7 +44,7 @@ func TestMonitoring(t *testing.T) {
 	runServerError := errors.New("runServer")
 	for i := 0; i < 2; i++ {
 		var aggregationMonitoringSnapshot, tailSamplingMonitoringSnapshot monitoring.FlatSnapshot
-		serverParams, runServer, err := wrapServer(beater.ServerParams{
+		serverParams, runServer, err := wrapServer(apmserver.ServerParams{
 			Config:                 cfg,
 			Logger:                 logp.NewLogger(""),
 			Tracer:                 apmtest.DiscardTracer,
@@ -52,7 +52,7 @@ func TestMonitoring(t *testing.T) {
 			Managed:                true,
 			Namespace:              "default",
 			NewElasticsearchClient: elasticsearch.NewClient,
-		}, func(ctx context.Context, args beater.ServerParams) error {
+		}, func(ctx context.Context, args apmserver.ServerParams) error {
 			aggregationMonitoringSnapshot = monitoring.CollectFlatSnapshot(aggregationMonitoringRegistry, monitoring.Full, false)
 			tailSamplingMonitoringSnapshot = monitoring.CollectFlatSnapshot(samplingMonitoringRegistry, monitoring.Full, false)
 			return runServerError

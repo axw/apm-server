@@ -64,14 +64,14 @@ func TestAPMServerGRPCRequestLoggingValid(t *testing.T) {
 
 	var foundGRPC, foundJaeger bool
 	for _, entry := range srv.Logs.All() {
-		if entry.Logger == "beater.grpc" {
+		if entry.Logger == "apmserver.grpc" {
 			switch entry.Fields["grpc.request.method"] {
 			case "/jaeger.api_v2.CollectorService/PostSpans":
-				require.Equal(t, "beater.grpc", entry.Logger)
+				require.Equal(t, "apmserver.grpc", entry.Logger)
 				require.Equal(t, "OK", entry.Fields["grpc.response.status_code"])
 				foundJaeger = true
 			case "/opentelemetry.proto.collector.trace.v1.TraceService/Export":
-				require.Equal(t, "beater.grpc", entry.Logger)
+				require.Equal(t, "apmserver.grpc", entry.Logger)
 				require.Equal(t, "OK", entry.Fields["grpc.response.status_code"])
 				foundGRPC = true
 			}

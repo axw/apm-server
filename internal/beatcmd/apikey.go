@@ -33,10 +33,10 @@ import (
 
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 
-	"github.com/elastic/apm-server/internal/beater/config"
-	"github.com/elastic/apm-server/internal/beater/headers"
+	"github.com/elastic/apm-server/internal/apmserver/config"
+	"github.com/elastic/apm-server/internal/apmserver/headers"
 
-	"github.com/elastic/apm-server/internal/beater/auth"
+	"github.com/elastic/apm-server/internal/apmserver/auth"
 	es "github.com/elastic/apm-server/internal/elasticsearch"
 )
 
