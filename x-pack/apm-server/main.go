@@ -348,9 +348,7 @@ func cleanup() (result error) {
 
 func Main() error {
 	rootCmd := newXPackRootCommand(
-		apmserver.NewCreator(apmserver.CreatorParams{
-			WrapServer: wrapServer,
-		}),
+		apmserver.NewRunnerFunc(wrapServer),
 	)
 	result := rootCmd.Execute()
 	if err := cleanup(); err != nil {

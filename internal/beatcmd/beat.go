@@ -32,6 +32,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/elastic/beats/v7/libbeat/api"
 	"github.com/elastic/beats/v7/libbeat/beat"
@@ -42,9 +43,7 @@ import (
 	"github.com/elastic/beats/v7/libbeat/management"
 	"github.com/elastic/beats/v7/libbeat/monitoring/report"
 	"github.com/elastic/beats/v7/libbeat/monitoring/report/log"
-	"github.com/elastic/beats/v7/libbeat/outputs"
 	"github.com/elastic/beats/v7/libbeat/outputs/elasticsearch"
-	"github.com/elastic/beats/v7/libbeat/publisher/pipeline"
 	"github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/file"
 	"github.com/elastic/elastic-agent-libs/logp"
@@ -78,13 +77,17 @@ type Beat struct {
 	Config *Config
 
 	rawConfig *config.C
-	create    beat.Creator
+	newRunner NewRunnerFunc
 }
 
 // BeatParams holds parameters for NewBeat.
 type BeatParams struct {
-	// Create holds a beat.Creator for creating an instance of beat.Beater.
-	Create beat.Creator
+	// NewRunner holds a NewRunnerFunc for creating a Runner.
+	//
+	// If (Fleet) management is enabled, NewRunner may be called multiple
+	// times, whenever configuration is reloaded. Otherwise, NewRunner will
+	// be called once with the initial, static, configuration.
+	NewRunner NewRunnerFunc
 
 	// ElasticLicensed indicates whether this build of APM Server
 	// is licensed with the Elastic License v2.
@@ -120,7 +123,7 @@ func NewBeat(args BeatParams) (*Beat, error) {
 			BeatConfig: cfg.APMServer,
 		},
 		Config:    cfg,
-		create:    args.Create,
+		newRunner: args.NewRunner,
 		rawConfig: rawConfig,
 	}
 
@@ -255,53 +258,6 @@ func openRegular(filename string) (*os.File, error) {
 	return f, nil
 }
 
-// create and return the beater, this method also initializes all needed items,
-// including template registering, publisher, xpack monitoring
-func (b *Beat) createBeater(beatCreator beat.Creator) (beat.Beater, error) {
-	logSystemInfo(b.Info)
-
-	cleanup, err := b.registerElasticsearchVersionCheck()
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
-	cleanup, err = b.registerClusterUUIDFetching()
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
-	if err := metricreport.SetupMetrics(logp.NewLogger("metrics"), b.Info.Beat, b.Info.Version); err != nil {
-		return nil, err
-	}
-
-	if !b.Config.Output.IsSet() || !b.Config.Output.Config().Enabled() {
-		if !b.Manager.Enabled() {
-			return nil, errors.New("no outputs are defined, please define one under the output section")
-		}
-		logp.Info("output is configured through central management")
-	}
-
-	monitors := pipeline.Monitors{
-		Metrics:   libbeatMetricsRegistry,
-		Telemetry: monitoring.GetNamespace("state").GetRegistry(),
-		Logger:    logp.L().Named("publisher"),
-		Tracer:    b.Instrumentation.Tracer(),
-	}
-	outputFactory := b.makeOutputFactory(b.Config.Output)
-	publisher, err := pipeline.Load(b.Info, monitors, pipeline.Config{}, nopProcessingSupporter{}, outputFactory)
-	if err != nil {
-		return nil, fmt.Errorf("error initializing publisher: %w", err)
-	}
-	b.Publisher = publisher
-
-	// TODO(axw) pass registry into BeatParams, for testing purposes.
-	reload.Register.MustRegister("output", b.makeOutputReloader(publisher.OutputReloader()))
-
-	return beatCreator(&b.Beat, b.Config.APMServer)
-}
-
 func (b *Beat) Run(ctx context.Context) error {
 	defer logp.Sync()
 	defer func() {
@@ -313,6 +269,17 @@ func (b *Beat) Run(ctx context.Context) error {
 		}
 	}()
 	defer logp.Info("%s stopped.", b.Info.Beat)
+	defer b.Instrumentation.Tracer().Close()
+
+	logger := logp.NewLogger("beatcmd")
+	defer adjustMaxProcs(ctx, 30*time.Second, diffInfof(logger), logger.Errorf)
+
+	if runtime.GOARCH == "386" {
+		logger.Warn("" +
+			"deprecation notice: support for 32-bit system target " +
+			"architecture will be removed in an upcoming version",
+		)
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -382,21 +349,59 @@ func (b *Beat) Run(ctx context.Context) error {
 		}
 	}
 
-	beater, err := b.createBeater(b.create)
+	logSystemInfo(b.Info)
+
+	cleanup, err := b.registerElasticsearchVersionCheck()
 	if err != nil {
 		return err
 	}
+	defer cleanup()
 
-	go func() {
-		<-ctx.Done()
-		b.Instrumentation.Tracer().Close()
-		beater.Stop()
-	}()
+	cleanup, err = b.registerClusterUUIDFetching()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	if err := metricreport.SetupMetrics(logp.NewLogger("metrics"), b.Info.Beat, b.Info.Version); err != nil {
+		return err
+	}
+
 	svc.HandleSignals(cancel, cancel)
 
+	g, ctx := errgroup.WithContext(ctx)
+	if b.Manager.Enabled() {
+		reloader, err := NewReloader(b.Info, b.newRunner)
+		if err != nil {
+			return err
+		}
+		g.Go(func() error { return reloader.Run(ctx) })
+
+		b.Manager.SetStopCallback(cancel)
+		if err := b.Manager.Start(); err != nil {
+			return fmt.Errorf("failed to start manager: %w", err)
+		}
+		defer b.Manager.Stop()
+	} else {
+		if !b.Config.Output.IsSet() {
+			return errors.New("no output defined, please define one under the output section")
+		}
+		runner, err := b.newRunner(RunnerParams{
+			Config: b.rawConfig,
+			Info:   b.Info,
+			Logger: logp.NewLogger(""),
+		})
+		if err != nil {
+			return err
+		}
+		g.Go(func() error { return runner.Run(ctx) })
+	}
+	g.Go(func() error {
+		<-ctx.Done()
+		return nil
+	})
 	logp.Info("%s started.", b.Info.Beat)
-	b.Manager.SetStopCallback(cancel)
-	return beater.Run(&b.Beat)
+	return g.Wait()
 }
 
 // registerMetrics registers metrics with the internal monitoring API. This data
@@ -478,34 +483,6 @@ func (b *Beat) registerElasticsearchVersionCheck() (func(), error) {
 		return nil, err
 	}
 	return func() { elasticsearch.DeregisterGlobalCallback(uuid) }, nil
-}
-
-func (b *Beat) makeOutputReloader(outReloader pipeline.OutputReloader) reload.Reloadable {
-	return reload.ReloadableFunc(func(config *reload.ConfigWithMeta) error {
-		if b.OutputConfigReloader != nil {
-			if err := b.OutputConfigReloader.Reload(config); err != nil {
-				return err
-			}
-		}
-		return outReloader.Reload(config, b.createOutput)
-	})
-}
-
-func (b *Beat) makeOutputFactory(
-	cfg config.Namespace,
-) func(outputs.Observer) (string, outputs.Group, error) {
-	return func(outStats outputs.Observer) (string, outputs.Group, error) {
-		out, err := b.createOutput(outStats, cfg)
-		return cfg.Name(), out, err
-	}
-}
-
-func (b *Beat) createOutput(stats outputs.Observer, cfg config.Namespace) (outputs.Group, error) {
-	if !cfg.IsSet() {
-		return outputs.Group{}, nil
-	}
-	indexSupporter := newSupporter(nil, b.Info, b.rawConfig)
-	return outputs.Load(indexSupporter, b.Info, stats, cfg.Name(), cfg.Config())
 }
 
 func (b *Beat) registerClusterUUIDFetching() (func(), error) {
