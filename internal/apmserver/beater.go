@@ -135,9 +135,10 @@ func NewRunnerFunc(wrapServer WrapServerFunc) beatcmd.NewRunnerFunc {
 			logger:     args.Logger,
 			rawConfig:  args.Config,
 
-			config:       cfg,
-			fleetConfig:  unpackedConfig.Fleet,
-			outputConfig: unpackedConfig.Output,
+			config:                    cfg,
+			fleetConfig:               unpackedConfig.Fleet,
+			outputConfig:              unpackedConfig.Output,
+			elasticsearchOutputConfig: elasticsearchOutputConfig,
 
 			listener: listener,
 		}, nil

@@ -272,7 +272,7 @@ func (b *Beat) Run(ctx context.Context) error {
 	defer b.Instrumentation.Tracer().Close()
 
 	logger := logp.NewLogger("beatcmd")
-	defer adjustMaxProcs(ctx, 30*time.Second, diffInfof(logger), logger.Errorf)
+	go adjustMaxProcs(ctx, 30*time.Second, diffInfof(logger), logger.Errorf)
 
 	if runtime.GOARCH == "386" {
 		logger.Warn("" +
@@ -396,10 +396,6 @@ func (b *Beat) Run(ctx context.Context) error {
 		}
 		g.Go(func() error { return runner.Run(ctx) })
 	}
-	g.Go(func() error {
-		<-ctx.Done()
-		return nil
-	})
 	logp.Info("%s started.", b.Info.Beat)
 	return g.Wait()
 }
