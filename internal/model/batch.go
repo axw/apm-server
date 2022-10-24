@@ -19,6 +19,7 @@ package model
 
 import (
 	"context"
+	"sync"
 
 	"github.com/elastic/beats/v7/libbeat/beat"
 )
@@ -56,4 +57,76 @@ func (b *Batch) Transform(ctx context.Context) []beat.Event {
 		out[i] = event.BeatEvent()
 	}
 	return out
+}
+
+// BatchAllocator is an interface that may be implemented to allocate
+// and deallocate Batches.
+type BatchAllocator interface {
+	// AcquireBatch returns a new, empty, Batch; or an error if a batch
+	// could not be acquired, e.g. because the context is cancelled.
+	AcquireBatch(context.Context) (*Batch, error)
+
+	// ReleaseBatch releases a batch back to the allocator.
+	ReleaseBatch(*Batch)
+}
+
+// PooledBatchAllocator is a BatchAllocator that is implemented on top
+// of a sync.Pool. There
+type PooledBatchAllocator struct {
+	pool sync.Pool
+}
+
+// TODO
+func (p *PooledBatchAllocator) AcquireBatch(ctx context.Context) (*Batch, error) {
+	batch, ok := p.pool.Get().(*Batch)
+	if ok {
+		return batch, nil
+	}
+	return &Batch{}, nil
+}
+
+// TODO
+func (p *PooledBatchAllocator) ReleaseBatch(batch *Batch) {
+	*batch = (*batch)[:0]
+	p.pool.Put(batch)
+}
+
+// TODO
+type LimitBatchAllocator struct {
+	ch    chan struct{}
+	alloc BatchAllocator
+}
+
+// TODO
+func NewLimitBatchAllocator(alloc BatchAllocator, n uint) *LimitBatchAllocator {
+	return &LimitBatchAllocator{ch: make(chan struct{}, n), alloc: alloc}
+}
+
+// AcquireBatch acquires a batch from the underlying allocator, blocking if
+// the number of active (acquired but not released) batches is at the limit.
+//
+// AcquireBatch will only select on ctx.Done() if there is no immediate capacity.
+func (l *LimitBatchAllocator) AcquireBatch(ctx context.Context) (*Batch, error) {
+	select {
+	case l.ch <- struct{}{}:
+	default:
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case l.ch <- struct{}{}:
+		}
+	}
+	b, err := l.alloc.AcquireBatch(ctx)
+	if err != nil {
+		<-l.ch
+		return nil, err
+	}
+	return b, nil
+}
+
+// ReleaseBatch releases batch back to the underlying allocator, and allows
+// another goroutine to acquire the batch.
+func (l *LimitBatchAllocator) ReleaseBatch(batch *Batch) {
+	l.alloc.ReleaseBatch(batch)
+	<-l.ch
 }

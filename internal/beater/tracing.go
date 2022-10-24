@@ -30,7 +30,12 @@ import (
 	"github.com/elastic/apm-server/internal/model"
 )
 
-func newTracerServer(listener net.Listener, logger *logp.Logger, batchProcessor model.BatchProcessor) (*http.Server, error) {
+func newTracerServer(
+	listener net.Listener,
+	logger *logp.Logger,
+	batchAllocator model.BatchAllocator,
+	batchProcessor model.BatchProcessor,
+) (*http.Server, error) {
 	cfg := config.DefaultConfig()
 	ratelimitStore, err := ratelimit.NewStore(1, 1, 1) // unused, arbitrary params
 	if err != nil {
@@ -42,6 +47,7 @@ func newTracerServer(listener net.Listener, logger *logp.Logger, batchProcessor 
 	}
 	mux, err := api.NewMux(
 		cfg,
+		batchAllocator,
 		batchProcessor,
 		authenticator,
 		newAgentConfigFetcher(cfg, nil /* kibana client */),

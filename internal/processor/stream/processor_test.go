@@ -54,7 +54,7 @@ func TestHandlerReadStreamError(t *testing.T) {
 
 	sp := BackendProcessor(Config{
 		MaxEventSize: 100 * 1024,
-		Semaphore:    make(chan struct{}, 1),
+		//Semaphore:    make(chan struct{}, 1),
 	})
 
 	var actualResult Result
@@ -79,7 +79,7 @@ func TestHandlerReportingStreamError(t *testing.T) {
 	}} {
 		sp := BackendProcessor(Config{
 			MaxEventSize: 100 * 1024,
-			Semaphore:    make(chan struct{}, 1),
+			//Semaphore:    make(chan struct{}, 1),
 		})
 		processor := model.ProcessBatchFunc(func(context.Context, *model.Batch) error {
 			return test.err
@@ -202,7 +202,7 @@ func TestIntegrationESOutput(t *testing.T) {
 
 			p := BackendProcessor(Config{
 				MaxEventSize: 100 * 1024,
-				Semaphore:    make(chan struct{}, 1),
+				//Semaphore:    make(chan struct{}, 1),
 			})
 			var actualResult Result
 			err = p.HandleStream(context.Background(), false, baseEvent, bytes.NewReader(payload), 10, batchProcessor, &actualResult)
@@ -242,7 +242,7 @@ func TestIntegrationRum(t *testing.T) {
 
 			p := RUMV2Processor(Config{
 				MaxEventSize: 100 * 1024,
-				Semaphore:    make(chan struct{}, 1),
+				//Semaphore:    make(chan struct{}, 1),
 			})
 			var actualResult Result
 			err = p.HandleStream(context.Background(), false, baseEvent, bytes.NewReader(payload), 10, batchProcessor, &actualResult)
@@ -278,7 +278,7 @@ func TestRUMV3(t *testing.T) {
 
 			p := RUMV3Processor(Config{
 				MaxEventSize: 100 * 1024,
-				Semaphore:    make(chan struct{}, 1),
+				//Semaphore:    make(chan struct{}, 1),
 			})
 			var actualResult Result
 			err = p.HandleStream(context.Background(), false, baseEvent, bytes.NewReader(payload), 10, batchProcessor, &actualResult)
@@ -305,7 +305,7 @@ func TestLabelLeak(t *testing.T) {
 
 	p := BackendProcessor(Config{
 		MaxEventSize: 100 * 1024,
-		Semaphore:    make(chan struct{}, 1),
+		//Semaphore:    make(chan struct{}, 1),
 	})
 	var actualResult Result
 	err := p.HandleStream(context.Background(), false, baseEvent, strings.NewReader(payload), 10, batchProcessor, &actualResult)
@@ -356,7 +356,7 @@ func TestConcurrentAsync(t *testing.T) {
 		var mu sync.Mutex
 		p := BackendProcessor(Config{
 			MaxEventSize: 100 * 1024,
-			Semaphore:    make(chan struct{}, tc.sem),
+			//Semaphore:    make(chan struct{}, tc.sem),
 		})
 		if tc.fullSem {
 			for i := 0; i < tc.sem; i++ {

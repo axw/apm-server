@@ -309,6 +309,14 @@ func (s *Runner) Run(ctx context.Context) error {
 		return err
 	}
 
+	// Create a concurrency-limited and pooled batch allocator, which is
+	// used by the intake-v2 and OTLP processors. We limit concurrency to
+	// avoid consuming all of APM Server's memory.
+	batchAllocator := model.NewLimitBatchAllocator(
+		&model.PooledBatchAllocator{},
+		s.config.MaxConcurrentDecoders,
+	)
+
 	// Note that we intentionally do not use a grpc.Creds ServerOption
 	// even if TLS is enabled, as TLS is handled by the net/http server.
 	gRPCLogger := s.logger.Named("grpc")
@@ -369,6 +377,7 @@ func (s *Runner) Run(ctx context.Context) error {
 		Tracer:                 tracer,
 		Authenticator:          authenticator,
 		RateLimitStore:         ratelimitStore,
+		BatchAllocator:         batchAllocator,
 		BatchProcessor:         batchProcessor,
 		AgentConfig:            agentConfigReporter,
 		SourcemapFetcher:       sourcemapFetcher,
@@ -416,7 +425,11 @@ func (s *Runner) Run(ctx context.Context) error {
 		return runServer(ctx, serverParams)
 	})
 	if tracerServerListener != nil {
-		tracerServer, err := newTracerServer(tracerServerListener, s.logger, serverParams.BatchProcessor)
+		tracerServer, err := newTracerServer(
+			tracerServerListener, s.logger,
+			serverParams.BatchAllocator,
+			serverParams.BatchProcessor,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to create self-instrumentation server: %w", err)
 		}

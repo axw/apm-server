@@ -80,6 +80,7 @@ const (
 // APM Server API.
 func NewMux(
 	beaterConfig *config.Config,
+	batchAllocator model.BatchAllocator,
 	batchProcessor model.BatchProcessor,
 	authenticator *auth.Authenticator,
 	fetcher agentcfg.Fetcher,
@@ -96,11 +97,11 @@ func NewMux(
 	builder := routeBuilder{
 		cfg:              beaterConfig,
 		authenticator:    authenticator,
+		batchAllocator:   batchAllocator,
 		batchProcessor:   batchProcessor,
 		ratelimitStore:   ratelimitStore,
 		sourcemapFetcher: sourcemapFetcher,
 		fleetManaged:     fleetManaged,
-		intakeSemaphore:  make(chan struct{}, beaterConfig.MaxConcurrentDecoders),
 	}
 
 	type route struct {
@@ -158,17 +159,17 @@ func NewMux(
 type routeBuilder struct {
 	cfg              *config.Config
 	authenticator    *auth.Authenticator
+	batchAllocator   model.BatchAllocator
 	batchProcessor   model.BatchProcessor
 	ratelimitStore   *ratelimit.Store
 	sourcemapFetcher sourcemap.Fetcher
 	fleetManaged     bool
-	intakeSemaphore  chan struct{}
 }
 
 func (r *routeBuilder) backendIntakeHandler() (request.Handler, error) {
 	intakeProcessor := stream.BackendProcessor(stream.Config{
-		MaxEventSize: r.cfg.MaxEventSize,
-		Semaphore:    r.intakeSemaphore,
+		MaxEventSize:   r.cfg.MaxEventSize,
+		BatchAllocator: r.batchAllocator,
 	})
 	h := intake.Handler(intakeProcessor, backendRequestMetadataFunc(r.cfg), r.batchProcessor)
 	return middleware.Wrap(h, backendMiddleware(r.cfg, r.authenticator, r.ratelimitStore, intake.MonitoringMap)...)
@@ -213,8 +214,8 @@ func (r *routeBuilder) rumIntakeHandler(newProcessor func(stream.Config) *stream
 		}
 		batchProcessors = append(batchProcessors, r.batchProcessor) // r.batchProcessor always goes last
 		intakeProcessor := newProcessor(stream.Config{
-			MaxEventSize: r.cfg.MaxEventSize,
-			Semaphore:    r.intakeSemaphore,
+			MaxEventSize:   r.cfg.MaxEventSize,
+			BatchAllocator: r.batchAllocator,
 		})
 		h := intake.Handler(intakeProcessor, rumRequestMetadataFunc(r.cfg), batchProcessors)
 		return middleware.Wrap(h, rumMiddleware(r.cfg, r.authenticator, r.ratelimitStore, intake.MonitoringMap)...)

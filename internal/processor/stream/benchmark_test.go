@@ -35,7 +35,7 @@ import (
 func BenchmarkBackendProcessor(b *testing.B) {
 	processor := BackendProcessor(Config{
 		MaxEventSize: 300 * 1024, // 300 kb
-		Semaphore:    make(chan struct{}, 200),
+		//Semaphore:    make(chan struct{}, 200),
 	})
 	files, _ := filepath.Glob(filepath.FromSlash("../../../testdata/intake-v2/*.ndjson"))
 	benchmarkStreamProcessor(b, processor, files)
@@ -44,7 +44,7 @@ func BenchmarkBackendProcessor(b *testing.B) {
 func BenchmarkRUMV3Processor(b *testing.B) {
 	processor := BackendProcessor(Config{
 		MaxEventSize: 300 * 1024, // 300 kb
-		Semaphore:    make(chan struct{}, 200),
+		//Semaphore:    make(chan struct{}, 200),
 	})
 	files, _ := filepath.Glob(filepath.FromSlash("../../../testdata/intake-v3/rum_*.ndjson"))
 	benchmarkStreamProcessor(b, processor, files)
@@ -79,7 +79,7 @@ func BenchmarkBackendProcessorParallel(b *testing.B) {
 		b.Run(fmt.Sprint(b.Name(), max), func(b *testing.B) {
 			processor := BackendProcessor(Config{
 				MaxEventSize: 300 * 1024, // 300 kb
-				Semaphore:    make(chan struct{}, max),
+				//Semaphore:    make(chan struct{}, max),
 			})
 			files, _ := filepath.Glob(filepath.FromSlash("../../../testdata/intake-v2/*.ndjson"))
 			benchmarkStreamProcessorParallel(b, processor, files)
@@ -112,7 +112,7 @@ func benchmarkStreamProcessorParallel(b *testing.B, processor *Processor, files 
 func BenchmarkBackendProcessorAsync(b *testing.B) {
 	processor := BackendProcessor(Config{
 		MaxEventSize: 300 * 1024, // 300 kb
-		Semaphore:    make(chan struct{}, 200),
+		//Semaphore:    make(chan struct{}, 200),
 	})
 	files, _ := filepath.Glob(filepath.FromSlash("../../../testdata/intake-v2/heavy.ndjson"))
 	benchmarkStreamProcessorAsync(b, processor, files)
@@ -166,7 +166,7 @@ func BenchmarkReadBatch(b *testing.B) {
 	const batchSize = 10
 	processor := BackendProcessor(Config{
 		MaxEventSize: 300 * 1024, // 300 kb
-		Semaphore:    make(chan struct{}, 200),
+		//Semaphore:    make(chan struct{}, 200),
 	})
 
 	files, _ := filepath.Glob(filepath.FromSlash("../../../testdata/intake-v2/*.ndjson"))

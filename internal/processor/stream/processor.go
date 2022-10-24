@@ -60,9 +60,8 @@ type decodeMetadataFunc func(decoder.Decoder, *model.APMEvent) error
 // the concurrency limit is shared between all the intake endpoints.
 type Processor struct {
 	streamReaderPool sync.Pool
-	batchPool        sync.Pool
 	decodeMetadata   decodeMetadataFunc
-	sem              chan struct{}
+	allocator        model.BatchAllocator
 	logger           *logp.Logger
 	MaxEventSize     int
 }
@@ -72,16 +71,16 @@ type Config struct {
 	// MaxEventSize holds the maximum event size, in bytes.
 	MaxEventSize int
 
-	// Semaphore holds a channel to which Processor.HandleStream
-	// will send an item before proceeding, to limit concurrency.
-	Semaphore chan struct{}
+	// BatchAllocator holds a model.BatchAllocator for acquiring
+	// and releasing model.Batches.
+	BatchAllocator model.BatchAllocator
 }
 
 func BackendProcessor(cfg Config) *Processor {
 	return &Processor{
 		MaxEventSize:   cfg.MaxEventSize,
 		decodeMetadata: v2.DecodeNestedMetadata,
-		sem:            cfg.Semaphore,
+		allocator:      cfg.BatchAllocator,
 		logger:         logp.NewLogger(logs.Processor),
 	}
 }
@@ -90,7 +89,7 @@ func RUMV2Processor(cfg Config) *Processor {
 	return &Processor{
 		MaxEventSize:   cfg.MaxEventSize,
 		decodeMetadata: v2.DecodeNestedMetadata,
-		sem:            cfg.Semaphore,
+		allocator:      cfg.BatchAllocator,
 		logger:         logp.NewLogger(logs.Processor),
 	}
 }
@@ -99,7 +98,7 @@ func RUMV3Processor(cfg Config) *Processor {
 	return &Processor{
 		MaxEventSize:   cfg.MaxEventSize,
 		decodeMetadata: rumv3.DecodeNestedMetadata,
-		sem:            cfg.Semaphore,
+		allocator:      cfg.BatchAllocator,
 		logger:         logp.NewLogger(logs.Processor),
 	}
 }
@@ -230,26 +229,22 @@ func (p *Processor) HandleStream(
 	processor model.BatchProcessor,
 	result *Result,
 ) error {
-	// Limits the number of concurrent batch decodes.
-	// Defaults to 200 (N), only allowing N requests to read and cache Y events
-	// (determined by batchSize) from the batch.
-	// The ceiling may also reduce the contention on the modelindexer.activeMu.
-	// Clients can set a async to true which makes the processor process the
-	// events in the background. Returns with an error `publish.ErrFull` if the
-	// semaphore is full. When asynchronous processing is requested, the batches
-	// are decoded synchronously, but the batch is processed asynchronously.
-	if err := p.semAcquire(ctx, async); err != nil {
+	// Acquire a batch early. The batch allocator may be concurrency-limited,
+	// so don't acquire a stream reader until we have a batch or we may consume
+	// more memory than necessary.
+	batch, err := p.acquireBatch(ctx, async)
+	if err != nil {
 		return err
 	}
 	sr := p.getStreamReader(reader)
 
 	// Release the semaphore on early exit; this will be set to false
 	// for asynchronous requests once we may no longer exit early.
-	shouldReleaseSemaphore := true
+	shouldRelease := true
 	defer func() {
 		sr.release()
-		if shouldReleaseSemaphore {
-			p.semRelease()
+		if shouldRelease {
+			p.releaseBatch(batch)
 		}
 	}()
 
@@ -264,11 +259,11 @@ func (p *Processor) HandleStream(
 
 	if async {
 		// The semaphore is released by handleStream
-		shouldReleaseSemaphore = false
+		shouldRelease = false
 	}
 	first := true
 	for {
-		err := p.handleStream(ctx, async, baseEvent, batchSize, sr, processor, result, first)
+		err := p.handleStream(ctx, async, baseEvent, batch, batchSize, sr, processor, result, first)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -285,64 +280,55 @@ func (p *Processor) handleStream(
 	ctx context.Context,
 	async bool,
 	baseEvent model.APMEvent,
+	batch *model.Batch,
 	batchSize int,
 	sr *streamReader,
 	processor model.BatchProcessor,
 	result *Result,
 	first bool,
 ) (readErr error) {
-	// Async requests will re-aquire the semaphore if it has more events than
-	// `batchSize`. In that event, the semaphore will be acquired again. If
-	// the semaphore is full, `publish.ErrFull` is returned.
-	// The first iteration will not acquire the semaphore since it's already
-	// acquired in the caller function.
-	var n int
 	if async {
+		// Async requests acquire a new model.Batch for each batch.
 		if !first {
-			if err := p.semAcquire(ctx, async); err != nil {
+			var err error
+			batch, err = p.acquireBatch(ctx, true)
+			if err != nil {
 				return err
 			}
 		}
-		defer func() {
-			// If no events have been read on an asynchronous request, release
-			// the semaphore since the processing goroutine isn't scheduled.
-			if n == 0 {
-				p.semRelease()
-			}
-		}()
+	} else {
+		// Sync requests reuse the same batch without releasing
+		// it to the allocator after each iteration; HandleStream
+		// will release it at the end of the stream.
+		*batch = (*batch)[:0]
 	}
-	var batch model.Batch
-	if b, ok := p.batchPool.Get().(*model.Batch); ok {
-		batch = (*b)[:0]
+
+	n, err := p.readBatch(ctx, baseEvent, batchSize, batch, sr, result)
+	if err != nil || n == 0 {
+		if async {
+			// handleStream is responsible for releasing async request
+			// batches, so we need to release the batch before returning.
+			p.releaseBatch(batch)
+		}
+		return err
 	}
-	n, readErr = p.readBatch(ctx, baseEvent, batchSize, &batch, sr, result)
-	if n == 0 {
-		// No events to process, return the batch to the pool.
-		p.batchPool.Put(&batch)
-		return readErr
-	}
+
 	// Async requests are processed in the background and once the batch has
 	// been processed, the semaphore is released.
 	if async {
 		go func() {
-			defer p.semRelease()
-			if err := p.processBatch(ctx, processor, &batch); err != nil {
+			defer p.releaseBatch(batch)
+			if err := processor.ProcessBatch(ctx, batch); err != nil {
 				p.logger.Errorf("failed handling async request: %v", err)
 			}
 		}()
 	} else {
-		if err := p.processBatch(ctx, processor, &batch); err != nil {
+		if err := processor.ProcessBatch(ctx, batch); err != nil {
 			return err
 		}
 		result.AddAccepted(n)
 	}
-	return readErr
-}
-
-// processBatch processes the batch and returns it to the pool after it's been processed.
-func (p *Processor) processBatch(ctx context.Context, processor model.BatchProcessor, batch *model.Batch) error {
-	defer p.batchPool.Put(batch)
-	return processor.ProcessBatch(ctx, batch)
+	return err
 }
 
 // getStreamReader returns a streamReader that reads ND-JSON lines from r.
@@ -357,23 +343,20 @@ func (p *Processor) getStreamReader(r io.Reader) *streamReader {
 	}
 }
 
-func (p *Processor) semAcquire(ctx context.Context, async bool) error {
-	select {
-	case p.sem <- struct{}{}:
-	default:
-		if async {
-			return publish.ErrFull
-		}
-		select {
-		case p.sem <- struct{}{}:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+func (p *Processor) acquireBatch(ctx context.Context, async bool) (*model.Batch, error) {
+	if async {
+		ctx = asyncAcquireContext{ctx}
 	}
-	return nil
+	batch, err := p.allocator.AcquireBatch(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return batch, nil
 }
 
-func (p *Processor) semRelease() { <-p.sem }
+func (p *Processor) releaseBatch(batch *model.Batch) {
+	p.allocator.ReleaseBatch(batch)
+}
 
 // streamReader wraps NDJSONStreamReader, converting errors to stream errors.
 type streamReader struct {
@@ -424,4 +407,28 @@ func copyEvent(e model.APMEvent) model.APMEvent {
 		out.NumericLabels = out.NumericLabels.Clone()
 	}
 	return out
+}
+
+var closed = make(chan struct{})
+
+func init() {
+	close(closed)
+}
+
+// asyncAcquireContext is a context used to acquire a batch in
+// async requests.
+type asyncAcquireContext struct {
+	context.Context
+}
+
+// Done always returns a closed channel.
+func (asyncAcquireContext) Done() <-chan struct{} {
+	return closed
+}
+
+// Err always returns publish.ErrFull.
+func (asyncAcquireContext) Err() error {
+	// TODO(axw) we shouldn't be depending on
+	// package publish just for this error.
+	return publish.ErrFull
 }

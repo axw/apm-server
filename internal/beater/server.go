@@ -102,6 +102,11 @@ type ServerParams struct {
 	// AgentConfig holds an interface for fetching agent configuration.
 	AgentConfig agentcfg.Fetcher
 
+	// BatchAllocator is a model.BatchAllocator that should be used for
+	// acquiring and releasing model.Batches. BatchAllocator may be
+	// configured to limit concurrency, and therefore memory usage.
+	BatchAllocator model.BatchAllocator
+
 	// BatchProcessor is the model.BatchProcessor that is used
 	// for publishing events to the output, such as Elasticsearch.
 	BatchProcessor model.BatchProcessor
@@ -169,7 +174,7 @@ func newServer(args ServerParams, listener net.Listener) (server, error) {
 
 	// Create an HTTP server for serving Elastic APM agent requests.
 	router, err := api.NewMux(
-		args.Config, args.BatchProcessor,
+		args.Config, args.BatchAllocator, args.BatchProcessor,
 		args.Authenticator, args.AgentConfig, args.RateLimitStore,
 		args.SourcemapFetcher, args.Managed, publishReady,
 	)
