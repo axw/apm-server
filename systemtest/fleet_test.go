@@ -17,31 +17,7 @@
 
 package systemtest_test
 
-import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"os"
-	"strings"
-	"sync/atomic"
-	"testing"
-	"time"
-
-	"github.com/mitchellh/mapstructure"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go/wait"
-	"go.elastic.co/apm/v2"
-	"go.elastic.co/apm/v2/transport"
-
-	"github.com/elastic/apm-server/systemtest"
-	"github.com/elastic/apm-server/systemtest/apmservertest"
-)
-
+/*
 func TestFleetIntegration(t *testing.T) {
 	systemtest.CleanupElasticsearch(t)
 	apmIntegration := newAPMIntegration(t, nil)
@@ -291,3 +267,4 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
 }
+*/
