@@ -111,6 +111,22 @@ func (c *Client) AgentPolicies(kuery string) ([]AgentPolicy, error) {
 	return result.Items, nil
 }
 
+// AgentPolicy returns the Agent Policy with the given ID.
+func (c *Client) AgentPolicy(id string) (*AgentPolicy, error) {
+	resp, err := http.Get(c.fleetURL + "/agent_policies/" + id)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Item AgentPolicy `json:"item"`
+	}
+	if err := consumeResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return &result.Item, nil
+}
+
 // DeleteAgentPolicy deletes the Agent Policy with the given ID.
 func (c *Client) DeleteAgentPolicy(id string) error {
 	var body bytes.Buffer

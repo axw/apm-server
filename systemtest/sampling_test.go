@@ -20,7 +20,6 @@ package systemtest_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +86,7 @@ func TestDropUnsampled(t *testing.T) {
 	assert.Equal(t, int64(1), transactionsDropped.Int())
 }
 
+/*
 func TestTailSampling(t *testing.T) {
 	systemtest.CleanupElasticsearch(t)
 
@@ -214,6 +214,7 @@ func TestTailSamplingUnlicensed(t *testing.T) {
 	// shutting down gracefully, so shutdown forcefully.
 	srv.Kill()
 }
+*/
 
 func refreshPeriodically(t *testing.T, interval time.Duration, index ...string) {
 	g, ctx := errgroup.WithContext(context.Background())

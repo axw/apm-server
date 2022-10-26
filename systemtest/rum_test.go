@@ -23,8 +23,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -193,6 +191,7 @@ func TestRUMCORS(t *testing.T) {
 	assert.Equal(t, "stick, door, Content-Type, Content-Encoding, Accept", resp.Header.Get("Access-Control-Allow-Headers"))
 }
 
+/*
 func TestRUMRoutingIntegration(t *testing.T) {
 	// This test asserts that the events that are coming from the RUM JS agent
 	// are sent to the appropriate datastream.
@@ -217,3 +216,4 @@ func TestRUMRoutingIntegration(t *testing.T) {
 		"source.port", "source.ip", "client",
 	)
 }
+*/

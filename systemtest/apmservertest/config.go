@@ -31,12 +31,12 @@ import (
 const (
 	defaultElasticsearchHost = "localhost"
 	defaultElasticsearchPort = "9200"
-	defaultElasticsearchUser = "apm_server_user"
+	defaultElasticsearchUser = "admin"
 	defaultElasticsearchPass = "changeme"
 
 	defaultKibanaHost = "localhost"
 	defaultKibanaPort = "5601"
-	defaultKibanaUser = "apm_user_ro"
+	defaultKibanaUser = "admin"
 	defaultKibanaPass = "changeme"
 )
 

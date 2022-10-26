@@ -50,6 +50,7 @@ func TestAPMServerMonitoring(t *testing.T) {
 	assert.Contains(t, doc.Metrics, "apm-server")
 }
 
+/*
 func TestAPMServerMonitoringBuiltinUser(t *testing.T) {
 	// This test is about ensuring the "apm_system" built-in user
 	// has sufficient privileges to index monitoring data.
@@ -71,6 +72,7 @@ func TestAPMServerMonitoringBuiltinUser(t *testing.T) {
 
 	getBeatsMonitoringState(t, srv, nil)
 }
+*/
 
 func getBeatsMonitoringState(t testing.TB, srv *apmservertest.Server, out interface{}) *beatsMonitoringDoc {
 	return getBeatsMonitoring(t, srv, "beats_state", out)

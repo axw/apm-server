@@ -17,6 +17,84 @@
 
 package systemtest_test
 
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/elastic/apm-server/systemtest"
+)
+
+const apmAgentPolicyID = "eck-apm-server"
+
+func deleteAPMServerPods(t testing.TB) {
+	pods := listAPMServerPods(t)
+	for _, pod := range pods {
+		err := systemtest.Kubernetes.CoreV1().Pods(pod.Namespace).Delete(
+			context.Background(),
+			pod.Name,
+			metav1.DeleteOptions{},
+		)
+		require.NoError(t, err)
+	}
+}
+
+func listAPMServerPods(t testing.TB) []corev1.Pod {
+	pods, err := systemtest.Kubernetes.CoreV1().Pods("").List(
+		context.Background(),
+		metav1.ListOptions{
+			LabelSelector: "agent.k8s.elastic.co/name=apm-server",
+		},
+	)
+	require.NoError(t, err)
+	return pods.Items
+}
+
+// waitAPMAgentPolicyUpdated waits for all Elastic Agents to be up-to-date
+// with the latest APM Elastic Agent policy.
+func waitAPMAgentPolicyUpdated(t testing.TB) {
+	policy, err := systemtest.Fleet.AgentPolicy(apmAgentPolicyID)
+	require.NoError(t, err)
+
+	// Look for apm-server pods, and query the Fleet API for the matching
+	// Elastic Agent entities, and wait for them to be up to date with the
+	// policy revision.
+	for {
+		podNames := make(map[string]bool)
+		for _, pod := range listAPMServerPods(t) {
+			podNames[pod.Name] = true
+		}
+		agents, err := systemtest.Fleet.Agents()
+		require.NoError(t, err)
+		for _, agent := range agents {
+			host, _ := agent.LocalMetadata["host"].(map[string]interface{})
+			hostname, _ := host["hostname"].(string)
+			if !podNames[hostname] {
+				// Not a currently existing Elastic Agent; probably from
+				// an old pod that hasn't yet been removed from the system.
+				continue
+			}
+			if agent.PolicyID != policy.ID {
+				// Shouldn't happen, but ignore any Elastic Agent not
+				// assigned the expected agent policy.
+				delete(podNames, hostname)
+				continue
+			}
+			if agent.PolicyRevision == policy.Revision {
+				delete(podNames, hostname)
+			}
+		}
+		if len(podNames) == 0 {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 /*
 func TestFleetIntegration(t *testing.T) {
 	systemtest.CleanupElasticsearch(t)

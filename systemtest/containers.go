@@ -20,7 +20,6 @@ package systemtest
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -42,7 +41,6 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/elastic/apm-server/systemtest/estest"
 	"github.com/elastic/go-elasticsearch/v8"
@@ -56,6 +54,7 @@ const (
 
 var (
 	systemtestDir string
+	repoRootDir   string
 )
 
 func init() {
@@ -64,31 +63,7 @@ func init() {
 		panic("could not locate systemtest directory")
 	}
 	systemtestDir = filepath.Dir(filename)
-}
-
-// StartStackContainers starts Docker containers for Elasticsearch and Kibana.
-//
-// We leave Elasticsearch and Kibana running, to avoid slowing down iterative
-// development and testing. Use docker-compose to stop services as necessary.
-func StartStackContainers() error {
-	cmd := exec.Command(
-		"docker-compose", "-f", "../docker-compose.yml",
-		"up", "-d", "elasticsearch", "kibana", "fleet-server",
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-
-	// Wait for up to 5 minutes for Kibana and Fleet Server to become healthy,
-	// which implies Elasticsearch is healthy too.
-	ctx, cancel := context.WithTimeout(context.Background(), startContainersTimeout)
-	defer cancel()
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return waitContainerHealthy(ctx, "kibana") })
-	g.Go(func() error { return waitContainerHealthy(ctx, "fleet-server") })
-	return g.Wait()
+	repoRootDir = filepath.Join(systemtestDir, "..")
 }
 
 // NewUnstartedElasticsearchContainer returns a new ElasticsearchContainer.
@@ -575,18 +550,6 @@ func (c *ElasticAgentContainer) Exec(ctx context.Context, cmd ...string) (stdout
 		return nil, nil, fmt.Errorf("process exited with code %d", execResp.ExitCode)
 	}
 	return stdoutBuf.Bytes(), stderrBuf.Bytes(), nil
-}
-
-func matchFleetServerAPIStatusHealthy(r io.Reader) bool {
-	var status struct {
-		Name    string `json:"name"`
-		Version string `json:"version"`
-		Status  string `json:"status"`
-	}
-	if err := json.NewDecoder(r).Decode(&status); err != nil {
-		return false
-	}
-	return status.Status == "HEALTHY"
 }
 
 // BuildElasticAgentImage builds a Docker image from the published image with a locally built apm-server injected.

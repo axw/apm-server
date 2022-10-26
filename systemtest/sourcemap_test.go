@@ -38,7 +38,7 @@ func TestRUMErrorSourcemapping(t *testing.T) {
 		// Create the integration after uploading the sourcemap, so that it is added
 		// to the integration policy from the start. Otherwise we would have to wait
 		// for the policy to be reloaded.
-		apmIntegration := newAPMIntegration(t, map[string]interface{}{"enable_rum": true})
+		//apmIntegration := newAPMIntegration(t, map[string]interface{}{"enable_rum": true})
 
 		test := func(t *testing.T, serverURL string) {
 			systemtest.CleanupElasticsearch(t)
@@ -61,9 +61,9 @@ func TestRUMErrorSourcemapping(t *testing.T) {
 			test(t, srv.URL)
 		})
 
-		t.Run("integration", func(t *testing.T) {
-			test(t, apmIntegration.URL)
-		})
+		//t.Run("integration", func(t *testing.T) {
+		//	test(t, apmIntegration.URL)
+		//})
 	}
 
 	t.Run("absolute_bundle_filepath", func(t *testing.T) {

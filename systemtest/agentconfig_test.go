@@ -42,6 +42,12 @@ func TestAgentConfig(t *testing.T) {
 	systemtest.DeleteAgentConfig(t, serviceName, "")
 	systemtest.DeleteAgentConfig(t, serviceName, serviceEnvironment)
 
+	// Delete existing apm-server pods to avoid being served stale config.
+	deleteAPMServerPods(t)
+	// Wait for new pods to be created, and for Elastic Agent to check in
+	// and the policy to propagate.
+	waitAPMAgentPolicyUpdated(t)
+
 	// Run apm-server standalone, exercising the Kibana agent config implementation.
 	srv := apmservertest.NewUnstartedServerTB(t)
 	srv.Config.KibanaAgentConfig = &apmservertest.KibanaAgentConfig{CacheExpiration: time.Second}
@@ -49,8 +55,11 @@ func TestAgentConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run apm-server under Fleet, exercising the Fleet agent config implementation.
-	apmIntegration := newAPMIntegration(t, map[string]interface{}{})
-	serverURLs := []string{srv.URL, apmIntegration.URL}
+	//apmIntegration := newAPMIntegration(t, map[string]interface{}{})
+	serverURLs := []string{
+		srv.URL,
+		"http://localhost:8200", // Elastic Agent with APM integration
+	}
 
 	expectChange := func(serverURL string, etag string) (map[string]string, *http.Response) {
 		t.Helper()

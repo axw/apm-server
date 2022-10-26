@@ -26,6 +26,7 @@ type Agent struct {
 	Status               string                 `json:"status"`
 	Type                 string                 `json:"type"`
 	PolicyID             string                 `json:"policy_id,omitempty"`
+	PolicyRevision       int                    `json:"policy_revision"`
 	EnrolledAt           time.Time              `json:"enrolled_at,omitempty"`
 	UserProvidedMetadata map[string]interface{} `json:"user_provided_metadata,omitempty"`
 	LocalMetadata        map[string]interface{} `json:"local_metadata,omitempty"`
@@ -39,13 +40,13 @@ type AgentPolicy struct {
 	Description string `json:"description"`
 	Revision    int    `json:"revision"`
 
-	Agents            int       `json:"agents"`
-	IsDefault         bool      `json:"is_default"`
-	MonitoringEnabled []string  `json:"monitoring_enabled"`
-	PackagePolicies   []string  `json:"package_policies"`
-	Status            string    `json:"status"`
-	UpdatedAt         time.Time `json:"updated_at"`
-	UpdatedBy         string    `json:"updated_by"`
+	Agents            int             `json:"agents"`
+	IsDefault         bool            `json:"is_default"`
+	MonitoringEnabled []string        `json:"monitoring_enabled"`
+	PackagePolicies   []PackagePolicy `json:"package_policies"`
+	Status            string          `json:"status"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+	UpdatedBy         string          `json:"updated_by"`
 }
 
 // PackagePolicy holds details of a Fleet Package Policy.
