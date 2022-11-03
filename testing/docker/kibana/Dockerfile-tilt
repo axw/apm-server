@@ -1,13 +1,11 @@
-ARG NODE_VERSION=16.17.1
-FROM node:${NODE_VERSION}
+#FROM docker.elastic.co/kibana/kibana:8.6.0-4765d2b0-SNAPSHOT
+#COPY start.sh restart.sh ./
+#RUN mkdir live_update
+#ENTRYPOINT ["/bin/tini", "--", "/usr/share/kibana/start.sh"]
+#CMD ["/usr/local/bin/kibana-docker"]
 
-RUN useradd -ms /bin/bash -d /kibana kibana
-WORKDIR /kibana/src
-
-COPY *.json *.js *.ts scripts src ./
-RUN yarn
+FROM node:16.17.1
+COPY . /kibana
+WORKDIR /kibana
 RUN yarn kbn bootstrap
-
-COPY . .
-USER node
-ENTRYPOINT ["yarn", "start", "--no-base-path", "-c", "/usr/share/kibana/config/kibana.yml"]
+CMD yarn start

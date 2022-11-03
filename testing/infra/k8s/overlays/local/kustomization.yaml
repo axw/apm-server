@@ -22,3 +22,10 @@ patches:
       # and we use the same CRD kind for both apm-server and fleet-server.
       # As soon as you specify image_json_path, it *must* match an image.
       image: docker.elastic.co/beats/elastic-agent:8.6.0-4765d2b0-SNAPSHOT
+- patch: |-
+    apiVersion: kibana.k8s.elastic.co/v1
+    kind: Kibana
+    metadata:
+      name: kibana
+    spec:
+      image: kibana
