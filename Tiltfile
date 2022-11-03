@@ -17,6 +17,15 @@ local_resource(
   resource_deps=['kibana'],
 )
 
+# Run a local Kibana server, with live reloading.
+run_kibana_sh = os.path.join(config.main_dir, 'testing', 'infra', 'tilt', 'run_kibana.sh')
+local_resource(
+  'local-kibana',
+  serve_dir='../kibana',
+  #cmd='nvm use && yarn kbn bootstrap',
+  serve_cmd=run_kibana_sh,
+)
+
 k8s_yaml(kustomize('testing/infra/k8s/overlays/local'))
 
 k8s_kind('Agent', image_json_path='{.spec.image}')
@@ -25,7 +34,7 @@ k8s_kind('Elasticsearch')
 
 k8s_resource('elastic-operator', objects=['eck-trial-license:Secret:elastic-system'])
 k8s_resource('apm-server', port_forwards=8200)
-k8s_resource('kibana', port_forwards=5601)
+k8s_resource('kibana') #, port_forwards=5601)
 k8s_resource('elasticsearch', port_forwards=9200, objects=['elasticsearch-admin:Secret:default'])
 
 # Delete ECK entirely on `tilt down`, to ensure `tilt up` starts from a clean slate.

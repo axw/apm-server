@@ -1,0 +1,13 @@
+ARG NODE_VERSION=16.17.1
+FROM node:${NODE_VERSION}
+
+RUN useradd -ms /bin/bash -d /kibana kibana
+WORKDIR /kibana/src
+
+COPY *.json *.js *.ts scripts src ./
+RUN yarn
+RUN yarn kbn bootstrap
+
+COPY . .
+USER node
+ENTRYPOINT ["yarn", "start", "--no-base-path", "-c", "/usr/share/kibana/config/kibana.yml"]
