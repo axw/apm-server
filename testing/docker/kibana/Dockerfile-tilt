@@ -1,12 +1,23 @@
-FROM docker.elastic.co/kibana/kibana:8.6.0-4765d2b0-SNAPSHOT
-COPY start.sh restart.sh ./
-#RUN rm -fr x-pack/plugins/apm
-#COPY apm x-pack/plugins/apm
+FROM node:16.17.1 as node
+RUN npm install -g @babel/core @babel/cli @babel/preset-env \
+  babel-plugin-add-module-exports \
+  @babel/plugin-proposal-class-properties \
+  @babel/plugin-proposal-optional-chaining \
+  @babel/plugin-proposal-nullish-coalescing-operator \
+  @babel/plugin-proposal-export-namespace-from \
+  @babel/plugin-proposal-private-methods \
+  @babel/plugin-transform-runtime \
+  @babel/preset-react \
+  @babel/preset-typescript
+
+FROM docker.elastic.co/kibana/kibana:8.6.0-4765d2b0-SNAPSHOT as kibana
+
+COPY start.sh restart.sh /usr/share/kibana/
+COPY presets/ /usr/share/kibana/presets/
+COPY --from=node /usr/local/bin/ /usr/local/bin/
+COPY --from=node /usr/local/lib/ /usr/local/lib/
+COPY --from=node /usr/local/lib/node_modules/ node_modules/
+COPY --from=node /opt/ /opt/
+WORKDIR /usr/share/kibana
 ENTRYPOINT ["/bin/tini", "--", "/usr/share/kibana/start.sh"]
 CMD ["/usr/local/bin/kibana-docker"]
-
-#FROM node:16.17.1
-#COPY . /kibana
-#WORKDIR /kibana
-#RUN yarn kbn bootstrap
-#CMD yarn start

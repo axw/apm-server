@@ -23,7 +23,10 @@ custom_build(
   'docker build -t $EXPECTED_REF ./testing/docker/kibana -f ./testing/docker/kibana/Dockerfile-tilt',
   deps=['../kibana/x-pack'],
   live_update=[
-    sync('../kibana/x-pack', '/usr/share/kibana/src/x-pack'),
+    sync('../kibana/x-pack/plugins/apm', '/usr/share/kibana/x-pack/plugins/apm'),
+    run('babel --verbose --ignore=\'**/*.test.ts\' --extensions=.js,.ts,.tsx -d x-pack/plugins/apm/server --no-babelrc --presets ./presets/node_preset --source-maps=false x-pack/plugins/apm/server'),
+    run('babel --verbose --ignore=\'**/*.test.ts\' --extensions=.js,.ts,.tsx -d x-pack/plugins/apm/common --no-babelrc --presets ./presets/node_preset --source-maps=false x-pack/plugins/apm/common'),
+    run('./restart.sh'),
   ],
 )
 
