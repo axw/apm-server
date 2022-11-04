@@ -1,11 +1,12 @@
-#FROM docker.elastic.co/kibana/kibana:8.6.0-4765d2b0-SNAPSHOT
-#COPY start.sh restart.sh ./
-#RUN mkdir live_update
-#ENTRYPOINT ["/bin/tini", "--", "/usr/share/kibana/start.sh"]
-#CMD ["/usr/local/bin/kibana-docker"]
+FROM docker.elastic.co/kibana/kibana:8.6.0-4765d2b0-SNAPSHOT
+COPY start.sh restart.sh ./
+#RUN rm -fr x-pack/plugins/apm
+#COPY apm x-pack/plugins/apm
+ENTRYPOINT ["/bin/tini", "--", "/usr/share/kibana/start.sh"]
+CMD ["/usr/local/bin/kibana-docker"]
 
-FROM node:16.17.1
-COPY . /kibana
-WORKDIR /kibana
-RUN yarn kbn bootstrap
-CMD yarn start
+#FROM node:16.17.1
+#COPY . /kibana
+#WORKDIR /kibana
+#RUN yarn kbn bootstrap
+#CMD yarn start
