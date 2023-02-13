@@ -1,7 +1,9 @@
 # Build a custom elastic-agent image with a locally built apm-server binary injected.
+version = str(local("make get-version")).strip()
+docker_iid_file = 'build/docker/apm-server-%s.txt' % version
 custom_build(
-  'elastic-agent',
-  'bash ./testing/docker/elastic-agent/build.sh -t $EXPECTED_REF',
+  'apm-server',
+  'make %s && docker tag $(cat %s) $EXPECTED_REF' % (docker_iid_file, docker_iid_file),
   ['go.mod', 'go.sum', 'Makefile', '*.mk', '.git', 'cmd', 'internal', 'x-pack'],
 )
 
@@ -19,7 +21,7 @@ local_resource(
 
 k8s_yaml(kustomize('testing/infra/k8s/overlays/local'))
 
-k8s_kind('Agent', image_json_path='{.spec.image}')
+k8s_kind('ApmServer', image_json_path='{.spec.image}')
 k8s_kind('Kibana')
 k8s_kind('Elasticsearch')
 
