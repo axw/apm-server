@@ -128,7 +128,7 @@ bench:
 # Rules for updating config files, etc.
 ##############################################################################
 
-update: go-generate add-headers build-package notice apm-server.docker.yml docs/spec
+update: go-generate add-headers build-package notice apm-server.docker.yml
 	@go mod download all # make sure go.sum is complete
 
 apm-server.docker.yml: apm-server.yml
@@ -198,14 +198,6 @@ testing/infra/terraform/modules/%/README.md: .FORCE
 
 .PHONY: .FORCE
 .FORCE:
-
-# Copy docs/spec from apm-data to trigger updates to agents.
-#
-# TODO in the future we should probably trigger the updates from apm-data,
-# and just keep the JSON Schema there.
-docs/spec: go.mod
-	@$(GO) mod download github.com/elastic/apm-data
-	rsync -v --delete --chmod=Du+rwx,go+rx --chmod=Fu+rw,go+r -r $$($(GO) list -m -f {{.Dir}} github.com/elastic/apm-data)/input/elasticapm/docs/spec ./docs
 
 ##############################################################################
 # Beats synchronisation.
