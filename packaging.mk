@@ -23,7 +23,8 @@ export DOCKER_BUILDKIT=1
 
 DOCKER_BUILD_ARGS := \
 	--build-arg BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%S%z") \
-	--build-arg VCS_REF=$(GITCOMMIT)
+	--build-arg VCS_REF=$(GITCOMMIT) \
+	--build-arg VCS_TIME=$(GITCOMMITTIMESTAMP)
 
 DOCKER_IMAGES := \
 	build/docker/apm-server-$(APM_SERVER_VERSION).txt \

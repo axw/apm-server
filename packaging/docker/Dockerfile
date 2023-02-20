@@ -1,8 +1,10 @@
 ARG BASE_IMAGE=ubuntu:20.04
 
-# Build the apm-server binary. The golang image version is kept
-# up to date with go.mod by Makefile.
+# The golang image version is kept up to date with go.mod by Makefile.
 FROM golang:1.19.5 as builder
+ARG VCS_REF
+ARG VCS_TIME
+
 WORKDIR /src
 COPY go.mod go.sum /src/
 COPY internal/glog/go.mod /src/internal/glog/go.mod
@@ -11,7 +13,13 @@ COPY Makefile *.mk /src
 COPY cmd /src/cmd
 COPY internal /src/internal
 COPY x-pack /src/x-pack
-COPY .git /src/.git
+
+ENV GITDIR=/src
+ENV GITROOT=/src
+ENV GITCOMMIT=${VCS_REF}
+ENV GITCOMMITTIMESTAMP=${VCS_TIME}
+ENV GITCOMMITTIMESTAMPUNIX=
+ENV GITREFFILE=
 
 ENV GOROOT /usr/local/go
 RUN --mount=type=cache,target=/go/pkg/mod \

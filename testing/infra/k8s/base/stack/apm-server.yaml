@@ -8,12 +8,12 @@ spec:
   count: 1
   elasticsearchRef:
     name: elasticsearch
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
   podTemplate:
     spec:
-      http:
-        tls:
-          selfSignedCertificate:
-            disabled: true
       containers:
       - name: apm-server
         resources:

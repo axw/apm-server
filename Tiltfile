@@ -1,10 +1,11 @@
 # Build a custom elastic-agent image with a locally built apm-server binary injected.
-version = str(local("make get-version")).strip()
-docker_iid_file = 'build/docker/apm-server-%s.txt' % version
-custom_build(
-  'apm-server',
-  'make %s && docker tag $(cat %s) $EXPECTED_REF' % (docker_iid_file, docker_iid_file),
-  ['go.mod', 'go.sum', 'Makefile', '*.mk', '.git', 'cmd', 'internal', 'x-pack'],
+docker_build(
+  'apm-server', '.', dockerfile='packaging/docker/Dockerfile',
+  build_args={
+    'VERSION': str(local("make get-version")).strip(),
+    'VCS_REF': str(local("git rev-parse HEAD")).strip(),
+    'VCS_TIME': str(local("git log -1 --pretty=%cI")).strip(),
+  }
 )
 
 # Build and install the APM integration package whenever source under
