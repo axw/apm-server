@@ -33,26 +33,28 @@ import (
 func TestMain(m *testing.M) {
 	var errg errgroup.Group
 
-	errg.Go(func() error {
-		log.Println("INFO: starting stack containers...")
-		if err := StartStackContainers(); err != nil {
-			return fmt.Errorf("failed to start stack containers: %w", err)
+	/*
+		errg.Go(func() error {
+			log.Println("INFO: starting stack containers...")
+			if err := StartStackContainers(); err != nil {
+				return fmt.Errorf("failed to start stack containers: %w", err)
+			}
+			return nil
+		})
+
+		errg.Go(func() error {
+			log.Println("INFO: building the integration package...")
+			if err := buildIntegrationPackage(); err != nil {
+				return fmt.Errorf("failed to build the integration package: %w", err)
+			}
+
+			return nil
+		})
+
+		if err := errg.Wait(); err != nil {
+			log.Fatal(err)
 		}
-		return nil
-	})
-
-	errg.Go(func() error {
-		log.Println("INFO: building the integration package...")
-		if err := buildIntegrationPackage(); err != nil {
-			return fmt.Errorf("failed to build the integration package: %w", err)
-		}
-
-		return nil
-	})
-
-	if err := errg.Wait(); err != nil {
-		log.Fatal(err)
-	}
+	*/
 
 	errg.Go(func() error {
 		log.Println("INFO: cleaning up Elasticsearch...")
@@ -63,14 +65,16 @@ func TestMain(m *testing.M) {
 		return nil
 	})
 
-	errg.Go(func() error {
-		log.Println("INFO: setting up fleet...")
-		if err := InitFleet(); err != nil {
-			return fmt.Errorf("failed to setup fleet: %w", err)
-		}
+	/*
+		errg.Go(func() error {
+			log.Println("INFO: setting up fleet...")
+			if err := InitFleet(); err != nil {
+				return fmt.Errorf("failed to setup fleet: %w", err)
+			}
 
-		return nil
-	})
+			return nil
+		})
+	*/
 
 	if err := errg.Wait(); err != nil {
 		log.Fatal(err)
