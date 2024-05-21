@@ -1,0 +1,6 @@
+apiVersion: v2
+name: apm-server-testing
+description: A Helm chart for deploying APM Server and the stack for testing
+type: application
+version: 0.1.0
+appVersion: "git"

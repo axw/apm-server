@@ -3,7 +3,10 @@ kind: ApmServer
 metadata:
   name: apm-server
 spec:
-  version: 8.15.0-c0a6b373-SNAPSHOT
+  version: {{ default .Values.version (.Values.apm_server).version }}
+{{- if $version := (.Values.apm_server).image }}
+  image: {{ $version }}
+{{- end }}
   count: 1
   http:
     tls:
@@ -11,6 +14,9 @@ spec:
         disabled: true
   config:
     apm-server:
+      auth:
+        api_key:
+          enabled: true
       pprof:
         enabled: true
       expvar:

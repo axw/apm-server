@@ -1,0 +1,113 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: elasticsearch
+spec:
+  version: {{ default .Values.version (.Values.elasticsearch).version }}
+{{- if $version := (.Values.elasticsearch).image }}
+  image: {{ $version }}
+{{- end }}
+  auth:
+    fileRealm:
+      - secretName: elasticsearch-admin
+  nodeSets:
+  - name: default
+    count: 1
+    config:
+      node.store.allow_mmap: false
+      xpack.apm_data.enabled: true
+    podTemplate:
+      spec:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          fsGroup: 1000
+        containers:
+        - name: elasticsearch
+          env:
+            # Disable the pod PreStop hook wait time,0 since we don't care about
+            # high availability in our local dev environments. See:
+            # https://www.elastic.co/guide/en/cloud-on-k8s/master/k8s-prestop.html
+            - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
+              value: "0"
+        # Use an emptyDir volume for Elasticsearch data, removing the need for
+        # PersistentVolume(Claim)s and minimising delays in local dev environment
+        # setup/teardown. See:
+        # https://www.elastic.co/guide/en/cloud-on-k8s/master/k8s-volume-claim-templates.html#k8s_emptydir
+        volumes:
+        - name: elasticsearch-data
+          emptyDir:
+            sizeLimit: 2Gi
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+---
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: kibana
+spec:
+  version: {{ default .Values.version (.Values.kibana).version }}
+{{- if $version := (.Values.kibana).image }}
+  image: {{ $version }}
+{{- end }}
+  count: 1
+  elasticsearchRef:
+    name: elasticsearch
+    namespace: default
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+  podTemplate:
+    spec:
+      containers:
+      - name: kibana
+        resources:
+          limits:
+            memory: "1Gi"
+          requests:
+            memory: "512Mi"
+        readinessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+          httpGet:
+            path: /api/status
+            port: 5601
+            scheme: HTTP
+            httpHeaders:
+            - name: Authorization
+              value: Basic YWRtaW46Y2hhbmdlbWU= # admin:changeme
+  config:
+    xpack.banners.placement: top
+    xpack.banners.textContent: Log in credentials are `admin/changeme` by default
+    xpack.fleet.agents.elasticsearch.hosts: ["http://elasticsearch-es-http.default.svc:9200"]
+    xpack.fleet.agentIdVerificationEnabled: false
+    xpack.fleet.packages:
+    - name: system
+      version: latest
+    - name: kubernetes
+      version: latest
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elasticsearch-admin
+type: kubernetes.io/basic-auth
+stringData:
+  username: admin
+  password: changeme
+  roles: superuser
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: eck-trial-license
+  namespace: elastic-system
+  labels:
+    license.k8s.elastic.co/type: enterprise_trial
+  annotations:
+    elastic.co/eula: accepted
